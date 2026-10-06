@@ -1,0 +1,49 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Lauriethefish/QuestPatcher.QMod/main/QuestPatcher.QMod/Resources/qmod.schema.json",
+  "_QPVersion": "0.1.1",
+  "name": "RankedTools",
+  "id": "beatleaderpp",
+  "author": "BeatLeaderPP contributors",
+  "version": "0.1.20",
+  "packageId": "com.beatgames.beatsaber",
+  "packageVersion": "1.40.8_7379",
+  "description": "RankedTools creates BeatLeader and ScoreSaber recommendations plus a BeatLeader clan Maps to Conquer playlist.",
+  "dependencies": [],
+  "modFiles": ["${binary}"],
+
+  "libraryFiles": [],
+  "fileCopies": [
+    {
+      "name": "cacert.pem",
+      "destination": "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/cacert.pem"
+    },
+    {
+      "name": "beatleader_notplayed.png",
+      "destination": "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/beatleader_notplayed.png"
+    },
+    {
+      "name": "beatleader_toimprove.png",
+      "destination": "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/beatleader_toimprove.png"
+    },
+    {
+      "name": "beatleader_clan_toconquer.png",
+      "destination": "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/beatleader_clan_toconquer.png"
+    },
+    {
+      "name": "scoresaber_notplayed.png",
+      "destination": "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/scoresaber_notplayed.png"
+    },
+    {
+      "name": "scoresaber_toimprove.png",
+      "destination": "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/scoresaber_toimprove.png"
+    },
+    {
+      "name": "beatleader_ppgain.png",
+      "destination": "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/beatleader_ppgain.png"
+    },
+    {
+      "name": "scoresaber_ppgain.png",
+      "destination": "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/scoresaber_ppgain.png"
+    }
+  ]
+}

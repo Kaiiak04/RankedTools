@@ -1,0 +1,37 @@
+{
+  "id": 756146,
+  "map": {
+    "id": 226879,
+    "hash": "45F3CF5A78D70B559E82B4D67069E55F9263F377",
+    "bsid": "4d76e",
+    "songName": "Checkmate",
+    "songSubName": "(feat. Re.may)",
+    "songAuthorName": "ned x PahNic",
+    "levelAuthorName": "yabje",
+    "bpm": 246,
+    "coverUrl": "https://cdn.scoresaber.com/covers/45F3CF5A78D70B559E82B4D67069E55F9263F377.png",
+    "verified": true
+  },
+  "difficulty": {
+    "id": 756146,
+    "difficulty": 9,
+    "gameMode": "SoloStandard",
+    "rawDifficulty": "_ExpertPlus_SoloStandard"
+  },
+  "maxScore": 719555,
+  "legacyMaxScore": null,
+  "totalScores": 786,
+  "dailyScores": 9,
+  "createdAt": "2026-05-29T22:53:46.826Z",
+  "realm": {
+    "realmId": 1,
+    "realmName": "Default",
+    "leaderboardStatus": "RANKED",
+    "positiveModifiers": false,
+    "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+    "stars": 10.27,
+    "rankedAt": "2026-06-14T18:44:36.71Z",
+    "qualifiedAt": "2026-06-01T19:58:25.182Z",
+    "lovedAt": null
+  }
+}

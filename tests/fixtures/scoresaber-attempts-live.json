@@ -1,0 +1,1561 @@
+{
+  "data": [
+    {
+      "score": {
+        "id": 94440827,
+        "rank": 1,
+        "unmodifiedScore": 347950,
+        "modifiedScore": 347950,
+        "accuracy": 0.2439845314017453,
+        "pp": 0,
+        "weight": 0,
+        "mods": [],
+        "badCuts": 22,
+        "missedNotes": 14,
+        "maxCombo": 96,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 71.20288,
+        "hasHistory": true,
+        "createdAt": "2026-10-04T02:44:22.668Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 2244276,
+        "map": {
+          "id": 1713337,
+          "hash": "F1DFAB158BCBB52599467E8C67617A1D8E93335B",
+          "bsid": "53f72",
+          "songName": "GIMME FUCKIN' CHEESEBURGER",
+          "songSubName": "",
+          "songAuthorName": "Kill Karl",
+          "levelAuthorName": "vsauce djibouti group",
+          "bpm": 260,
+          "coverUrl": "https://cdn.scoresaber.com/covers/F1DFAB158BCBB52599467E8C67617A1D8E93335B.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 2244276,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1426115,
+        "legacyMaxScore": null,
+        "totalScores": 3,
+        "dailyScores": 0,
+        "createdAt": "2026-08-29T23:08:58.282Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94440806,
+        "rank": 2,
+        "unmodifiedScore": 175493,
+        "modifiedScore": 175493,
+        "accuracy": 0.12305669598875266,
+        "pp": 0,
+        "weight": 0,
+        "mods": [],
+        "badCuts": 6,
+        "missedNotes": 2,
+        "maxCombo": 93,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "RESTART",
+        "playOutcomeTime": 37.2403564,
+        "hasHistory": true,
+        "createdAt": "2026-10-04T02:43:06.742Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 2244276,
+        "map": {
+          "id": 1713337,
+          "hash": "F1DFAB158BCBB52599467E8C67617A1D8E93335B",
+          "bsid": "53f72",
+          "songName": "GIMME FUCKIN' CHEESEBURGER",
+          "songSubName": "",
+          "songAuthorName": "Kill Karl",
+          "levelAuthorName": "vsauce djibouti group",
+          "bpm": 260,
+          "coverUrl": "https://cdn.scoresaber.com/covers/F1DFAB158BCBB52599467E8C67617A1D8E93335B.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 2244276,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1426115,
+        "legacyMaxScore": null,
+        "totalScores": 3,
+        "dailyScores": 0,
+        "createdAt": "2026-08-29T23:08:58.282Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94440758,
+        "rank": 1,
+        "unmodifiedScore": 265570,
+        "modifiedScore": 265570,
+        "accuracy": 0.1862192039211424,
+        "pp": 0,
+        "weight": 0,
+        "mods": [],
+        "badCuts": 10,
+        "missedNotes": 12,
+        "maxCombo": 128,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 51.2480469,
+        "hasHistory": true,
+        "createdAt": "2026-10-04T02:40:41.8Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 2244276,
+        "map": {
+          "id": 1713337,
+          "hash": "F1DFAB158BCBB52599467E8C67617A1D8E93335B",
+          "bsid": "53f72",
+          "songName": "GIMME FUCKIN' CHEESEBURGER",
+          "songSubName": "",
+          "songAuthorName": "Kill Karl",
+          "levelAuthorName": "vsauce djibouti group",
+          "bpm": 260,
+          "coverUrl": "https://cdn.scoresaber.com/covers/F1DFAB158BCBB52599467E8C67617A1D8E93335B.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 2244276,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1426115,
+        "legacyMaxScore": null,
+        "totalScores": 3,
+        "dailyScores": 0,
+        "createdAt": "2026-08-29T23:08:58.282Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94440732,
+        "rank": 47,
+        "unmodifiedScore": 518932,
+        "modifiedScore": 518932,
+        "accuracy": 0.21569008048912783,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE"
+        ],
+        "badCuts": 0,
+        "missedNotes": 0,
+        "maxCombo": 588,
+        "fullCombo": true,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "QUIT",
+        "playOutcomeTime": 57.0979,
+        "hasHistory": true,
+        "createdAt": "2026-10-04T02:39:40.924Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 2244473,
+        "map": {
+          "id": 1713436,
+          "hash": "833DF762554679B10347FBC5CA80ACB5CB51A030",
+          "bsid": "5116a",
+          "songName": "Dawn of the Dragonstar",
+          "songSubName": "",
+          "songAuthorName": "Twilight Force",
+          "levelAuthorName": "Mayple",
+          "bpm": 350,
+          "coverUrl": "https://cdn.scoresaber.com/covers/833DF762554679B10347FBC5CA80ACB5CB51A030.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 2244473,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 2405915,
+        "legacyMaxScore": null,
+        "totalScores": 75,
+        "dailyScores": 1,
+        "createdAt": "2026-08-30T17:58:36.479Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "RANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 12.06,
+          "rankedAt": "2026-09-13T18:10:30.189Z",
+          "qualifiedAt": "2026-09-03T06:15:49.875Z",
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94440709,
+        "rank": 2,
+        "unmodifiedScore": 56875,
+        "modifiedScore": 56875,
+        "accuracy": 0.09252857200959856,
+        "pp": 0,
+        "weight": 0,
+        "mods": [],
+        "badCuts": 5,
+        "missedNotes": 7,
+        "maxCombo": 25,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 9.756836,
+        "hasHistory": true,
+        "createdAt": "2026-10-04T02:38:34.112Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 2247329,
+        "map": {
+          "id": 1715161,
+          "hash": "DE4AC2D9D9A65D53CE3848FD0291472B157697CB",
+          "bsid": "54660",
+          "songName": "overture",
+          "songSubName": "",
+          "songAuthorName": "you are an angel",
+          "levelAuthorName": "oermergeesh",
+          "bpm": 200,
+          "coverUrl": "https://cdn.scoresaber.com/covers/DE4AC2D9D9A65D53CE3848FD0291472B157697CB.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 2247329,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 614675,
+        "legacyMaxScore": null,
+        "totalScores": 3,
+        "dailyScores": 0,
+        "createdAt": "2026-09-17T04:05:22.195Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94440700,
+        "rank": 2,
+        "unmodifiedScore": 14673,
+        "modifiedScore": 14673,
+        "accuracy": 0.023871151421482897,
+        "pp": 0,
+        "weight": 0,
+        "mods": [],
+        "badCuts": 0,
+        "missedNotes": 5,
+        "maxCombo": 23,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 4.654541,
+        "hasHistory": true,
+        "createdAt": "2026-10-04T02:38:19.952Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 2247329,
+        "map": {
+          "id": 1715161,
+          "hash": "DE4AC2D9D9A65D53CE3848FD0291472B157697CB",
+          "bsid": "54660",
+          "songName": "overture",
+          "songSubName": "",
+          "songAuthorName": "you are an angel",
+          "levelAuthorName": "oermergeesh",
+          "bpm": 200,
+          "coverUrl": "https://cdn.scoresaber.com/covers/DE4AC2D9D9A65D53CE3848FD0291472B157697CB.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 2247329,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 614675,
+        "legacyMaxScore": null,
+        "totalScores": 3,
+        "dailyScores": 0,
+        "createdAt": "2026-09-17T04:05:22.195Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94433693,
+        "rank": 1,
+        "unmodifiedScore": 873722,
+        "modifiedScore": 873722,
+        "accuracy": 0.6817032399009109,
+        "pp": 0,
+        "weight": 0,
+        "mods": [],
+        "badCuts": 5,
+        "missedNotes": 18,
+        "maxCombo": 175,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 96.4406738,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T21:42:18.923Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 1850864,
+        "map": {
+          "id": 1321599,
+          "hash": "48870645456CE70415ED7DE355ABEECC7D491AA8",
+          "bsid": "5312b",
+          "songName": "Chou*Chou*Kou*Soku*De*Mae*Sai*Soku!!! Speed*Star*Kanade (feat. Nanahira)",
+          "songSubName": "",
+          "songAuthorName": "Camellia",
+          "levelAuthorName": "archie",
+          "bpm": 250,
+          "coverUrl": "https://cdn.scoresaber.com/covers/48870645456CE70415ED7DE355ABEECC7D491AA8.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 1850864,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1281675,
+        "legacyMaxScore": null,
+        "totalScores": 4,
+        "dailyScores": 0,
+        "createdAt": "2026-07-25T21:37:08.464Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94433652,
+        "rank": 1,
+        "unmodifiedScore": 284440,
+        "modifiedScore": 284440,
+        "accuracy": 0.2219283359666062,
+        "pp": 0,
+        "weight": 0,
+        "mods": [],
+        "badCuts": 4,
+        "missedNotes": 12,
+        "maxCombo": 119,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 38.16333,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T21:40:35.624Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 1850864,
+        "map": {
+          "id": 1321599,
+          "hash": "48870645456CE70415ED7DE355ABEECC7D491AA8",
+          "bsid": "5312b",
+          "songName": "Chou*Chou*Kou*Soku*De*Mae*Sai*Soku!!! Speed*Star*Kanade (feat. Nanahira)",
+          "songSubName": "",
+          "songAuthorName": "Camellia",
+          "levelAuthorName": "archie",
+          "bpm": 250,
+          "coverUrl": "https://cdn.scoresaber.com/covers/48870645456CE70415ED7DE355ABEECC7D491AA8.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 1850864,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1281675,
+        "legacyMaxScore": null,
+        "totalScores": 4,
+        "dailyScores": 0,
+        "createdAt": "2026-07-25T21:37:08.464Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94433637,
+        "rank": 297,
+        "unmodifiedScore": 626328,
+        "modifiedScore": 626328,
+        "accuracy": 0.38481809049548565,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE"
+        ],
+        "badCuts": 2,
+        "missedNotes": 1,
+        "maxCombo": 471,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 66.52405,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T21:39:51.16Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 70270,
+        "map": {
+          "id": 92734,
+          "hash": "87ECC58926A76C51A0719806E24F69E4C56C1D09",
+          "bsid": "145c",
+          "songName": "Speed of Link",
+          "songSubName": "",
+          "songAuthorName": "antiPLUR",
+          "levelAuthorName": "Hexagonial (EX+ by BananenTropfen)",
+          "bpm": 263,
+          "coverUrl": "https://cdn.scoresaber.com/covers/87ECC58926A76C51A0719806E24F69E4C56C1D09.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 70270,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1627595,
+        "legacyMaxScore": 1556830,
+        "totalScores": 1493,
+        "dailyScores": 0,
+        "createdAt": "2018-09-10T00:53:46Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94433618,
+        "rank": 1476,
+        "unmodifiedScore": 18386,
+        "modifiedScore": 18386,
+        "accuracy": 0.011296422021448824,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE"
+        ],
+        "badCuts": 1,
+        "missedNotes": 0,
+        "maxCombo": 26,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "RESTART",
+        "playOutcomeTime": 4.57019043,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T21:38:41.861Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 70270,
+        "map": {
+          "id": 92734,
+          "hash": "87ECC58926A76C51A0719806E24F69E4C56C1D09",
+          "bsid": "145c",
+          "songName": "Speed of Link",
+          "songSubName": "",
+          "songAuthorName": "antiPLUR",
+          "levelAuthorName": "Hexagonial (EX+ by BananenTropfen)",
+          "bpm": 263,
+          "coverUrl": "https://cdn.scoresaber.com/covers/87ECC58926A76C51A0719806E24F69E4C56C1D09.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 70270,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1627595,
+        "legacyMaxScore": 1556830,
+        "totalScores": 1493,
+        "dailyScores": 0,
+        "createdAt": "2018-09-10T00:53:46Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94433615,
+        "rank": 1338,
+        "unmodifiedScore": 46387,
+        "modifiedScore": 46387,
+        "accuracy": 0.028500333313877222,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE"
+        ],
+        "badCuts": 0,
+        "missedNotes": 3,
+        "maxCombo": 54,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 7.58105469,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T21:38:26.416Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 70270,
+        "map": {
+          "id": 92734,
+          "hash": "87ECC58926A76C51A0719806E24F69E4C56C1D09",
+          "bsid": "145c",
+          "songName": "Speed of Link",
+          "songSubName": "",
+          "songAuthorName": "antiPLUR",
+          "levelAuthorName": "Hexagonial (EX+ by BananenTropfen)",
+          "bpm": 263,
+          "coverUrl": "https://cdn.scoresaber.com/covers/87ECC58926A76C51A0719806E24F69E4C56C1D09.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 70270,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1627595,
+        "legacyMaxScore": 1556830,
+        "totalScores": 1493,
+        "dailyScores": 0,
+        "createdAt": "2018-09-10T00:53:46Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94433614,
+        "rank": 570,
+        "unmodifiedScore": 220042,
+        "modifiedScore": 220042,
+        "accuracy": 0.13519456621579692,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE"
+        ],
+        "badCuts": 1,
+        "missedNotes": 0,
+        "maxCombo": 227,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "RESTART",
+        "playOutcomeTime": 22.0664063,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T21:38:17.187Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 70270,
+        "map": {
+          "id": 92734,
+          "hash": "87ECC58926A76C51A0719806E24F69E4C56C1D09",
+          "bsid": "145c",
+          "songName": "Speed of Link",
+          "songSubName": "",
+          "songAuthorName": "antiPLUR",
+          "levelAuthorName": "Hexagonial (EX+ by BananenTropfen)",
+          "bpm": 263,
+          "coverUrl": "https://cdn.scoresaber.com/covers/87ECC58926A76C51A0719806E24F69E4C56C1D09.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 70270,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1627595,
+        "legacyMaxScore": 1556830,
+        "totalScores": 1493,
+        "dailyScores": 0,
+        "createdAt": "2018-09-10T00:53:46Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94433600,
+        "rank": 1491,
+        "unmodifiedScore": 996,
+        "modifiedScore": 996,
+        "accuracy": 0.0006119458464790074,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE"
+        ],
+        "badCuts": 0,
+        "missedNotes": 0,
+        "maxCombo": 5,
+        "fullCombo": true,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "RESTART",
+        "playOutcomeTime": 2.52514648,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T21:37:52.12Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 70270,
+        "map": {
+          "id": 92734,
+          "hash": "87ECC58926A76C51A0719806E24F69E4C56C1D09",
+          "bsid": "145c",
+          "songName": "Speed of Link",
+          "songSubName": "",
+          "songAuthorName": "antiPLUR",
+          "levelAuthorName": "Hexagonial (EX+ by BananenTropfen)",
+          "bpm": 263,
+          "coverUrl": "https://cdn.scoresaber.com/covers/87ECC58926A76C51A0719806E24F69E4C56C1D09.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 70270,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1627595,
+        "legacyMaxScore": 1556830,
+        "totalScores": 1493,
+        "dailyScores": 0,
+        "createdAt": "2018-09-10T00:53:46Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94433596,
+        "rank": 1072,
+        "unmodifiedScore": 85513,
+        "modifiedScore": 85513,
+        "accuracy": 0.052539483102368834,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE"
+        ],
+        "badCuts": 1,
+        "missedNotes": 0,
+        "maxCombo": 103,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "QUIT",
+        "playOutcomeTime": 10.0853271,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T21:37:46.094Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 70270,
+        "map": {
+          "id": 92734,
+          "hash": "87ECC58926A76C51A0719806E24F69E4C56C1D09",
+          "bsid": "145c",
+          "songName": "Speed of Link",
+          "songSubName": "",
+          "songAuthorName": "antiPLUR",
+          "levelAuthorName": "Hexagonial (EX+ by BananenTropfen)",
+          "bpm": 263,
+          "coverUrl": "https://cdn.scoresaber.com/covers/87ECC58926A76C51A0719806E24F69E4C56C1D09.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 70270,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1627595,
+        "legacyMaxScore": 1556830,
+        "totalScores": 1493,
+        "dailyScores": 0,
+        "createdAt": "2018-09-10T00:53:46Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94414351,
+        "rank": 3,
+        "unmodifiedScore": 4319466,
+        "modifiedScore": 4319466,
+        "accuracy": 0.8970117716199814,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE"
+        ],
+        "badCuts": 1,
+        "missedNotes": 2,
+        "maxCombo": 4206,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 617.956055,
+        "hasHistory": false,
+        "createdAt": "2026-10-03T04:26:30.322Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 2249837,
+        "map": {
+          "id": 1716602,
+          "hash": "6C40740ED09FF5CB898FD0E66B3AE3F9E5A6ADD2",
+          "bsid": "54a5e",
+          "songName": "megalab of a lifetime",
+          "songSubName": "",
+          "songAuthorName": "reallerr",
+          "levelAuthorName": "Blorbo Mapping Group",
+          "bpm": 197,
+          "coverUrl": "https://cdn.scoresaber.com/covers/6C40740ED09FF5CB898FD0E66B3AE3F9E5A6ADD2.png",
+          "verified": false
+        },
+        "difficulty": {
+          "id": 2249837,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 4815395,
+        "legacyMaxScore": null,
+        "totalScores": 20,
+        "dailyScores": 11,
+        "createdAt": "2026-10-01T02:32:16.585Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "UNRANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 0,
+          "rankedAt": null,
+          "qualifiedAt": null,
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94414170,
+        "rank": 62,
+        "unmodifiedScore": 1111031,
+        "modifiedScore": 1111031,
+        "accuracy": 0.9433788077327873,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE",
+          "DA"
+        ],
+        "badCuts": 0,
+        "missedNotes": 3,
+        "maxCombo": 1249,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 145.759277,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T04:11:59.863Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 640396,
+        "map": {
+          "id": 27813,
+          "hash": "287216EA522FD427A23F74350A7CCFBF01BCE7AD",
+          "bsid": "40d3a",
+          "songName": "Bookmaker",
+          "songSubName": "(2D Version)",
+          "songAuthorName": "Kobaryo",
+          "levelAuthorName": "Slayx & azu",
+          "bpm": 175,
+          "coverUrl": "https://cdn.scoresaber.com/covers/287216EA522FD427A23F74350A7CCFBF01BCE7AD.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 640396,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1177715,
+        "legacyMaxScore": null,
+        "totalScores": 619,
+        "dailyScores": 1,
+        "createdAt": "2025-01-18T19:09:58Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "RANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 12.13,
+          "rankedAt": "2025-02-09T19:37:02Z",
+          "qualifiedAt": "2025-01-28T18:39:17Z",
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94413994,
+        "rank": 1,
+        "unmodifiedScore": 1341539,
+        "modifiedScore": 1341539,
+        "accuracy": 0.9785721329814573,
+        "pp": 764.866860432018,
+        "weight": 0.4566683292463226,
+        "mods": [
+          "BE",
+          "DA"
+        ],
+        "badCuts": 0,
+        "missedNotes": 0,
+        "maxCombo": 1498,
+        "fullCombo": true,
+        "hasReplay": true,
+        "personalBest": true,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "CLEAR",
+        "playOutcomeTime": null,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T03:59:13.712Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 668975,
+        "map": {
+          "id": 25300,
+          "hash": "24CC2E40A93DBD9E7BE6645E73248D70FF925E88",
+          "bsid": "472f6",
+          "songName": "Seraph's Trial",
+          "songSubName": "",
+          "songAuthorName": "Salad Savior",
+          "levelAuthorName": "Bitz & WalkingKat",
+          "bpm": 210,
+          "coverUrl": "https://cdn.scoresaber.com/covers/24CC2E40A93DBD9E7BE6645E73248D70FF925E88.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 668975,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1370915,
+        "legacyMaxScore": null,
+        "totalScores": 256,
+        "dailyScores": 4,
+        "createdAt": "2025-08-22T13:09:07Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "RANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 12.02,
+          "rankedAt": "2025-09-14T18:25:32Z",
+          "qualifiedAt": "2025-08-26T13:06:16Z",
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94413939,
+        "rank": 217,
+        "unmodifiedScore": 28235,
+        "modifiedScore": 28235,
+        "accuracy": 0.020595948047579214,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE",
+          "DA"
+        ],
+        "badCuts": 0,
+        "missedNotes": 0,
+        "maxCombo": 39,
+        "fullCombo": true,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "RESTART",
+        "playOutcomeTime": 14.512207,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T03:55:37.907Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 668975,
+        "map": {
+          "id": 25300,
+          "hash": "24CC2E40A93DBD9E7BE6645E73248D70FF925E88",
+          "bsid": "472f6",
+          "songName": "Seraph's Trial",
+          "songSubName": "",
+          "songAuthorName": "Salad Savior",
+          "levelAuthorName": "Bitz & WalkingKat",
+          "bpm": 210,
+          "coverUrl": "https://cdn.scoresaber.com/covers/24CC2E40A93DBD9E7BE6645E73248D70FF925E88.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 668975,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1370915,
+        "legacyMaxScore": null,
+        "totalScores": 256,
+        "dailyScores": 4,
+        "createdAt": "2025-08-22T13:09:07Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "RANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 12.02,
+          "rankedAt": "2025-09-14T18:25:32Z",
+          "qualifiedAt": "2025-08-26T13:06:16Z",
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94413933,
+        "rank": 215,
+        "unmodifiedScore": 220917,
+        "modifiedScore": 220917,
+        "accuracy": 0.1611454150451827,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE",
+          "DA"
+        ],
+        "badCuts": 1,
+        "missedNotes": 0,
+        "maxCombo": 234,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "QUIT",
+        "playOutcomeTime": 62.42627,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T03:55:19.565Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 668975,
+        "map": {
+          "id": 25300,
+          "hash": "24CC2E40A93DBD9E7BE6645E73248D70FF925E88",
+          "bsid": "472f6",
+          "songName": "Seraph's Trial",
+          "songSubName": "",
+          "songAuthorName": "Salad Savior",
+          "levelAuthorName": "Bitz & WalkingKat",
+          "bpm": 210,
+          "coverUrl": "https://cdn.scoresaber.com/covers/24CC2E40A93DBD9E7BE6645E73248D70FF925E88.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 668975,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1370915,
+        "legacyMaxScore": null,
+        "totalScores": 256,
+        "dailyScores": 4,
+        "createdAt": "2025-08-22T13:09:07Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "RANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 12.02,
+          "rankedAt": "2025-09-14T18:25:32Z",
+          "qualifiedAt": "2025-08-26T13:06:16Z",
+          "lovedAt": null
+        }
+      }
+    },
+    {
+      "score": {
+        "id": 94413914,
+        "rank": 211,
+        "unmodifiedScore": 291233,
+        "modifiedScore": 291233,
+        "accuracy": 0.2124371921915898,
+        "pp": 0,
+        "weight": 0,
+        "mods": [
+          "BE",
+          "DA"
+        ],
+        "badCuts": 3,
+        "missedNotes": 0,
+        "maxCombo": 234,
+        "fullCombo": false,
+        "hasReplay": false,
+        "personalBest": false,
+        "legacyHmdId": null,
+        "version": "3.4.0.0",
+        "playOutcome": "FAIL",
+        "playOutcomeTime": 70.65332,
+        "hasHistory": true,
+        "createdAt": "2026-10-03T03:54:11.759Z",
+        "player": {
+          "id": "1922350521131465",
+          "name": "oermer",
+          "playerNameInGame": "oermer",
+          "avatar": "https://cdn.scoresaber.com/avatars/1922350521131465.jpg",
+          "avatarVersion": 1783881321,
+          "country": "US",
+          "role": null,
+          "permissions": 0
+        },
+        "device": {
+          "hmd": "Quest 3",
+          "controllerLeft": "Touch",
+          "controllerRight": "Touch"
+        }
+      },
+      "leaderboard": {
+        "id": 668975,
+        "map": {
+          "id": 25300,
+          "hash": "24CC2E40A93DBD9E7BE6645E73248D70FF925E88",
+          "bsid": "472f6",
+          "songName": "Seraph's Trial",
+          "songSubName": "",
+          "songAuthorName": "Salad Savior",
+          "levelAuthorName": "Bitz & WalkingKat",
+          "bpm": 210,
+          "coverUrl": "https://cdn.scoresaber.com/covers/24CC2E40A93DBD9E7BE6645E73248D70FF925E88.png",
+          "verified": true
+        },
+        "difficulty": {
+          "id": 668975,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "rawDifficulty": "_ExpertPlus_SoloStandard"
+        },
+        "maxScore": 1370915,
+        "legacyMaxScore": null,
+        "totalScores": 256,
+        "dailyScores": 4,
+        "createdAt": "2025-08-22T13:09:07Z",
+        "realm": {
+          "realmId": 1,
+          "realmName": "",
+          "leaderboardStatus": "RANKED",
+          "positiveModifiers": false,
+          "modifierValues": "[[\"NO\",-0.05],[\"NB\",-0.1],[\"NF\",-0.5],[\"SS\",-0.3],[\"NA\",-0.3],[\"FS\",0.08],[\"DA\",0.02],[\"GN\",0.04]]",
+          "stars": 12.02,
+          "rankedAt": "2025-09-14T18:25:32Z",
+          "qualifiedAt": "2025-08-26T13:06:16Z",
+          "lovedAt": null
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "page": 1,
+    "itemsPerPage": 20,
+    "totalItems": 8355,
+    "totalPages": 418
+  }
+}

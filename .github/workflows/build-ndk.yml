@@ -1,0 +1,60 @@
+name: Quest build and regression checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the tested Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'ndk;26.3.11579264'
+          echo "$ANDROID_HOME/ndk/26.3.11579264" > ndkpath.txt
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> "$GITHUB_ENV"
+
+      - name: Restore QPM dependencies
+        uses: Fernthedev/qpm-action@b15763e607f639cd0452b25927ddd353ce1f2f0f
+        with:
+          qpm_version: version@=1.5.11
+          workflow_token: ${{ secrets.GITHUB_TOKEN }}
+          resolve_ndk: 'false'
+          restore: 'true'
+          cache: 'true'
+
+      - name: Compile Quest mod
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -B build
+          cmake --build build --parallel 2
+
+      - name: Run production regression checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
+          flags=(--target=x86_64-linux-android24 -std=c++20 -static -O1 -ffunction-sections -fdata-sections -Wl,--gc-sections -I include -I extern/includes -I extern/includes/beatsaber-hook/shared/rapidjson/include)
+          "$compiler" "${flags[@]}" tests/recommendation_tests.cpp -o tests/recommendation_tests
+          "$compiler" "${flags[@]}" tests/playlist_writer_tests.cpp src/recommendation.cpp src/attempt_history.cpp -o tests/playlist_writer_tests
+          ./tests/recommendation_tests
+          ./tests/playlist_writer_tests
+
+      # Binary artifacts/releases are withheld until the bundled OpenSSL 1.1.1
+      # dependency has a GPL-compatible replacement or exception.
