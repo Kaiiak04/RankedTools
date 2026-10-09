@@ -53,8 +53,10 @@ jobs:
           flags=(--target=x86_64-linux-android24 -std=c++20 -static -O1 -ffunction-sections -fdata-sections -Wl,--gc-sections -I include -I extern/includes -I extern/includes/beatsaber-hook/shared/rapidjson/include)
           "$compiler" "${flags[@]}" tests/recommendation_tests.cpp -o tests/recommendation_tests
           "$compiler" "${flags[@]}" tests/playlist_writer_tests.cpp src/recommendation.cpp src/attempt_history.cpp -o tests/playlist_writer_tests
+          "$compiler" "${flags[@]}" tests/http_client_tests.cpp -o tests/http_client_tests
           ./tests/recommendation_tests
           ./tests/playlist_writer_tests
+          ./tests/http_client_tests
 
       # Binary artifacts/releases are withheld until the bundled OpenSSL 1.1.1
       # dependency has a GPL-compatible replacement or exception.

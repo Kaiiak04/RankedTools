@@ -4,12 +4,13 @@
   "name": "RankedTools",
   "id": "beatleaderpp",
   "author": "BeatLeaderPP contributors",
-  "version": "0.1.20",
+  "version": "0.1.22",
   "packageId": "com.beatgames.beatsaber",
   "packageVersion": "1.40.8_7379",
   "description": "RankedTools creates BeatLeader and ScoreSaber recommendations plus a BeatLeader clan Maps to Conquer playlist.",
   "dependencies": [],
-  "modFiles": ["${binary}"],
+  "modFiles": [],
+  "lateModFiles": ["${binary}"],
 
   "libraryFiles": [],
   "fileCopies": [

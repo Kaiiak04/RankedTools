@@ -5,10 +5,14 @@
 #include "recommendation_api.hpp"
 #include "recommendation_view.hpp"
 #include "refresh_settings.hpp"
+#include "refresh_tasks.hpp"
 #include "account_view.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <exception>
+#include <iomanip>
+#include <sstream>
 #include <thread>
 #include <utility>
 
@@ -157,6 +161,7 @@ static bool RefreshClanPlaylist(const RefreshSettings& settings,
 }
 
 static void RefreshAll(const RefreshSettings& settings) {
+    const auto started = std::chrono::steady_clock::now();
     const int limit = settings.limit;
     const auto minClearRate = settings.minClearRate;
     bool attempted = false;
@@ -165,28 +170,56 @@ static void RefreshAll(const RefreshSettings& settings) {
     ScoreHistory beatLeaderHistory, scoreSaberHistory;
     std::string clanIconWarnings;
     beatLeaderHistory.importAttempts = scoreSaberHistory.importAttempts = settings.importAttempts;
-    if (settings.enableBeatLeader) {
-        attempted = true;
-        const auto& id = settings.beatLeaderPlayerId;
-        allSucceeded = RefreshPlaylist("BeatLeader", id, limit, minClearRate, settings.simpleMode,
-                                       beatLeaderHistory, &beatLeaderNotPlayedRange) && allSucceeded;
-    } else {
+    if (!settings.enableBeatLeader) {
         // Disabled services are not fetched. Remove only files from the other
         // layout so Simple Mode cannot leave old split playlists visible.
         allSucceeded = PruneDisabledServiceLayout("BeatLeader", settings.simpleMode) && allSucceeded;
     }
-    if (settings.enableClanPlaylist) {
+    if (!settings.enableScoreSaber) {
+        allSucceeded = PruneDisabledServiceLayout("ScoreSaber", settings.simpleMode) && allSucceeded;
+    }
+
+    const auto timed = [](const char* name, const std::function<bool()>& task) {
+        const auto before = GetHttpStatistics();
+        const auto start = std::chrono::steady_clock::now();
+        const bool success = task();
+        const auto after = GetHttpStatistics();
+        const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        PaperLogger.info("{} refresh: {:.2f}s, {} HTTPS requests, {} new connections, {:.2f}s in HTTPS.",
+            name, elapsed, after.requests - before.requests, after.connections - before.connections,
+            after.seconds - before.seconds);
+        return success;
+    };
+    std::function<bool()> beatLeaderTask, scoreSaberTask;
+    if (settings.enableBeatLeader || settings.enableClanPlaylist) {
         attempted = true;
-        allSucceeded = RefreshClanPlaylist(settings, beatLeaderHistory, &beatLeaderNotPlayedRange, clanIconWarnings) && allSucceeded;
+        beatLeaderTask = [&] {
+            bool success = true;
+            if (settings.enableBeatLeader) success = timed("BeatLeader", [&] {
+                return RefreshPlaylist("BeatLeader", settings.beatLeaderPlayerId, limit, minClearRate,
+                    settings.simpleMode, beatLeaderHistory, &beatLeaderNotPlayedRange);
+            });
+            if (settings.enableClanPlaylist) success = timed("BeatLeader clans", [&] {
+                return RefreshClanPlaylist(settings, beatLeaderHistory, &beatLeaderNotPlayedRange, clanIconWarnings);
+            }) && success;
+            return success;
+        };
     }
     if (settings.enableScoreSaber) {
         attempted = true;
-        const auto& id = settings.scoreSaberPlayerId;
-        allSucceeded = RefreshPlaylist("ScoreSaber", id, limit, minClearRate, settings.simpleMode,
-                                       scoreSaberHistory) && allSucceeded;
-    } else {
-        allSucceeded = PruneDisabledServiceLayout("ScoreSaber", settings.simpleMode) && allSucceeded;
+        scoreSaberTask = [&] { return timed("ScoreSaber", [&] {
+            return RefreshPlaylist("ScoreSaber", settings.scoreSaberPlayerId, limit, minClearRate,
+                settings.simpleMode, scoreSaberHistory);
+        }); };
     }
+    const auto results = RunRefreshTasks(beatLeaderTask, scoreSaberTask);
+    for (size_t i = 0; i < results.size(); ++i) {
+        allSucceeded = results[i].succeeded && allSucceeded;
+        if (!results[i].error.empty())
+            SetStatus(std::string(i == 0 ? "BeatLeader" : "ScoreSaber") + " refresh stopped: " + results[i].error);
+    }
+    const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    PaperLogger.info("Recommendation refresh finished in {:.2f}s (success: {}).", elapsed, allSucceeded);
     if (!attempted) SetStatus("Enable at least one playlist type in Mod Settings before refreshing.");
     else if (allSucceeded) {
         std::string warning = clanIconWarnings;
@@ -196,7 +229,9 @@ static void RefreshAll(const RefreshSettings& settings) {
                 warning += "\n" + history->attemptWarning;
             }
         }
-        SetStatus("Playlists updated." + warning);
+        std::ostringstream status;
+        status << "Playlists updated in " << std::fixed << std::setprecision(1) << elapsed << "s." << warning;
+        SetStatus(status.str());
     }
     else SetStatus("Refresh finished with errors. See the mod log for details.");
     refreshInProgress.store(false);

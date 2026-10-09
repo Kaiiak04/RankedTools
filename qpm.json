@@ -1,12 +1,12 @@
 {
   "$schema": "https://raw.githubusercontent.com/QuestPackageManager/QPM.Package/refs/heads/main/qpm.schema.json",
-  "version": "0.1.20",
+  "version": "0.1.22",
   "sharedDir": "shared",
   "dependenciesDir": "extern",
   "info": {
     "name": "RankedTools",
     "id": "beatleaderpp",
-    "version": "0.1.20",
+    "version": "0.1.22",
     "url": "https://github.com/Kaiiak04/RankedTools",
     "additionalData": {
       "overrideSoName": "libbeatleaderpp.so",

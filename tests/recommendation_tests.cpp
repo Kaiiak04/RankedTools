@@ -15,6 +15,7 @@
 #include "../src/account.cpp"
 #include "../src/recommendation_api.cpp"
 #include "refresh_settings.hpp"
+#include "refresh_tasks.hpp"
 
 using namespace rankedpractice;
 int checks = 0;
@@ -672,6 +673,27 @@ void ActualAttemptSchemas() {
     CHECK(LoadScoreHistory("999993", RatingSystem::ScoreSaber, history, error, get, false));
     CHECK(explicitCalls == 1 && fallbackCalls == 1 && history.attempts.size() == 20 && history.attemptWarning.empty());
     std::filesystem::remove(path);
+    // A rejected realm query needs one retry for the whole import, not one
+    // rejected request on every page. Returned chart realms stay validated.
+    history = {};
+    explicitCalls = fallbackCalls = 0;
+    HttpGetter multiplePages = [&](const std::string& url, std::string& body, std::string& message) {
+        if (url.find("personalBest=all") == std::string::npos) { body = Page(1, 1, {Chart(1, 7, true)}); return true; }
+        if (url.find("realmId=1") != std::string::npos) { ++explicitCalls; message = "Leaderboard API returned HTTP 400."; return false; }
+        ++fallbackCalls;
+        rapidjson::Document doc; doc.Parse(ssBody.c_str());
+        const int page = fallbackCalls;
+        doc["metadata"]["page"].SetInt(page);
+        doc["metadata"]["totalItems"].SetInt(40);
+        doc["metadata"]["totalPages"].SetInt(2);
+        for (auto& row : doc["data"].GetArray()) row["score"]["id"].SetInt(10000 * page + row["score"]["id"].GetInt() % 10000);
+        rapidjson::StringBuffer output; rapidjson::Writer<rapidjson::StringBuffer> serializer(output); doc.Accept(serializer);
+        body = output.GetString();
+        return true;
+    };
+    CHECK(LoadScoreHistory("999993", RatingSystem::ScoreSaber, history, error, multiplePages, false));
+    CHECK(explicitCalls == 1 && fallbackCalls == 2 && history.attempts.size() == 40 && history.attemptWarning.empty());
+    std::filesystem::remove(path);
     const auto blCharts = Parse(ReadFile("tests/fixtures/beatleader-attempt-chart-live.json"));
     Attempt localChart = Run(1, AttemptOutcome::Fail);
     localChart.hash = blCharts.front().hash; localChart.difficulty = blCharts.front().difficulties.front().name;
@@ -965,6 +987,86 @@ void AccountLookupContract() {
     std::cout << "PASS: account links, aliases and linked IDs, exact identity, paginated searches, ambiguous names and stale-reply protection\n";
 }
 
+void ConcurrentRefreshContract() {
+    std::promise<void> firstStarted, secondStarted;
+    auto firstReady = firstStarted.get_future();
+    auto secondReady = secondStarted.get_future();
+    // Each task must start while the other is still running. A timeout gives a
+    // useful failure rather than hanging if orchestration becomes sequential.
+    const auto parallel = RunRefreshTasks([&] {
+        firstStarted.set_value();
+        return secondReady.wait_for(std::chrono::seconds(3)) == std::future_status::ready;
+    }, [&] {
+        secondStarted.set_value();
+        return firstReady.wait_for(std::chrono::seconds(3)) == std::future_status::ready;
+    });
+    CHECK(parallel[0].succeeded && parallel[1].succeeded);
+    CHECK(parallel[0].error.empty() && parallel[1].error.empty());
+    bool otherFinished = false;
+    const auto failure = RunRefreshTasks([]() -> bool { throw std::runtime_error("first failed"); }, [&] {
+        otherFinished = true; return true;
+    });
+    CHECK(!failure[0].succeeded && failure[0].error == "first failed");
+    CHECK(failure[1].succeeded && otherFinished);
+    const auto unknown = RunRefreshTasks([]() -> bool { throw 42; }, [] { return false; });
+    CHECK(!unknown[0].succeeded && !unknown[0].error.empty());
+    CHECK(!unknown[1].succeeded && unknown[1].error.empty());
+    int calls = 0;
+    const auto single = RunRefreshTasks({}, [&] { ++calls; return true; });
+    CHECK(calls == 1 && single[0].succeeded && single[1].succeeded);
+    const auto disabled = RunRefreshTasks({}, {});
+    CHECK(disabled[0].succeeded && disabled[1].succeeded);
+    std::cout << "PASS: concurrent providers, independent failures, joined completion and disabled services\n";
+}
+
+void DefaultRealmCompatibility() {
+    for (const auto& url : {"https://example.test/maps?realmId=1&limit=100", "https://example.test/maps?limit=100&realmId=1",
+                           "https://example.test/maps?realmId=1"}) {
+        int explicitCalls = 0, defaultCalls = 0;
+        const auto compatible = DefaultRealmCompatibleGet([&](const std::string& request, std::string& body, std::string& error) {
+            if (request.find("realmId=1") != std::string::npos) {
+                ++explicitCalls; error = "Leaderboard API returned HTTP 400."; return false;
+            }
+            ++defaultCalls;
+            CHECK(request.find("?&") == std::string::npos);
+            CHECK(request.find("?limit=100") != std::string::npos || request == "https://example.test/maps");
+            body = "{}"; return true;
+        });
+        std::string body, error;
+        CHECK(compatible(url, body, error));
+        CHECK(compatible(url, body, error));
+        CHECK(explicitCalls == 1 && defaultCalls == 2 && error.empty());
+    }
+    int calls = 0;
+    auto failure = DefaultRealmCompatibleGet([&](const std::string&, std::string&, std::string& error) {
+        ++calls; error = "Leaderboard API returned HTTP 429."; return false;
+    });
+    std::string body, error;
+    CHECK(!failure("https://example.test/maps?realmId=1", body, error) && calls == 1);
+    const auto sample = ReadFile("tests/fixtures/scoresaber-v2-maps.json");
+    std::vector<MapEntry> maps;
+    CHECK(ParseScoreSaberEntries(sample, maps, error));
+    CHECK(maps.size() == 3);
+    for (int realmId : {0, 2}) {
+        rapidjson::Document document; document.Parse(sample.c_str());
+        document["data"][1]["realm"]["realmId"].SetInt(realmId);
+        rapidjson::StringBuffer output; rapidjson::Writer<rapidjson::StringBuffer> writer(output); document.Accept(writer);
+        maps.clear();
+        CHECK(!ParseScoreSaberEntries(output.GetString(), maps, error) && maps.empty());
+    }
+    ScoreHistory history{true, "123", RatingSystem::ScoreSaber, {Score(999)}};
+    int explicitCalls = 0, pages = 0;
+    auto candidates = [&](const std::string& request, std::string& body, std::string& error) {
+        if (request.find("realmId=1") != std::string::npos) { ++explicitCalls; error = "Leaderboard API returned HTTP 400."; return false; }
+        ++pages;
+        body = Page(pages, 2, {Chart(pages, 7)}); return true;
+    };
+    CHECK(FetchServiceRecommendations(RatingSystem::ScoreSaber, "123", ListKind::NotPlayed, 16, maps,
+        error, 0.0, nullptr, &history, candidates, false));
+    CHECK(explicitCalls == 1 && pages == 2 && !maps.empty());
+    std::cout << "PASS: one realm fallback per operation, accepted query formats and default rating validation\n";
+}
+
 int main(int argc, char** argv) {
     try {
         DatesAndParsing(); MonotonicAccuracy(); ModifiersAndPp(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); ClearRateAndSimpleMode();
@@ -973,6 +1075,8 @@ int main(int argc, char** argv) {
         AbilityChartContract();
         ClanIcons();
         AccountLookupContract();
+        ConcurrentRefreshContract();
+        DefaultRealmCompatibility();
         if (argc > 1 && std::string(argv[1]) == "--export-ability-chart") ExportAbilityPreview();
         std::cout << "All " << checks << " regression checks passed.\n";
     } catch (const std::exception& exception) {

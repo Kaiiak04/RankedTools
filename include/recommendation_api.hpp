@@ -4,8 +4,17 @@
 
 #include <string>
 #include <vector>
+#include <cstddef>
 
 namespace rankedpractice {
+
+// Per worker thread, including failed requests; never shared between services.
+struct HttpStatistics {
+    std::size_t requests{0};
+    long connections{0};
+    double seconds{0.0};
+};
+HttpStatistics GetHttpStatistics();
 
 struct StarRange {
     double minStars{0.0};

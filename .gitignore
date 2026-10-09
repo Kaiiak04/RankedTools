@@ -42,6 +42,7 @@ __pycache__/
 *.app
 tests/recommendation_tests
 tests/playlist_writer_tests
+tests/http_client_tests
 tests/attempt-sandbox/
 
 # Editor configuration is machine-local.

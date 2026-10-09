@@ -59,6 +59,16 @@ struct CurlResponse {
     size_t limit;
 };
 
+thread_local HttpStatistics httpStatistics;
+
+struct CurlSession {
+    CURL* handle{curl_easy_init()};
+    ~CurlSession() { if (handle) curl_easy_cleanup(handle); }
+    CurlSession(const CurlSession&) = delete;
+    CurlSession& operator=(const CurlSession&) = delete;
+    CurlSession() = default;
+};
+
 size_t CurlWrite(char* data, size_t size, size_t count, void* userData) {
     auto& response = *static_cast<CurlResponse*>(userData);
     if (count && size > std::numeric_limits<size_t>::max() / count) return 0;
@@ -75,14 +85,19 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
         error = "Could not initialize the HTTPS client.";
         return false;
     }
-    CURL* curl = curl_easy_init();
+    // Keep DNS, TLS sessions and live connections for this worker's whole
+    // refresh. Each thread owns a separate handle and releases it on exit.
+    thread_local CurlSession session;
+    CURL* curl = session.handle;
     if (!curl) {
         error = "Could not create an HTTPS request.";
         return false;
     }
     body.clear();
     CurlResponse response{body, limit};
+    curl_easy_reset(curl);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, std::min(10L, timeout));
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
@@ -104,7 +119,15 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
     const auto result = curl_easy_perform(curl);
     long responseCode = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &responseCode);
-    curl_easy_cleanup(curl);
+    long connections = 0;
+    double seconds = 0.0;
+    curl_easy_getinfo(curl, CURLINFO_NUM_CONNECTS, &connections);
+    curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &seconds);
+    ++httpStatistics.requests;
+    httpStatistics.connections += connections;
+    httpStatistics.seconds += seconds;
+    // Remove stack-owned callback pointers, while preserving the connection pool.
+    curl_easy_reset(curl);
     if (result != CURLE_OK) {
         error = std::string("Request failed: ") + curl_easy_strerror(result);
         return false;
@@ -531,6 +554,54 @@ bool FindAccountsInternal(AccountService service, const std::string& input, int 
     return ParseAccountPage(service, query, page, body, result, error);
 }
 
+HttpGetter DefaultRealmCompatibleGet(const HttpGetter& get) {
+    // Remember the API's rejected realm parameter for this paginated operation.
+    // Check the returned realm independently before using its ratings.
+    return [get, useDefaultRealm = false](const std::string& url, std::string& body, std::string& error) mutable {
+        auto fallback = url;
+        auto position = fallback.find("&realmId=1");
+        if (position == std::string::npos) position = fallback.find("?realmId=1");
+        const bool hasRealm = position != std::string::npos;
+        if (hasRealm) {
+            const auto end = position + std::string("&realmId=1").size();
+            if (fallback[position] == '?' && end < fallback.size() && fallback[end] == '&')
+                fallback.erase(position + 1, end - position);
+            else fallback.erase(position, end - position);
+        }
+        if (get(useDefaultRealm && hasRealm ? fallback : url, body, error)) return true;
+        if (!useDefaultRealm && hasRealm && error.find("HTTP 400") != std::string::npos) {
+            useDefaultRealm = true;
+            error.clear();
+            return get(fallback, body, error);
+        }
+        return false;
+    };
+}
+
+bool HasDefaultScoreSaberRealm(const rapidjson::Value& value) {
+    if (value.IsArray()) {
+        for (const auto& child : value.GetArray()) if (!HasDefaultScoreSaberRealm(child)) return false;
+    } else if (value.IsObject()) {
+        if (value.HasMember("realm") && value["realm"].IsObject()) {
+            const auto& realm = value["realm"];
+            if (realm.HasMember("realmId") && (!realm["realmId"].IsNumber() || realm["realmId"].GetDouble() != 1.0)) return false;
+        }
+        for (const auto& member : value.GetObject()) if (!HasDefaultScoreSaberRealm(member.value)) return false;
+    }
+    return true;
+}
+
+bool ParseScoreSaberEntries(const std::string& body, std::vector<MapEntry>& entries,
+                           std::string& error, PageInfo* info = nullptr) {
+    rapidjson::Document document;
+    document.Parse(body.c_str());
+    if (!document.HasParseError() && !HasDefaultScoreSaberRealm(document)) {
+        error = "ScoreSaber returned a different rating realm; ratings were not used.";
+        return false;
+    }
+    return ParseEntries(body, entries, error, info);
+}
+
 template<class Entry, class Parser>
 bool FetchPages(const std::function<std::string(int)>& urlForPage,
                 std::vector<Entry>& entries, std::string& error, Parser parse,
@@ -666,22 +737,7 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
     if (history.importAttempts) {
         std::vector<Attempt> fetched;
         warning.clear();
-        HttpGetter compatibleGet = [get, system](const std::string& url, std::string& body, std::string& error) {
-            if (get(url, body, error)) return true;
-            // Some live v2 player routes reject realmId as a query string even
-            // though it is documented. Retry using the default, then validate
-            // every returned chart's realm in ParseAttemptPage.
-            if (system == RatingSystem::ScoreSaber && error.find("HTTP 400") != std::string::npos) {
-                auto fallback = url;
-                const auto position = fallback.find("&realmId=1");
-                if (position != std::string::npos) {
-                    fallback.erase(position, std::string("&realmId=1").size());
-                    error.clear();
-                    return get(fallback, body, error);
-                }
-            }
-            return false;
-        };
+        const auto compatibleGet = system == RatingSystem::ScoreSaber ? DefaultRealmCompatibleGet(get) : get;
         bool complete = FetchPages<Attempt>([&](int page) {
             std::ostringstream url;
             if (system == RatingSystem::BeatLeader)
@@ -717,6 +773,7 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
     // rather than assuming they fall inside the current recommendation band.
     std::unordered_set<std::string> lookedUp;
     int ratingErrors = 0;
+    const auto ratingGet = system == RatingSystem::ScoreSaber ? DefaultRealmCompatibleGet(get) : get;
     for (const auto& a : history.attempts) {
         const auto lookupKey = system == RatingSystem::BeatLeader ? Lower(a.hash) : AttemptChartKey(a);
         if (a.stars > 0 || !a.normal || a.practice || a.characteristic != "Standard" ||
@@ -730,9 +787,9 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
         if (system == RatingSystem::ScoreSaber && difficulty == 0) continue;
         const std::string url = system == RatingSystem::BeatLeader ? "https://api.beatleader.com/leaderboards/hash/" + a.hash :
             "https://scoresaber.com/api/v2/leaderboards/hash/" + a.hash + "/SoloStandard/" + std::to_string(difficulty) + "?realmId=1";
-        if (get(url, body, error)) {
+        if (ratingGet(url, body, error)) {
             std::vector<MapEntry> charts;
-            if (ParseEntries(body, charts, error)) {
+            if (system == RatingSystem::ScoreSaber ? ParseScoreSaberEntries(body, charts, error) : ParseEntries(body, charts, error)) {
                 ResolveAttemptRatings(history.attempts, charts);
                 for (auto& run : history.attempts) {
                     const auto runLookup = system == RatingSystem::BeatLeader ? Lower(run.hash) : AttemptChartKey(run);
@@ -867,7 +924,8 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
     std::vector<MapEntry> candidates;
     // Compare the entire star band. A raw row count cannot tell us whether
     // enough distinct, clearable songs exist or whether later pages are better.
-    if (!FetchAllPages([beatLeader, range](int page) {
+    const auto candidateGet = beatLeader ? get : DefaultRealmCompatibleGet(get);
+    if (!FetchPages<MapEntry>([beatLeader, range](int page) {
         std::ostringstream url;
         url.precision(12);
         if (beatLeader) {
@@ -880,7 +938,9 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
                 << "&sortBy=stars&sortDirection=desc&page=" << page;
         }
         return url.str();
-    }, candidates, error, get, pace)) return false;
+    }, candidates, error, [beatLeader](const auto& body, auto& entries, auto& error, auto* info) {
+        return beatLeader ? ParseEntries(body, entries, error, info) : ParseScoreSaberEntries(body, entries, error, info);
+    }, candidateGet, pace)) return false;
 
     FilterToTargetWindow(candidates, targetStars);
     candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
@@ -1027,6 +1087,8 @@ bool FetchClanToConquerInternal(const std::string& playerId,
 }
 
 } // namespace
+
+HttpStatistics GetHttpStatistics() { return httpStatistics; }
 
 bool FindAccounts(AccountService service, const std::string& input, int page,
                   AccountPage& result, std::string& error) {

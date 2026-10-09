@@ -1,8 +1,10 @@
 # RankedTools
 
-A native Quest Beat Saber mod prototype that creates recommendation playlists for BeatLeader and ScoreSaber.
+RankedTools is a Quest Beat Saber mod that creates personalized BeatLeader and ScoreSaber playlists to help you gain PP, improve existing scores, and discover ranked maps suited to your ability.
 
-**Experimental source release for Quest Beat Saber 1.40.8_7379.** The latest account picker and signed-in BeatLeader integration have not yet been tested on a headset. No downloadable QMOD is published yet: the current prebuilt curl dependency contains OpenSSL 1.1.1 and needs GPL-compatible TLS licensing before binary distribution. See [third-party notices](THIRD_PARTY_NOTICES.md).
+**Current version: [0.1.22 source preview](https://github.com/Kaiiak04/RankedTools/releases/tag/v0.1.22), for Quest Beat Saber 1.40.8_7379.** The latest account picker, signed-in BeatLeader integration, normal loading phase and refresh optimizations still need headset testing. No downloadable QMOD is published yet: the current prebuilt curl dependency contains OpenSSL 1.1.1 and needs GPL-compatible TLS licensing before binary distribution. See [third-party notices](THIRD_PARTY_NOTICES.md).
+
+Recent updates: [0.1.22](CHANGES-0.1.22.md) reuses HTTPS connections, refreshes the leaderboards concurrently, improves ScoreSaber API compatibility and displays elapsed refresh time. [0.1.21](CHANGES-0.1.21.md) moves RankedTools from Early Mod to normal Scotland2 loading. The Quest build and 2,174 automated checks passed locally; actual refresh times still need measurement on a headset.
 
 For each enabled leaderboard, the mod normally writes two PlaylistManager playlists:
 
@@ -48,6 +50,8 @@ Generated leaderboard playlists use hand-drawn developer covers for Not Played, 
 Both services load the complete best-score history returned by their paginated public APIs and compare all ranked candidates in the selected star band before limiting the playlist to distinct songs. ScoreSaber map queries use its v2 endpoint with 100 charts per page and server-side star filters. A refresh reuses each service's score and attempt history across its playlists. Large histories or star bands can make refreshes take longer. A failed or incomplete score/candidate response preserves the affected playlist. Attempt-history failures instead report a warning and use cached/local evidence, so unavailable attempt statistics do not block playlists.
 
 Each refresh captures the settings when it starts. Changes made while it runs take effect on the next refresh. A successful clan membership response with no joined clans removes obsolete generated clan playlists; a membership API error preserves them.
+
+Refreshes reuse HTTPS connections between requests and run ScoreSaber alongside BeatLeader. BeatLeader and its clan playlists share one worker and profile history. Scores and the complete candidate star band are still fetched afresh; recommendations use the same ranking rules. Requests within each service remain sequential with the existing pacing. The completion message shows total elapsed time, and the mod log records each stage's time, request count and new connections. Large profiles, first-time attempt imports and slow APIs can still take several seconds.
 
 Switching Simple Mode takes effect after refreshing recommendations and reloading PlaylistManager. Replacement playlists are fetched and saved before the previous layout is removed. Cleanup only targets this mod's three exact leaderboard playlist filenames per service. Disabled services are not fetched, but files from their incompatible layout are removed on refresh too. Other playlists, clan playlists and downloaded songs are preserved.
 

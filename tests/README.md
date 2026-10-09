@@ -22,6 +22,8 @@ Fixture sources, captured during review and fix verification in October 2026:
 
 Attempt tests also cover real BeatLeader `/scoresstats` and ScoreSaber v2 `personalBest=all` responses, BeatLeader's sibling song/chart hash-lookup shape, clear/failure balance, practice/modifier exclusions, recency, chart-specific predictions, bounded chart influence, local/API deduplication, concurrency, damaged-file preservation, offline fallback, and ScoreSaber's documented-realm HTTP 400 workaround. Persistent test files use only `tests/attempt-sandbox`; successful runs remove their explicitly named fixtures.
 
+Refresh tests verify that the two providers overlap, both workers finish before completion, failures remain independent, and disabled services do no work. ScoreSaber compatibility tests cover a single realm-parameter fallback across multiple pages, both query parameter positions, and rejection of ratings from other realms. `http_client_tests.cpp` exercises the production client through a fake libcurl boundary, checking connection reuse, thread ownership and cleanup, independent byte limits and timeouts, callback reset, HTTP/transfer errors and recovery, and per-thread diagnostics. These checks do not measure headset performance.
+
 - BeatLeader public `/player/{id}/scores` and `/maps` responses, reduced to representative rows including FS and OneSaber. NF scores use `modifiers=NF`.
 - ScoreSaber public `/api/player/{id}/scores`, `/api/leaderboards`, and `/api/v2/leaderboards` responses. v2 uses `status=RANKED`, `realmId=1`, and star bounds.
 - ScoreSaber `/api/v2/realms/1/pp-curve` for its published accuracy multiplier points.
