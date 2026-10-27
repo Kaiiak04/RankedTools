@@ -1,0 +1,11 @@
+# RankedTools 0.1.23
+
+Adds support for [BeatLeader PPv4](https://beatleader.wiki/en/ranking/update4). Predictions now use each map's accuracy curve, including its Acc AI input, sliders, note span and note count, along with the revised pass/acc/tech calculation, low-star adjustments and PP scaling. This updates predicted PP, weighted gains, recommendation ordering and the automatic star band. The API's `noteSpan` marker selects PPv4 separately for each chart; charts awaiting migration retain the PPv3 formula. See the [compatibility evaluation](docs/PPV4.md).
+
+Cached BeatLeader attempts now refresh ratings from before PPv4 immediately, even if recently checked, and recheck subsequent ratings after seven days. Fresh profile matches avoid redundant lookups. Unavailable or bounded lookups exclude outdated ratings from the current estimate and show a warning while preserving attempt records for retry. Successful lookups that no longer find a ranked chart retire its cached rating.
+
+The release builds curl 8.23.0 with Mbed TLS 3.6.7 from source archives pinned by SHA-256. The old prebuilt curl/OpenSSL 1.1.1 archive is excluded from the final link. QMODs now include project and dependency notices. Certificate verification, the bundled CA file, HTTPS-only requests and redirects, connection reuse, limits and timeouts remain enabled.
+
+Targets Quest Beat Saber `1.40.8_7379` and uses normal Scotland2 loading. ScoreSaber, No Fail handling, profile weighting and clear-rate settings retain their existing behavior. PPv4 does not make the personal accuracy or clearability estimates calibrated probabilities.
+
+Validation: 2,972 recommendation/API checks, 40 playlist-writer checks and 16 HTTPS-client checks passed. The PPv4 checks include 520 independent upstream JavaScript reference values and three live API scores. The Quest arm64 build, manifest schema, all 24 QMOD entries, bundled notices, and packaged binary/resource hashes were verified. The final link excludes QPM's old curl archive; symbol inspection found Mbed TLS and no OpenSSL implementation. The source-built HTTPS stack passed real BeatLeader and ScoreSaber requests plus plain-HTTP and invalid-CA rejection checks in Docker Desktop WSL, with Windows-supplied DNS addresses because the Android resolver service is unavailable there. This does not replace headset testing.

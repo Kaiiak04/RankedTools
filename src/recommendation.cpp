@@ -1,5 +1,6 @@
 #include "recommendation.hpp"
 #include "ability_chart.hpp"
+#include "beatleader_pp.hpp"
 
 #include <algorithm>
 #include <array>
@@ -325,6 +326,7 @@ double ScoreSaberPp(double stars, double accuracy) {
 }
 
 double BeatLeaderPp(double accuracy, const Difficulty& difficulty) {
+    if (difficulty.noteSpan) return BeatLeaderPpv4(accuracy, difficulty);
     if (difficulty.accRating <= 0.0 || difficulty.passRating <= 0.0 || difficulty.techRating < 0.0) return 0.0;
     static constexpr std::pair<double, double> points[] = {
         {0.00, 0.000}, {0.60, 0.256}, {0.65, 0.296}, {0.70, 0.345},
@@ -441,7 +443,9 @@ AbilityChart BuildAbilityChart(const std::vector<MapEntry>& scores) {
     return chart;
 }
 
-void ResolveAttemptRatings(std::vector<Attempt>& attempts, const std::vector<MapEntry>& charts) {
+void ResolveAttemptRatings(std::vector<Attempt>& attempts, const std::vector<MapEntry>& charts, int ratingEpoch) {
+    const double now = std::chrono::duration<double>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
     std::unordered_map<std::string, double> ratings;
     for (const auto& chart : charts) {
         if (!chart.ranked) continue;
@@ -451,7 +455,11 @@ void ResolveAttemptRatings(std::vector<Attempt>& attempts, const std::vector<Map
         }
     }
     for (auto& a : attempts) {
-        if (const auto found = ratings.find(AttemptChartKey(a)); found != ratings.end() && a.normal) a.stars = found->second;
+        if (const auto found = ratings.find(AttemptChartKey(a)); found != ratings.end() && a.normal) {
+            a.stars = found->second;
+            a.ratingChecked = now;
+            if (ratingEpoch) a.ratingEpoch = ratingEpoch;
+        }
     }
 }
 

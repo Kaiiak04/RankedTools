@@ -1,0 +1,55 @@
+include_guard()
+include(FetchContent)
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
+# Build the released HTTPS stack from pinned sources. QPM's old libcurl archive
+# embeds OpenSSL 1.1.1; it must never be linked into a distributable QMOD.
+set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(USE_SHARED_MBEDTLS_LIBRARY OFF CACHE BOOL "" FORCE)
+set(USE_STATIC_MBEDTLS_LIBRARY ON CACHE BOOL "" FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+FetchContent_Declare(rankedtools_mbedtls
+    URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.7/mbedtls-3.6.7.tar.bz2
+    URL_HASH SHA256=a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6)
+FetchContent_MakeAvailable(rankedtools_mbedtls)
+
+set(MBEDTLS_INCLUDE_DIR "${rankedtools_mbedtls_SOURCE_DIR}/include")
+set(MBEDTLS_LIBRARY mbedtls)
+set(MBEDX509_LIBRARY mbedx509)
+set(MBEDCRYPTO_LIBRARY mbedcrypto)
+set(MBEDTLS_USE_STATIC_LIBS ON)
+set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(BUILD_LIBCURL_DOCS OFF CACHE BOOL "" FORCE)
+set(BUILD_MISC_DOCS OFF CACHE BOOL "" FORCE)
+set(ENABLE_CURL_MANUAL OFF CACHE BOOL "" FORCE)
+set(CURL_USE_OPENSSL OFF CACHE BOOL "" FORCE)
+set(CURL_USE_MBEDTLS ON CACHE BOOL "" FORCE)
+set(CURL_USE_LIBPSL OFF CACHE BOOL "" FORCE)
+set(CURL_USE_LIBSSH2 OFF CACHE BOOL "" FORCE)
+set(CURL_USE_LIBSSH OFF CACHE BOOL "" FORCE)
+set(CURL_USE_GSSAPI OFF CACHE BOOL "" FORCE)
+set(CURL_USE_LIBIDN2 OFF CACHE BOOL "" FORCE)
+set(USE_LIBIDN2 OFF CACHE BOOL "" FORCE)
+set(USE_NGHTTP2 OFF CACHE BOOL "" FORCE)
+set(CURL_USE_LIBRTMP OFF CACHE BOOL "" FORCE)
+set(CURL_USE_PKGCONFIG OFF CACHE BOOL "" FORCE)
+set(CURL_ZLIB OFF CACHE BOOL "" FORCE)
+set(CURL_BROTLI OFF CACHE BOOL "" FORCE)
+set(CURL_ZSTD OFF CACHE BOOL "" FORCE)
+set(HTTP_ONLY ON CACHE BOOL "" FORCE)
+set(CURL_USE_LIBUV OFF CACHE BOOL "" FORCE)
+set(CURL_CA_BUNDLE none CACHE STRING "" FORCE)
+set(CURL_CA_PATH none CACHE STRING "" FORCE)
+FetchContent_Declare(rankedtools_curl
+    URL https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.xz
+    URL_HASH SHA256=8dadd7d2536a314f982ad05a651b713f426bf7d02cc2c76cffb9796f2218e6c5)
+FetchContent_MakeAvailable(rankedtools_curl)
+
+# The deferred QPM setup removes its old archive from the final link list.
+target_link_libraries(${COMPILE_ID} PRIVATE CURL::libcurl)

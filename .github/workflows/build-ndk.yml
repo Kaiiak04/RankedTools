@@ -52,11 +52,22 @@ jobs:
           compiler="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++"
           flags=(--target=x86_64-linux-android24 -std=c++20 -static -O1 -ffunction-sections -fdata-sections -Wl,--gc-sections -I include -I extern/includes -I extern/includes/beatsaber-hook/shared/rapidjson/include)
           "$compiler" "${flags[@]}" tests/recommendation_tests.cpp -o tests/recommendation_tests
-          "$compiler" "${flags[@]}" tests/playlist_writer_tests.cpp src/recommendation.cpp src/attempt_history.cpp -o tests/playlist_writer_tests
+          "$compiler" "${flags[@]}" tests/playlist_writer_tests.cpp src/recommendation.cpp src/beatleader_pp.cpp src/attempt_history.cpp -o tests/playlist_writer_tests
           "$compiler" "${flags[@]}" tests/http_client_tests.cpp -o tests/http_client_tests
           ./tests/recommendation_tests
           ./tests/playlist_writer_tests
           ./tests/http_client_tests
 
-      # Binary artifacts/releases are withheld until the bundled OpenSSL 1.1.1
-      # dependency has a GPL-compatible replacement or exception.
+      - name: Verify the released TLS implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" --defined-only build/debug/libbeatleaderpp.so > build/tls-symbols.txt
+          grep -q 'mbedtls_ssl_' build/tls-symbols.txt
+          if grep -Eq ' (OPENSSL_|SSL_CTX_|SSL_connect|SSL_new)' build/tls-symbols.txt; then
+            echo 'Unexpected OpenSSL implementation in the release binary'
+            exit 1
+          fi
+
+      # Releases are packaged after the source-built HTTPS stack and QMOD
+      # contents have been verified. Headset validation remains separate.

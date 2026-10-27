@@ -30,4 +30,9 @@ set(COMPILE_ID ${CMAKE_PROJECT_NAME})
 cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL _setup_qpm_project())
 function(_setup_qpm_project)
     include(${CMAKE_CURRENT_SOURCE_DIR}/extern.cmake)
+    # The generated QPM link list includes the old prebuilt OpenSSL/curl bundle.
+    # HTTPS is supplied by the source-built CURL::libcurl target instead.
+    get_target_property(rankedtools_libraries ${COMPILE_ID} LINK_LIBRARIES)
+    list(FILTER rankedtools_libraries EXCLUDE REGEX "[/\\\\]libcurl\\.a$")
+    set_property(TARGET ${COMPILE_ID} PROPERTY LINK_LIBRARIES "${rankedtools_libraries}")
 endfunction(_setup_qpm_project)

@@ -1,0 +1,20 @@
+Mbed TLS 3.6.7 bundled components
+
+Project Everest / HACL* Curve25519 implementation
+Copyright 2016-2018 INRIA and Microsoft Corporation
+SPDX-License-Identifier: Apache-2.0
+Source: https://github.com/Mbed-TLS/mbedtls/tree/mbedtls-3.6.7/3rdparty/everest
+
+The files in the Everest directory stem from Project Everest and are
+distributed under the Apache License, Version 2.0. The full license text
+is included in Mbed-TLS.txt.
+
+p256-m
+Copyright The Mbed TLS Contributors
+SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
+Source: https://github.com/Mbed-TLS/mbedtls/tree/mbedtls-3.6.7/3rdparty/p256-m
+
+The p256-m implementation originates from Manuel Pegourie-Gonnard's p256-m
+project. These files are distributed under Apache-2.0 OR GPL-2.0-or-later.
+They are used here under Apache-2.0. Full notices are in Mbed-TLS.txt and
+the matching upstream source archive supplied with the release.

@@ -58,6 +58,7 @@ bool ReadAttemptsUnlocked(const std::filesystem::path& path, std::vector<Attempt
         str("difficulty", a.difficulty); str("modifiers", a.modifiers);
         num("timestamp", a.timestamp); num("endTime", a.endTime); num("stars", a.stars);
         num("ratingChecked", a.ratingChecked);
+        if (row.HasMember("ratingEpoch") && row["ratingEpoch"].IsInt()) a.ratingEpoch = row["ratingEpoch"].GetInt();
         if (row.HasMember("outcome") && row["outcome"].IsInt() && row["outcome"].GetInt() >= 0 && row["outcome"].GetInt() <= 5)
             a.outcome = static_cast<AttemptOutcome>(row["outcome"].GetInt());
         if (row.HasMember("normal") && row["normal"].IsBool()) a.normal = row["normal"].GetBool();
@@ -115,7 +116,10 @@ void MergeAttempts(std::vector<Attempt>& history, const std::vector<Attempt>& in
         else {
             const bool crossSource = (a.source == "local") != (history[found].source == "local");
             if (crossSource) matched.insert(found);
-            const double stars = a.stars > 0 ? a.stars : history[found].stars;
+            // A newer lookup can explicitly establish that a chart is unrated.
+            const bool incomingRating = a.stars > 0 || a.ratingChecked > history[found].ratingChecked;
+            const double stars = incomingRating ? a.stars : history[found].stars;
+            const int ratingEpoch = incomingRating ? a.ratingEpoch : history[found].ratingEpoch;
             const double ratingChecked = std::max(a.ratingChecked, history[found].ratingChecked);
             const std::string localId = a.source == "local" ? a.id :
                 (history[found].source == "local" ? history[found].id : history[found].localId);
@@ -126,6 +130,7 @@ void MergeAttempts(std::vector<Attempt>& history, const std::vector<Attempt>& in
                 if (crossSource) buckets[eventKey(a) + "|remote"].push_back(found);
             }
             history[found].stars = stars;
+            history[found].ratingEpoch = ratingEpoch;
             history[found].ratingChecked = ratingChecked;
             history[found].localId = localId;
             if (!localId.empty()) ids["local|" + localId] = found;
@@ -158,6 +163,7 @@ bool SaveAttemptHistory(const std::string& service, const std::string& id, const
             str("difficulty", a.difficulty); str("modifiers", a.modifiers);
             num("timestamp", a.timestamp); num("endTime", a.endTime); num("stars", a.stars);
             num("ratingChecked", a.ratingChecked);
+            writer.Key("ratingEpoch"); writer.Int(a.ratingEpoch);
             writer.Key("outcome"); writer.Int(static_cast<int>(a.outcome));
             writer.Key("normal"); writer.Bool(a.normal); writer.Key("practice"); writer.Bool(a.practice); writer.EndObject();
         }

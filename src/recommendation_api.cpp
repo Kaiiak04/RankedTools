@@ -23,8 +23,10 @@
 namespace rankedpractice {
 namespace {
 
-constexpr const char* kCaBundlePath =
-    "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/cacert.pem";
+#ifndef RANKEDTOOLS_CA_BUNDLE_PATH
+#define RANKEDTOOLS_CA_BUNDLE_PATH "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/cacert.pem"
+#endif
+constexpr const char* kCaBundlePath = RANKEDTOOLS_CA_BUNDLE_PATH;
 constexpr double kDefaultTargetStars = 7.0;
 constexpr double kTargetWindowStars = 1.50;
 
@@ -42,6 +44,10 @@ struct Context {
     double accRating{0.0};
     double passRating{0.0};
     double techRating{0.0};
+    double predictedAcc{0.0};
+    double sliderPercentage{0.0};
+    double notes{0.0};
+    std::optional<double> noteSpan;
     double pp{0.0};
     double accuracy{0.0};
     double timepost{0.0};
@@ -105,13 +111,13 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "https");
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "RankedPractice/0.1 (Beat Saber Quest mod)");
-    // The Android libcurl package used by Quest does not ship with a default
+    // The source-built HTTPS stack does not ship with a default
     // CA bundle. The QMOD copies cacert.pem to this path at install time.
     if (std::filesystem::exists(kCaBundlePath)) {
         curl_easy_setopt(curl, CURLOPT_CAINFO, kCaBundlePath);
     } else {
         // Keep a useful fallback for devices whose system CA directory is
-        // readable by OpenSSL.
+        // readable by the TLS backend.
         curl_easy_setopt(curl, CURLOPT_CAPATH, "/system/etc/security/cacerts");
     }
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWrite);
@@ -372,6 +378,14 @@ void UpdateContext(const rapidjson::Value& object, Context& context) {
     ReadNumber(object, "accuracyRating", context.accRating);
     ReadNumber(object, "passRating", context.passRating);
     ReadNumber(object, "techRating", context.techRating);
+    ReadNumber(object, "predictedAcc", context.predictedAcc);
+    ReadNumber(object, "sliderPercentage", context.sliderPercentage);
+    ReadNumber(object, "notes", context.notes);
+    if (object.HasMember("noteSpan")) {
+        double span = 0;
+        if (ReadNumber(object, "noteSpan", span)) context.noteSpan = span;
+        else context.noteSpan.reset();
+    }
     ReadNumber(object, "pp", context.pp);
     ReadNumber(object, "accuracy", context.accuracy);
     ReadNumber(object, "acc", context.accuracy);
@@ -417,7 +431,8 @@ void AddIfComplete(const Context& context, std::vector<MapEntry>& entries, bool 
     entry.ranked = context.ranked;
     entry.difficulties.push_back({context.characteristic.empty() ? "Standard" : context.characteristic,
                                   context.difficulty, context.stars, context.accRating,
-                                  context.passRating, context.techRating});
+                                  context.passRating, context.techRating, context.predictedAcc,
+                                  context.sliderPercentage, context.notes, context.noteSpan});
     entries.push_back(std::move(entry));
 }
 
@@ -713,6 +728,7 @@ bool ParseAttemptPage(const std::string& body, std::vector<Attempt>& attempts,
         a.difficulty = chart.difficulties.front().name;
         a.stars = chart.ranked ? chart.stars : 0.0;
         a.ratingChecked = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+        if (system == RatingSystem::BeatLeader) a.ratingEpoch = kBeatLeaderAttemptRatingEpoch;
         if (!a.id.empty() && a.timestamp > 0) attempts.push_back(std::move(a));
     }
     return true;
@@ -768,7 +784,8 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
         } else history.attemptWarning = (system == RatingSystem::BeatLeader ? "BeatLeader" : "ScoreSaber") +
                 std::string(" attempt import unavailable: ") + warning + " Using cached/local evidence.";
     }
-    ResolveAttemptRatings(history.attempts, history.scores);
+    const int ratingEpoch = system == RatingSystem::BeatLeader ? kBeatLeaderAttemptRatingEpoch : 0;
+    ResolveAttemptRatings(history.attempts, history.scores, ratingEpoch);
     // Local charts may have no leaderboard score. Look their ratings up directly,
     // rather than assuming they fall inside the current recommendation band.
     std::unordered_set<std::string> lookedUp;
@@ -776,8 +793,10 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
     const auto ratingGet = system == RatingSystem::ScoreSaber ? DefaultRealmCompatibleGet(get) : get;
     for (const auto& a : history.attempts) {
         const auto lookupKey = system == RatingSystem::BeatLeader ? Lower(a.hash) : AttemptChartKey(a);
-        if (a.stars > 0 || !a.normal || a.practice || a.characteristic != "Standard" ||
-            now - a.ratingChecked < 7.0 * 86400 ||
+        // BeatLeader's reweight changes the star scale. Positive cached ratings
+        // also need refreshing; otherwise old failed runs keep PPv3 stars forever.
+        if ((a.stars > 0 && system != RatingSystem::BeatLeader) || !a.normal || a.practice || a.characteristic != "Standard" ||
+            (a.ratingEpoch == ratingEpoch && now - a.ratingChecked < 7.0 * 86400) ||
             (a.outcome != AttemptOutcome::Clear && a.outcome != AttemptOutcome::Fail) || lookedUp.contains(lookupKey)) continue;
         if (lookedUp.size() >= 100) { history.attemptWarning += " Rating lookup limited to 100 queries this refresh."; break; }
         lookedUp.insert(lookupKey);
@@ -790,10 +809,13 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
         if (ratingGet(url, body, error)) {
             std::vector<MapEntry> charts;
             if (system == RatingSystem::ScoreSaber ? ParseScoreSaberEntries(body, charts, error) : ParseEntries(body, charts, error)) {
-                ResolveAttemptRatings(history.attempts, charts);
+                if (system == RatingSystem::BeatLeader) for (auto& run : history.attempts) {
+                    if (Lower(run.hash) == lookupKey) run.stars = 0;
+                }
+                ResolveAttemptRatings(history.attempts, charts, ratingEpoch);
                 for (auto& run : history.attempts) {
                     const auto runLookup = system == RatingSystem::BeatLeader ? Lower(run.hash) : AttemptChartKey(run);
-                    if (runLookup == lookupKey) run.ratingChecked = now;
+                    if (runLookup == lookupKey) { run.ratingChecked = now; run.ratingEpoch = ratingEpoch; }
                 }
             } else ++ratingErrors;
         } else ++ratingErrors;
@@ -805,6 +827,20 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
         std::vector<Attempt> merged;
         if (!SaveAttemptHistory(provider, id, history.attempts, merged, warning)) history.attemptWarning += " " + warning;
         else history.attempts = std::move(merged);
+    }
+    if (system == RatingSystem::BeatLeader) {
+        size_t stale = 0;
+        // Preserve the disk cache for retry, but never fit an obsolete star scale
+        // after a failed or bounded lookup. Fresh profile matches were stamped above.
+        for (auto& a : history.attempts) {
+            if (a.normal && !a.practice && a.characteristic == "Standard" &&
+                (a.ratingEpoch != ratingEpoch || now - a.ratingChecked >= 7.0 * 86400) && a.stars > 0) {
+                a.stars = 0;
+                ++stale;
+            }
+        }
+        if (stale) history.attemptWarning += " Excluded " + std::to_string(stale) +
+            " attempts with outdated BeatLeader ratings until they can be refreshed.";
     }
 }
 

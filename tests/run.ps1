@@ -20,7 +20,7 @@ Push-Location $workspace
 try {
     & $Compiler --target=x86_64-linux-android24 -std=c++20 -static -O1 -ffunction-sections -fdata-sections '-Wl,--gc-sections' -I include -I extern/includes -I extern/includes/beatsaber-hook/shared/rapidjson/include tests/recommendation_tests.cpp -o tests/recommendation_tests
     if ($LASTEXITCODE -ne 0) { throw "Regression test compilation failed." }
-    & $Compiler --target=x86_64-linux-android24 -std=c++20 -static -O1 -ffunction-sections -fdata-sections '-Wl,--gc-sections' -I include -I extern/includes/beatsaber-hook/shared/rapidjson/include tests/playlist_writer_tests.cpp src/recommendation.cpp src/attempt_history.cpp -o tests/playlist_writer_tests
+    & $Compiler --target=x86_64-linux-android24 -std=c++20 -static -O1 -ffunction-sections -fdata-sections '-Wl,--gc-sections' -I include -I extern/includes/beatsaber-hook/shared/rapidjson/include tests/playlist_writer_tests.cpp src/recommendation.cpp src/beatleader_pp.cpp src/attempt_history.cpp -o tests/playlist_writer_tests
     if ($LASTEXITCODE -ne 0) { throw "Playlist writer test compilation failed." }
     & $Compiler --target=x86_64-linux-android24 -std=c++20 -static -O1 -ffunction-sections -fdata-sections '-Wl,--gc-sections' -I include -I extern/includes -I extern/includes/beatsaber-hook/shared/rapidjson/include tests/http_client_tests.cpp -o tests/http_client_tests
     if ($LASTEXITCODE -ne 0) { throw "HTTPS client test compilation failed." }

@@ -11,10 +11,10 @@ RankedTools source is licensed under GPL-3.0-only; see [LICENSE](LICENSE). Third
 | scotland2 | 0.1.7 | [MIT notice](licenses/scotland2-MIT.txt), [source](https://github.com/sc2ad/scotland2) |
 | fmt | 11.0.2 | [MIT notice](licenses/fmt-MIT.txt), [source](https://github.com/fmtlib/fmt/tree/11.0.2) |
 | RapidJSON | Supplied by beatsaber-hook | [Upstream notices](licenses/RapidJSON.txt), [source](https://github.com/Tencent/rapidjson) |
+| BeatLeader PPv4 calculation | C++ adaptation of website commit 606b7f9 | GPLv3; full text in [LICENSE](LICENSE), [upstream source](https://github.com/BeatLeader/beatleader-website/blob/606b7f9d33fec7dcf2427cea1d1151b74a5ec006/src/utils/beatleader/rebalanced-pp.js) |
 | utf8cpp | Supplied by Paper / beatsaber-hook | [Boost Software License notice](licenses/utf8cpp.txt), [source](https://github.com/nemtrif/utfcpp) |
-| Android curl build wrapper | QPM libcurl 8.5.0 package | [MIT notice](licenses/curl-android-wrapper-MIT.txt), [source](https://github.com/darknight1050/openssl-curl-android) |
-| curl | 8.5.0 | [curl license](licenses/curl.txt), [source](https://github.com/curl/curl/tree/curl-8_5_0) |
-| OpenSSL | 1.1.1 family, present in the prebuilt curl archive | [OpenSSL / SSLeay license](licenses/OpenSSL-1.1.1.txt), [source](https://github.com/openssl/openssl/tree/OpenSSL_1_1_1w) |
+| curl | 8.23.0, built from source | [curl license](licenses/curl.txt), [source](https://github.com/curl/curl/tree/curl-8_23_0) |
+| Mbed TLS | 3.6.7, built from source | Apache-2.0 OR GPL-2.0-or-later; used under Apache-2.0. [Full notices](licenses/Mbed-TLS.txt), [source](https://github.com/Mbed-TLS/mbedtls/tree/mbedtls-3.6.7) |
 
 The remaining QPM packages are fetched for building/linking and keep their upstream terms: [BSML](https://github.com/bsq-ports/Quest-BSML), [Paper](https://github.com/Fernthedev/paperlog), [conditional-dependencies](https://github.com/RedBrumbler/ConditionalDependencies), [rapidjson-macros](https://github.com/Metalit/RapidjsonMacros), and the versioned IL2CPP/generated type headers identified by the QPM lockfile. These are not relicensed as RankedTools code. This notice is not a statement that every dependency combination is redistributable.
 
@@ -22,6 +22,8 @@ The bundled `cacert.pem` contains public Mozilla CA root certificates extracted 
 
 The seven playlist covers are original hand-drawn artwork supplied by the RankedTools project owner. They are included under this project's GPLv3 license. See [assets/ARTWORK.md](assets/ARTWORK.md). BeatLeader/ScoreSaber names identify the services the mod supports; this project does not claim endorsement by them. Clan icons are retrieved at runtime from BeatLeader and are not bundled in the repository.
 
-## Binary distribution status
+## HTTPS build and binary distribution
 
-No QMOD binary is published with this initial source release. Inspection of the current prebuilt `libcurl.a` found OpenSSL 1.1.1w / 1.1.1 development version strings. That older TLS licensing needs a GPL-compatible replacement or appropriate permission before distributing the combined GPLv3 binary. Adding these notices alone does not resolve that compatibility issue. The CI workflow builds and tests the code, but does not upload compiled artifacts.
+Starting with 0.1.23, `cmake/https.cmake` builds curl 8.23.0 and Mbed TLS 3.6.7 from release archives pinned by SHA-256. The final mod links those targets. The older QPM libcurl 8.5.0 entry remains for its public headers and standalone fake-client tests; its prebuilt archive is explicitly removed from the final link list in `cmake/qpm.cmake`. Neither that archive nor its embedded OpenSSL 1.1.1 code is part of the released mod. The historical wrapper and OpenSSL license files remain in `licenses` for provenance.
+
+The QMOD includes this notice, the project license, and the `licenses` directory. Matching source is in the release's tagged repository archive; pinned HTTPS source archives are also included with the release. Other dependency versions and source locations remain recorded in `qpm.shared.json`. The release remains a Quest preview because on-headset validation is pending.

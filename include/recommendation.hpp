@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <optional>
 #include <vector>
 #include "attempt_history.hpp"
 
@@ -13,6 +14,10 @@ struct Difficulty {
     double accRating{0.0};
     double passRating{0.0};
     double techRating{0.0};
+    double predictedAcc{0.0}; // BeatLeader's map-level Acc AI input, not the player's prediction.
+    double sliderPercentage{0.0};
+    double notes{0.0};
+    std::optional<double> noteSpan; // Presence selects PPv4, including an explicit zero.
 };
 
 struct MapEntry {
@@ -62,7 +67,8 @@ double EstimateRecommendationTargetStars(const std::vector<MapEntry>& profileSco
                                          RatingSystem system,
                                          double minClearRate = 0.50,
                                          const std::vector<Attempt>& attempts = {});
-void ResolveAttemptRatings(std::vector<Attempt>& attempts, const std::vector<MapEntry>& charts);
+void ResolveAttemptRatings(std::vector<Attempt>& attempts, const std::vector<MapEntry>& charts,
+                           int ratingEpoch = 0);
 std::vector<MapEntry> MergeRecommendations(std::vector<MapEntry> notPlayed,
                                            std::vector<MapEntry> toImprove,
                                            int limit);

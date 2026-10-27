@@ -28,6 +28,7 @@ if ($qmodName -eq "") {
 }
 
 $filelist = @($mod)
+$filelist += @("./LICENSE", "./THIRD_PARTY_NOTICES.md", "./licenses")
 
 $caBundle = "./cacert.pem"
 if (-not (Test-Path $caBundle)) {

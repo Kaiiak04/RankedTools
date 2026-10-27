@@ -9,6 +9,7 @@
 #include <thread>
 #define RANKEDTOOLS_ATTEMPT_DIRECTORY "tests/attempt-sandbox"
 #include "../src/attempt_history.cpp"
+#include "../src/beatleader_pp.cpp"
 #include "../src/recommendation.cpp"
 #include "../src/ability_chart.cpp"
 #include "../src/playlist_image.cpp"
@@ -210,6 +211,68 @@ void MonotonicAccuracy() {
         }
     }
     std::cout << "PASS: monotonic accuracy, weighted pooling, ties, interpolation, sparse profiles, tails, exclusions and both providers/modes\n";
+}
+
+void BeatLeaderV4Contract() {
+    rapidjson::Document reference;
+    reference.Parse(ReadFile("tests/fixtures/beatleader-ppv4.json").c_str());
+    CHECK(!reference.HasParseError() && reference["cases"].IsArray());
+    for (const auto& sample : reference["cases"].GetArray()) {
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        sample["difficulty"].Accept(writer);
+        const std::string chart = std::string(R"({"hash":")") + Hash(400) +
+            R"(","name":"PPv4","difficulties":[)" + buffer.GetString() + "]}";
+        const auto entries = Parse(chart);
+        CHECK(entries.size() == 1);
+        const auto& d = entries[0].difficulties.front();
+        CHECK(d.noteSpan.has_value());
+        CHECK(d.predictedAcc == sample["difficulty"]["predictedAcc"].GetDouble());
+        CHECK(d.sliderPercentage == sample["difficulty"]["sliderPercentage"].GetDouble());
+        CHECK(d.notes == sample["difficulty"]["notes"].GetDouble());
+        for (const auto& score : sample["scores"].GetArray()) {
+            const double expected = score[1].GetDouble();
+            const double tolerance = sample.HasMember("live") ? 1e-5 : 1e-9;
+            CHECK(std::abs(BeatLeaderPp(score[0].GetDouble(),d)-expected) <= tolerance*std::max(1.0,expected));
+        }
+        // The score and hash-lookup response shapes must retain the same inputs.
+        const auto scored = Parse(std::string(R"({"baseScore":95,"accuracy":0.95,"pp":100,"leaderboard":{"song":{"hash":")") +
+            Hash(400) + R"(","name":"PPv4"},"difficulty":)" + buffer.GetString() + "}}");
+        CHECK(scored.size() == 1);
+        CHECK(BeatLeaderPp(.98,scored[0].difficulties[0]) == BeatLeaderPp(.98,d));
+        CHECK(BeatLeaderPp(0,d) == 0 && BeatLeaderPp(1.01,d) == 0);
+    }
+    auto zeroSpan = Parse(Chart(401,7).insert(1,R"("noteSpan":0,"predictedAcc":0.98,)"));
+    CHECK(zeroSpan.size() == 1 && zeroSpan[0].difficulties[0].noteSpan == 0);
+    auto nullSpan = Parse(Chart(401,7).insert(1,R"("noteSpan":null,"predictedAcc":0.98,)"));
+    auto absentSpan = Parse(Chart(401,7));
+    CHECK(!nullSpan[0].difficulties[0].noteSpan && !absentSpan[0].difficulties[0].noteSpan);
+    CHECK(BeatLeaderPp(.98,nullSpan[0].difficulties[0]) == BeatLeaderPp(.98,absentSpan[0].difficulties[0]));
+    CHECK(BeatLeaderPp(.98,zeroSpan[0].difficulties[0]) != BeatLeaderPp(.98,nullSpan[0].difficulties[0]));
+    const auto mixed = Parse(std::string(R"({"hash":")") + Hash(401) + R"(","name":"Mixed","difficulties":[
+        {"difficultyName":"ExpertPlus","stars":7,"accRating":8,"passRating":8,"techRating":5,"noteSpan":120,"predictedAcc":0.98},
+        {"difficultyName":"Expert","stars":7,"accRating":8,"passRating":8,"techRating":5,"noteSpan":null},
+        {"difficultyName":"Hard","stars":7,"accRating":8,"passRating":8,"techRating":5}]})");
+    CHECK(mixed.size() == 3 && mixed[0].difficulties[0].noteSpan &&
+        !mixed[1].difficulties[0].noteSpan && !mixed[2].difficulties[0].noteSpan);
+
+    auto easyAcc = Score(402,0), hardAcc = Score(403,0), training = Score(404);
+    easyAcc.songName = "Easy acc"; hardAcc.songName = "Hard acc";
+    for (auto* e : {&easyAcc,&hardAcc}) {
+        auto& d = e->difficulties[0];
+        d.noteSpan = 120; d.notes = 200;
+    }
+    easyAcc.difficulties[0].predictedAcc = .99;
+    hardAcc.difficulties[0].predictedAcc = .96;
+    training.accuracy = .98;
+    const auto selected = SelectRecommendations({easyAcc,hardAcc},ListKind::NotPlayed,16,0,{training},RatingSystem::BeatLeader,0);
+    CHECK(selected.size() == 2);
+    CHECK(selected[0].predictedPp > selected[1].predictedPp);
+    for (const auto& e : selected) CHECK(std::abs(e.predictedPp - BeatLeaderPp(e.predictedAccuracy,e.difficulties[0])) < 1e-9);
+    auto improvement = easyAcc; improvement.pp = 100;
+    const auto improved = SelectRecommendations({improvement},ListKind::ToImprove,16,0,{training,improvement},RatingSystem::BeatLeader,0);
+    CHECK(improved.size() == 1 && improved[0].predictedPp == BeatLeaderPp(improved[0].predictedAccuracy,improvement.difficulties[0]));
+    std::cout << "PASS: PPv4 upstream reference and live scores, per-map curves, mixed rollout, both recommendation modes\n";
 }
 
 void ModifiersAndPp() {
@@ -714,9 +777,62 @@ void ActualAttemptSchemas() {
     CHECK(lookups == 1 && localOnly.attempts.size() == 1 && localOnly.attempts[0].stars > 0 && localOnly.attemptWarning.empty());
     CHECK(ReadAttemptHistory("beatleader", "999994", disk, error) && disk[0].stars > 0);
     std::filesystem::remove(localPath);
+    // A failed run without a PB must not keep PPv3 stars indefinitely.
+    localChart.stars = 99;
+    localChart.ratingChecked = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+    localChart.ratingEpoch = 0; // Even a recent PPv3 cache needs immediate migration.
+    CHECK(SaveAttemptHistory("beatleader", "999994", {localChart}, disk, error));
+    localOnly = {}; localOnly.importAttempts = false; lookups = 0;
+    CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, chartLookup, false));
+    CHECK(lookups == 1 && localOnly.attempts[0].stars == blCharts.front().stars && localOnly.attempts[0].ratingChecked > 0);
+    CHECK(ReadAttemptHistory("beatleader", "999994", disk, error) && disk[0].ratingEpoch == kBeatLeaderAttemptRatingEpoch);
+    localOnly = {}; localOnly.importAttempts = false; lookups = 0;
+    CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, chartLookup, false));
+    CHECK(lookups == 0 && localOnly.attempts[0].stars == blCharts.front().stars);
+    std::filesystem::remove(localPath);
+    localChart.ratingChecked = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count() - 8*86400;
+    localChart.ratingEpoch = kBeatLeaderAttemptRatingEpoch;
+    CHECK(SaveAttemptHistory("beatleader", "999994", {localChart}, disk, error));
+    HttpGetter unavailableRating = [&](const std::string& url, std::string& body, std::string& message) {
+        if (url.find("leaderboards/hash/") != std::string::npos) { message = "Offline"; return false; }
+        body = Page(1,1,{Chart(2,7,true)}); return true;
+    };
+    localOnly = {}; localOnly.importAttempts = false;
+    CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, unavailableRating, false));
+    CHECK(localOnly.attempts.size() == 1 && localOnly.attempts[0].stars == 0);
+    CHECK(localOnly.attemptWarning.find("outdated BeatLeader ratings") != std::string::npos);
+    CHECK(ReadAttemptHistory("beatleader", "999994", disk, error) && disk[0].stars == 99);
+    std::filesystem::remove(localPath);
+    localChart.ratingChecked += 8*86400;
+    localChart.ratingEpoch = 0;
+    CHECK(SaveAttemptHistory("beatleader", "999994", {localChart}, disk, error));
+    localOnly = {}; localOnly.importAttempts = false;
+    CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, unavailableRating, false));
+    CHECK(localOnly.attempts[0].stars == 0 && localOnly.attemptWarning.find("outdated BeatLeader ratings") != std::string::npos);
+    std::filesystem::remove(localPath);
+    // A successful lookup that no longer includes the ranked chart retires its
+    // old stars on disk too; the cache merge must not restore that rating.
+    CHECK(SaveAttemptHistory("beatleader", "999994", {localChart}, disk, error));
+    HttpGetter removedChart = [&](const std::string& url, std::string& body, std::string&) {
+        body = url.find("leaderboards/hash/") != std::string::npos ? Page(1,0,{}) : Page(1,1,{Chart(2,7,true)});
+        return true;
+    };
+    localOnly = {}; localOnly.importAttempts = false;
+    CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, removedChart, false));
+    CHECK(localOnly.attempts[0].stars == 0);
+    CHECK(ReadAttemptHistory("beatleader", "999994", disk, error) && disk[0].stars == 0 && disk[0].ratingEpoch == kBeatLeaderAttemptRatingEpoch);
+    std::filesystem::remove(localPath);
+    // Fresh PB data resolves the cached attempt without a redundant hash query.
+    localChart.hash = Hash(2); localChart.difficulty = "ExpertPlus";
+    CHECK(SaveAttemptHistory("beatleader", "999994", {localChart}, disk, error));
+    localOnly = {}; localOnly.importAttempts = false;
+    CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, unavailableRating, false));
+    CHECK(localOnly.attempts[0].stars == 7 && localOnly.attemptWarning.empty());
+    std::filesystem::remove(localPath);
     const auto ssCharts = Parse(ReadFile("tests/fixtures/scoresaber-attempt-chart-live.json"));
     CHECK(ssCharts.size() == 1 && ssCharts[0].stars > 0);
     localChart.hash = ssCharts[0].hash; localChart.difficulty = ssCharts[0].difficulties[0].name;
+    localChart.stars = 0; localChart.ratingChecked = 0; localChart.ratingEpoch = 0;
     const std::string ssLocalPath = "tests/attempt-sandbox/scoresaber_999995.json";
     std::filesystem::remove(ssLocalPath);
     CHECK(SaveAttemptHistory("scoresaber", "999995", {localChart}, disk, error));
@@ -1069,7 +1185,7 @@ void DefaultRealmCompatibility() {
 
 int main(int argc, char** argv) {
     try {
-        DatesAndParsing(); MonotonicAccuracy(); ModifiersAndPp(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); ClearRateAndSimpleMode();
+        DatesAndParsing(); MonotonicAccuracy(); ModifiersAndPp(); BeatLeaderV4Contract(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); ClearRateAndSimpleMode();
         AttemptEvidence(); AttemptImportAndStorage();
         ActualAttemptSchemas();
         AbilityChartContract();
