@@ -1,6 +1,7 @@
 #pragma once
 
 #include "recommendation.hpp"
+#include "clan_recommendation.hpp"
 
 #include <string>
 #include <vector>
@@ -27,6 +28,19 @@ struct ClanPlaylistRecommendations {
     std::vector<MapEntry> entries;
     std::string image;
     std::string iconWarning;
+    bool hypothetical{false};
+    bool legacy{false};
+    double legacyMaxStars{0.0};
+    std::size_t eligibleCharts{0};
+    std::size_t checkedCharts{0};
+    std::size_t failedCharts{0};
+    std::size_t recheckedCharts{0};
+    std::size_t learnedCharts{0};
+    std::string warning;
+    std::string error; // A failed clan preserves its previous playlist independently.
+    std::size_t nextCursor{0};
+    bool cursorReady{false};
+    ClanSearchState searchState;
 };
 
 // Owned by one refresh worker; never shared with the settings UI.
@@ -58,10 +72,16 @@ bool FetchBeatLeaderNotPlayedStarRange(const std::string& playerId,
 
 bool FetchClanToConquer(const std::string& playerId,
                         bool allClans,
-                        double minStars,
-                        double maxStars,
                         int limit,
                         std::vector<ClanPlaylistRecommendations>& clanPlaylists,
-                        std::string& error);
+                        std::string& error,
+                        double minClearRate = 0.50,
+                        ScoreHistory* history = nullptr,
+                        bool legacy = false);
+
+bool SaveClanExplorationCursor(const std::string& playerId, const std::string& clanTag,
+                               std::size_t cursor, std::string& error);
+bool SaveClanSearchState(const std::string& playerId, const std::string& clanTag,
+                         const ClanSearchState& state, std::string& error);
 
 } // namespace rankedpractice

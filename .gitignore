@@ -44,6 +44,8 @@ tests/recommendation_tests
 tests/playlist_writer_tests
 tests/http_client_tests
 tests/attempt-sandbox/
+tests/clan-search-sandbox/
+tests/review-compiler-temp/
 
 # Editor configuration is machine-local.
 

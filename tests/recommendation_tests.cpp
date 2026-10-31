@@ -8,9 +8,11 @@
 #include <stdexcept>
 #include <thread>
 #define RANKEDTOOLS_ATTEMPT_DIRECTORY "tests/attempt-sandbox"
+#define RANKEDTOOLS_CLAN_CURSOR_DIRECTORY "tests/clan-search-sandbox"
 #include "../src/attempt_history.cpp"
 #include "../src/beatleader_pp.cpp"
 #include "../src/recommendation.cpp"
+#include "../src/clan_recommendation.cpp"
 #include "../src/ability_chart.cpp"
 #include "../src/playlist_image.cpp"
 #include "../src/account.cpp"
@@ -422,31 +424,47 @@ void CompleteCandidateBand() {
     std::cout << "PASS: later clearable/better candidates, supported SS endpoint, full distinct-song limit\n";
 }
 
+ScoreHistory ClanTestHistory() {
+    ScoreHistory history; history.loaded = true; history.playerId = "123";
+    history.scores = {Score(90000)}; return history;
+}
+bool FetchTestClans(const std::string& id, bool all, int limit,
+                    std::vector<ClanPlaylistRecommendations>& clans, std::string& error,
+                    const HttpGetter& get, const HttpGetter& icon) {
+    auto history = ClanTestHistory();
+    HttpGetter wrapped = [&](const std::string& url, std::string& body, std::string& failure) {
+        if (url.find("/maps?type=ranked") != std::string::npos) { body = R"({"data":[],"metadata":{"total":0}})"; return true; }
+        if (url.find("/clans/globalmap") != std::string::npos) { body = R"({"points":[]})"; return true; }
+        return get(url, body, failure);
+    };
+    return FetchClanToConquerInternal(id, all, limit, clans, error, wrapped, icon, .5, &history, false);
+}
+
 void ClansAndSettings() {
     std::string error;
     std::vector<ClanPlaylistRecommendations> clans;
     for (const auto& profile : {R"({"clans":[],"clanOrder":"OLD"})", R"({"clans":null})"}) {
         int calls = 0;
         HttpGetter get = [&](const std::string&, std::string& body, std::string&) { ++calls; body = profile; return true; };
-        CHECK(FetchClanToConquerInternal("123", true, 0, 20, 16, clans, error, get, get));
+        CHECK(FetchTestClans("123", true, 16, clans, error, get, get));
         CHECK(clans.empty() && calls == 1);
     }
     for (const auto& profile : {"{}", R"({"clans":false})", R"({"clans":[{}]})", "broken"}) {
         HttpGetter get = [&](const std::string&, std::string& body, std::string&) { body = profile; return true; };
-        CHECK(!FetchClanToConquerInternal("123", true, 0, 20, 16, clans, error, get, get));
+        CHECK(!FetchTestClans("123", true, 16, clans, error, get, get));
     }
     int calls = 0;
     HttpGetter joined = [&](const std::string& url, std::string& body, std::string&) {
-        if (++calls == 1) body = R"({"clans":[{"tag":"A"},{"tag":"B"}],"clanOrder":"OLD,B"})";
+        if (++calls == 1) body = R"({"clans":[{"tag":"A","id":1},{"tag":"B","id":2}],"clanOrder":"OLD,B"})";
         else { CHECK(url.find("/clan/B/maps") != std::string::npos); body = R"({"data":[]})"; }
         return true;
     };
-    CHECK(FetchClanToConquerInternal("123", false, 0, 20, 16, clans, error, joined, joined));
+    CHECK(FetchTestClans("123", false, 16, clans, error, joined, joined));
     CHECK(calls == 2 && clans.size() == 1 && clans.front().clanTag == "B");
     auto entry = Score(1); entry.leaderboardId = "1";
-    entry.difficulties.push_back({"Standard", "Expert", 9});
-    auto selected = SelectClanRecommendations({entry}, 0, 20, 16);
-    CHECK(selected.size() == 1 && selected.front().stars == 9 && selected.front().difficulties.front().name == "Expert");
+    entry.difficulties.push_back({"Standard", "Expert", 9, 8, 8, 5});
+    auto selected = EvaluatePlayerPerformance({entry}, {Score(20)});
+    CHECK(selected.size() == 2 && selected.back().stars == 9 && selected.back().difficulties.front().name == "Expert");
 
     RefreshSettings settings; settings.beatLeaderPlayerId = "123"; settings.limit = 16;
     RefreshSettings snapshot = settings;
@@ -878,7 +896,7 @@ void ClanIcons() {
     HttpGetter api = [&](const std::string& url, std::string& body, std::string&) {
         if (url.find("/player/") != std::string::npos) {
             // Membership lacks icons, as on the live API; order is independent of array order.
-            body = R"({"clans":[{"tag":"A"},{"tag":"B"}],"clanOrder":"B,A"})";
+            body = R"({"clans":[{"tag":"A","id":1},{"tag":"B","id":2}],"clanOrder":"B,A"})";
         } else {
             ++mapCalls;
             const std::string tag = url.find("/clan/B/maps") != std::string::npos ? "B" : "A";
@@ -891,13 +909,13 @@ void ClanIcons() {
         body = url.ends_with("A.png") ? pngA : pngB;
         return true;
     };
-    CHECK(FetchClanToConquerInternal("123", true, 0, 20, 16, playlists, error, api, icons));
+    CHECK(FetchTestClans("123", true, 16, playlists, error, api, icons));
     CHECK(mapCalls == 2 && iconCalls.size() == 2 && playlists.size() == 2);
     CHECK(playlists[0].clanTag == "B" && playlists[0].image == DownloadedPlaylistImage(pngB));
     CHECK(playlists[1].clanTag == "A" && playlists[1].image == DownloadedPlaylistImage(pngA));
     CHECK(playlists[0].iconWarning.empty() && playlists[1].iconWarning.empty());
     mapCalls = 0; iconCalls.clear();
-    CHECK(FetchClanToConquerInternal("123", false, 0, 20, 16, playlists, error, api, icons));
+    CHECK(FetchTestClans("123", false, 16, playlists, error, api, icons));
     CHECK(mapCalls == 1 && iconCalls.size() == 1 && iconCalls[0].ends_with("B.png"));
     CHECK(playlists.size() == 1 && playlists[0].image == DownloadedPlaylistImage(pngB));
 
@@ -909,27 +927,27 @@ void ClanIcons() {
             body = failure == 1 ? "<html>Not an image</html>" : std::string(kMaxClanIconBytes + 1, 'x');
             return true;
         };
-        CHECK(FetchClanToConquerInternal("123", true, 0, 20, 16, playlists, error, api, brokenIcon));
+        CHECK(FetchTestClans("123", true, 16, playlists, error, api, brokenIcon));
         CHECK(playlists[0].image.empty() && !playlists[0].iconWarning.empty());
         CHECK(playlists[1].image == DownloadedPlaylistImage(pngA) && playlists[1].iconWarning.empty());
     }
     for (const std::string icon : {"", "file:///icon.png", "http://example.com/icon.png"}) {
         HttpGetter missing = [&](const std::string& url, std::string& body, std::string&) {
-            if (url.find("/player/") != std::string::npos) body = R"({"clans":[{"tag":"A"}]})";
+            if (url.find("/player/") != std::string::npos) body = R"({"clans":[{"tag":"A","id":1}]})";
             else body = "{\"data\":[],\"container\":{\"tag\":\"A\",\"icon\":\"" + icon + "\"}}";
             return true;
         };
         HttpGetter forbidden = [&](const std::string&, std::string&, std::string&) { CHECK(false); return false; };
-        CHECK(FetchClanToConquerInternal("123", true, 0, 20, 16, playlists, error, missing, forbidden));
+        CHECK(FetchTestClans("123", true, 16, playlists, error, missing, forbidden));
         CHECK(playlists.size() == 1 && playlists[0].image.empty() && !playlists[0].iconWarning.empty());
     }
     HttpGetter mismatched = [&](const std::string& url, std::string& body, std::string&) {
-        body = url.find("/player/") != std::string::npos ? R"({"clans":[{"tag":"A"}]})" :
+        body = url.find("/player/") != std::string::npos ? R"({"clans":[{"tag":"A","id":1}]})" :
             R"({"data":[],"container":{"tag":"B","icon":"https://example.com/B.png"}})";
         return true;
     };
     iconCalls.clear();
-    CHECK(FetchClanToConquerInternal("123", true, 0, 20, 16, playlists, error, mismatched, icons));
+    CHECK(FetchTestClans("123", true, 16, playlists, error, mismatched, icons));
     CHECK(iconCalls.empty() && playlists[0].image.empty());
     std::cout << "PASS: clan covers follow membership order, stay independent per clan and safely fall back on image failures\n";
 }
@@ -1183,9 +1201,18 @@ void DefaultRealmCompatibility() {
     std::cout << "PASS: one realm fallback per operation, accepted query formats and default rating validation\n";
 }
 
+#include "clan_recommendation_tests.hpp"
+#include "clan_api_audit.hpp"
+#include "clan_refresh_tests.hpp"
+#include "clan_search_tests.hpp"
+#include "clan_legacy_tests.hpp"
+
 int main(int argc, char** argv) {
     try {
-        DatesAndParsing(); MonotonicAccuracy(); ModifiersAndPp(); BeatLeaderV4Contract(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); ClearRateAndSimpleMode();
+        if (argc == 4 && std::string(argv[1]) == "--audit-clan-profile") return AuditClanProfile(argv[2], argv[3]);
+        if (argc == 4 && std::string(argv[1]) == "--benchmark-clan-profile") return AuditClanProfile(argv[2], argv[3], true);
+        if (argc == 4 && std::string(argv[1]) == "--benchmark-paced-clan-profile") return AuditClanProfile(argv[2], argv[3], true, true);
+        DatesAndParsing(); MonotonicAccuracy(); ModifiersAndPp(); BeatLeaderV4Contract(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); PersonalizedClanContract(); ClanSearchContract(); ClanRefreshPerformance(); ClanSearchLearning(); ConsecutiveClanRefreshes(); ConsecutiveClanRefreshes(true); LearnedSecondaryClans(); LegacyClanSelection(); LegacyClanRefresh(); LegacyClearRateCap(); ClearRateAndSimpleMode();
         AttemptEvidence(); AttemptImportAndStorage();
         ActualAttemptSchemas();
         AbilityChartContract();

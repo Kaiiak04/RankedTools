@@ -16,10 +16,8 @@ struct RefreshSettings {
     bool enableBeatLeader{true};
     bool enableScoreSaber{true};
     bool enableClanPlaylist{true};
-    bool clanAutoStars{true};
+    bool legacyClanPlaylists{false};
     bool allClans{false};
-    double clanMinStars{0.0};
-    double clanMaxStars{20.0};
 };
 
 } // namespace rankedpractice

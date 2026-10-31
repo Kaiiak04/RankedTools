@@ -74,8 +74,37 @@ int main() {
         CHECK(readImage("A", true) == imageA && readImage("B", true) == imageB);
         CHECK(WriteClanPlaylist("B", false, {entry}, error, imageB));
         CHECK(readImage("B", false) == imageB);
+        CHECK(WriteClanPlaylist("B", true, {entry}, error, imageB, true));
+        {
+            std::ifstream file(directory / ClanPlaylistFileName("B", true));
+            const std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+            rapidjson::Document doc; doc.Parse(text.c_str());
+            CHECK(!doc.HasParseError());
+            CHECK(std::string(doc["playlistTitle"].GetString()).find("what-if primary clan") != std::string::npos);
+            CHECK(std::string(doc["playlistDescription"].GetString()).find("Existing PBs are transferred") != std::string::npos);
+            CHECK(readImage("B", true) == imageB);
+        }
         CHECK(WriteClanPlaylist("A", true, {entry}, error));
         CHECK(readImage("A", true) == imageA); // Actual packaged PNG is used when no downloaded cover exists.
+        CHECK(WriteClanPlaylist("B", true, {entry}, error, imageB, true, true));
+        {
+            std::ifstream file(directory / ClanPlaylistFileName("B",true));
+            const std::string text{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
+            rapidjson::Document doc; doc.Parse(text.c_str());
+            CHECK(!doc.HasParseError() && doc["songs"].Size()==1);
+            const std::string title=doc["playlistTitle"].GetString(), description=doc["playlistDescription"].GetString();
+            CHECK(title.find("legacy")!=std::string::npos && title.find("what-if primary clan")!=std::string::npos);
+            CHECK(description.find("automatic maximum")!=std::string::npos || description.find("Automatic maximum")!=std::string::npos);
+            CHECK(readImage("B",true)==imageB);
+        }
+        CHECK(WriteClanPlaylist("B",true,{entry},error,imageB,true,false));
+        {
+            std::ifstream file(directory / ClanPlaylistFileName("B",true));
+            const std::string text{std::istreambuf_iterator<char>(file),std::istreambuf_iterator<char>()};
+            rapidjson::Document doc; doc.Parse(text.c_str());
+            CHECK(std::string(doc["playlistTitle"].GetString()).find("legacy")==std::string::npos);
+            CHECK(std::string(doc["playlistDescription"].GetString()).find("Existing PBs are transferred")!=std::string::npos);
+        }
         std::filesystem::remove(directory / ClanPlaylistFileName("A", true));
         std::filesystem::remove(directory / ClanPlaylistFileName("B", true));
         std::filesystem::remove(fallbackIcon);

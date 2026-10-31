@@ -1,15 +1,24 @@
 #include "recommendation_api.hpp"
 #include "playlist_image.hpp"
 #include "account.hpp"
+#include "clan_recommendation.hpp"
+#include "ability_chart.hpp"
 
 #include "libcurl/shared/curl.h"
 #include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cctype>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <atomic>
+#include <future>
+#include <mutex>
+#include <stdexcept>
 #include <functional>
 #include <limits>
 #include <ctime>
@@ -986,141 +995,7 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
     return true;
 }
 
-bool FetchClanToConquerInternal(const std::string& playerId,
-                               bool allClans,
-                               double minStars,
-                               double maxStars,
-                               int limit,
-                               std::vector<ClanPlaylistRecommendations>& clanPlaylists,
-                                std::string& error,
-                                const HttpGetter& get = HttpGet,
-                                const HttpGetter& getIcon = HttpGetIcon) {
-    clanPlaylists.clear();
-    if (!IsDigits(playerId)) {
-        error = "Enter a numeric BeatLeader player ID to load clan maps.";
-        return false;
-    }
-    if (minStars > maxStars) std::swap(minStars, maxStars);
-
-    std::string profileBody;
-    if (!get("https://api.beatleader.com/player/" + playerId + "?stats=true", profileBody, error)) return false;
-    rapidjson::Document profile;
-    profile.Parse(profileBody.c_str());
-    if (profile.HasParseError() || !profile.IsObject()) {
-        error = "BeatLeader returned invalid profile data while loading clan membership.";
-        return false;
-    }
-
-    if (!profile.HasMember("clans") || (!profile["clans"].IsArray() && !profile["clans"].IsNull())) {
-        error = "BeatLeader profile did not include valid clan membership data.";
-        return false;
-    }
-    std::vector<std::string> joinedTags;
-    std::unordered_map<std::string, std::string> iconUrls;
-    if (profile["clans"].IsArray()) {
-        for (const auto& clan : profile["clans"].GetArray()) {
-            std::string tag;
-            if (!ReadString(clan, "tag", tag)) {
-                error = "BeatLeader returned a clan without a tag.";
-                return false;
-            }
-            if (std::find(joinedTags.begin(), joinedTags.end(), tag) == joinedTags.end()) joinedTags.push_back(tag);
-            ReadString(clan, "icon", iconUrls[tag]);
-        }
-    }
-    std::vector<std::string> orderedTags;
-    std::string clanOrder;
-    if (ReadString(profile, "clanOrder", clanOrder)) {
-        std::istringstream tags(clanOrder);
-        std::string tag;
-        while (std::getline(tags, tag, ',')) {
-            if (std::find(joinedTags.begin(), joinedTags.end(), tag) != joinedTags.end() &&
-                std::find(orderedTags.begin(), orderedTags.end(), tag) == orderedTags.end()) {
-                orderedTags.push_back(tag);
-            }
-        }
-    }
-    for (const auto& tag : joinedTags) {
-        if (std::find(orderedTags.begin(), orderedTags.end(), tag) == orderedTags.end()) orderedTags.push_back(tag);
-    }
-    // Verified empty membership is a successful empty result, so refresh can
-    // prune playlists from the previous membership. API failures still preserve them.
-    if (orderedTags.empty()) return true;
-    if (!allClans) orderedTags.resize(1);
-
-    for (const auto& tag : orderedTags) {
-        std::vector<MapEntry> clanCandidates;
-        std::string iconUrl = iconUrls[tag];
-        for (int page = 1; page <= 40; ++page) {
-            std::ostringstream url;
-            url << "https://api.beatleader.com/clan/" << tag
-                << "/maps?page=" << page << "&count=100&sortBy=toconquer&order=desc";
-            std::string body;
-            if (!get(url.str(), body, error)) return false;
-
-            rapidjson::Document document;
-            document.Parse(body.c_str());
-            if (document.HasParseError() || !document.IsObject() ||
-                !document.HasMember("data") || !document["data"].IsArray()) {
-                error = "BeatLeader returned invalid clan map data for " + tag + ".";
-                return false;
-            }
-            const auto& rows = document["data"];
-            // Clan map responses include the full clan under container; profile
-            // membership usually contains only tag/id/color. No extra lookup needed.
-            if (page == 1 && document.HasMember("container") && document["container"].IsObject()) {
-                const auto& container = document["container"];
-                std::string containerTag;
-                if (ReadString(container, "tag", containerTag) && containerTag == tag)
-                    ReadString(container, "icon", iconUrl);
-            }
-            for (const auto& row : rows.GetArray()) {
-                if (!row.IsObject() || !row.HasMember("leaderboard") || !row["leaderboard"].IsObject()) continue;
-                const auto& leaderboard = row["leaderboard"];
-                if (!leaderboard.HasMember("song") || !leaderboard["song"].IsObject() ||
-                    !leaderboard.HasMember("difficulty") || !leaderboard["difficulty"].IsObject()) continue;
-                const auto& song = leaderboard["song"];
-                const auto& chart = leaderboard["difficulty"];
-
-                MapEntry entry;
-                ReadString(song, "hash", entry.hash);
-                ReadString(song, "name", entry.songName);
-                ReadString(song, "subName", entry.songSubName);
-                ReadString(song, "author", entry.songAuthorName);
-                ReadString(song, "mapper", entry.levelAuthorName);
-                ReadString(row, "leaderboardId", entry.leaderboardId);
-                if (entry.leaderboardId.empty()) ReadString(leaderboard, "id", entry.leaderboardId);
-                if (!row.HasMember("pp") || !row["pp"].IsNumber()) continue;
-                entry.pp = row["pp"].GetDouble();
-
-                std::string characteristic;
-                std::string difficulty;
-                ReadString(chart, "modeName", characteristic);
-                ReadString(chart, "difficultyName", difficulty);
-                if (difficulty.empty() || !chart.HasMember("stars") || !chart["stars"].IsNumber()) continue;
-                entry.stars = chart["stars"].GetDouble();
-                entry.difficulties.push_back({NormalizeCharacteristic(characteristic),
-                                              NormalizeDifficulty(difficulty), entry.stars});
-                clanCandidates.push_back(std::move(entry));
-            }
-
-            const auto pageBest = SelectClanRecommendations(clanCandidates, minStars, maxStars, limit);
-            if (pageBest.size() >= static_cast<size_t>(std::max(limit, 1)) || rows.Empty()) break;
-            if (rows.Size() < 100) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(90));
-        }
-        ClanPlaylistRecommendations playlist{tag, SelectClanRecommendations(
-            std::move(clanCandidates), minStars, maxStars, limit)};
-        std::string iconBody, iconError;
-        if (Lower(iconUrl).starts_with("https://") && getIcon(iconUrl, iconBody, iconError) &&
-            iconBody.size() <= kMaxClanIconBytes) playlist.image = DownloadedPlaylistImage(iconBody);
-        if (playlist.image.empty()) {
-            playlist.iconWarning = "Clan icon unavailable for " + tag + "; using the default cover.";
-        }
-        clanPlaylists.push_back(std::move(playlist));
-    }
-    return true;
-}
+#include "clan_api_impl.hpp"
 
 } // namespace
 
@@ -1165,13 +1040,18 @@ bool FetchBeatLeaderNotPlayedStarRange(const std::string& playerId,
 
 bool FetchClanToConquer(const std::string& playerId,
                         bool allClans,
-                        double minStars,
-                        double maxStars,
                         int limit,
                         std::vector<ClanPlaylistRecommendations>& clanPlaylists,
-                        std::string& error) {
-    return FetchClanToConquerInternal(playerId, allClans, minStars, maxStars,
-                                      limit, clanPlaylists, error);
+                        std::string& error, double minClearRate, ScoreHistory* history, bool legacy) {
+    return FetchClanToConquerInternal(playerId, allClans,
+                                      limit, clanPlaylists, error, HttpGet, HttpGetIcon, minClearRate, history, true, &SharedClanScreenCache(), legacy);
+}
+
+bool SaveClanExplorationCursor(const std::string& id, const std::string& tag, std::size_t cursor, std::string& error) {
+    return PersistClanCursor(id, tag, cursor, error);
+}
+bool SaveClanSearchState(const std::string& id, const std::string& tag, const ClanSearchState& state, std::string& error) {
+    return PersistClanSearchState(id,tag,state,error);
 }
 
 bool FetchRecommendations(const std::string& service,

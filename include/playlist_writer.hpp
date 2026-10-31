@@ -16,7 +16,9 @@ bool WriteClanPlaylist(const std::string& clanTag,
                        bool perClan,
                        const std::vector<MapEntry>& entries,
                        std::string& error,
-                       const std::string& clanImage = {});
+                       const std::string& clanImage = {},
+                       bool hypothetical = false,
+                       bool legacy = false);
 
 bool PruneClanPlaylists(const std::vector<std::string>& expectedFileNames,
                         std::string& error);

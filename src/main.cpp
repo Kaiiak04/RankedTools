@@ -33,10 +33,8 @@ static RefreshSettings CaptureRefreshSettings() {
     settings.enableBeatLeader = getModConfig().EnableBeatLeader.GetValue();
     settings.enableScoreSaber = getModConfig().EnableScoreSaber.GetValue();
     settings.enableClanPlaylist = getModConfig().EnableClanPlaylist.GetValue();
-    settings.clanAutoStars = getModConfig().ClanPlaylistAutoStarFilter.GetValue();
+    settings.legacyClanPlaylists = getModConfig().LegacyClanPlaylists.GetValue();
     settings.allClans = getModConfig().ClanPlaylistAllClans.GetValue();
-    settings.clanMinStars = getModConfig().ClanPlaylistMinStars.GetValue();
-    settings.clanMaxStars = getModConfig().ClanPlaylistMaxStars.GetValue();
     return settings;
 }
 
@@ -102,7 +100,6 @@ static bool RefreshPlaylist(const std::string& service,
 
 static bool RefreshClanPlaylist(const RefreshSettings& settings,
                                ScoreHistory& history,
-                               const StarRange* beatLeaderNotPlayedRange,
                                std::string& iconWarnings) {
     const auto& playerId = settings.beatLeaderPlayerId;
     const int limit = settings.limit;
@@ -114,50 +111,52 @@ static bool RefreshClanPlaylist(const RefreshSettings& settings,
 
     std::vector<ClanPlaylistRecommendations> clanPlaylists;
     std::string error;
-    double minStars = settings.clanMinStars;
-    double maxStars = settings.clanMaxStars;
-    if (settings.clanAutoStars) {
-        StarRange automaticRange;
-        if (beatLeaderNotPlayedRange && beatLeaderNotPlayedRange->valid) {
-            automaticRange = *beatLeaderNotPlayedRange;
-        } else if (!FetchBeatLeaderNotPlayedStarRange(playerId, minClearRate, automaticRange, error, &history)) {
-            SetStatus("Could not calculate the automatic BeatLeader star range: " + error);
-            return false;
-        }
-        minStars = automaticRange.minStars;
-        maxStars = automaticRange.maxStars;
-    }
     const auto allClans = settings.allClans;
-    if (!FetchClanToConquer(playerId, allClans, minStars, maxStars, limit,
-                            clanPlaylists, error)) {
+    if (!FetchClanToConquer(playerId, allClans, limit,
+                            clanPlaylists, error, minClearRate, &history, settings.legacyClanPlaylists)) {
+        ClanPlaylistRecommendations failed; failed.error = error;
+        PublishClanPreviews({failed});
         SetStatus("BeatLeader Maps to Conquer failed: " + error);
         return false;
     }
 
     std::vector<std::string> expectedFileNames;
     size_t totalSongs = 0;
-    for (const auto& clanPlaylist : clanPlaylists) {
+    bool succeeded = true;
+    for (auto& clanPlaylist : clanPlaylists) {
         const auto fileName = ClanPlaylistFileName(clanPlaylist.clanTag, allClans);
-        if (!WriteClanPlaylist(clanPlaylist.clanTag, allClans, clanPlaylist.entries, error, clanPlaylist.image)) {
+        expectedFileNames.push_back(fileName); // Preserve a failed current clan during cleanup.
+        if (!clanPlaylist.error.empty()) {
+            SetStatus("Clan " + clanPlaylist.clanTag + " failed: " + clanPlaylist.error);
+            succeeded = false;
+            continue;
+        }
+        if (!WriteClanPlaylist(clanPlaylist.clanTag, allClans, clanPlaylist.entries, error, clanPlaylist.image, clanPlaylist.hypothetical, clanPlaylist.legacy)) {
+            clanPlaylist.error = error; succeeded = false;
             SetStatus("BeatLeader Maps to Conquer playlist for " + clanPlaylist.clanTag +
                       " could not be saved: " + error);
-            return false;
+            continue;
         }
-        expectedFileNames.push_back(fileName);
+        if (clanPlaylist.cursorReady && !SaveClanSearchState(playerId,clanPlaylist.clanTag,clanPlaylist.searchState,error))
+            clanPlaylist.warning += " " + error;
+        if (!clanPlaylist.warning.empty()) iconWarnings += "\nClan " + clanPlaylist.clanTag + ": " + clanPlaylist.warning;
         totalSongs += clanPlaylist.entries.size();
         if (!clanPlaylist.iconWarning.empty()) {
             PaperLogger.warn("{}", clanPlaylist.iconWarning);
             iconWarnings += "\n" + clanPlaylist.iconWarning;
         }
     }
-    if (!PruneClanPlaylists(expectedFileNames, error)) {
+    PublishClanPreviews(clanPlaylists);
+    // A layout/membership change can rename the prior output. Keep that prior
+    // layout too when any clan failed, while still saving the successful clans.
+    if (succeeded && !PruneClanPlaylists(expectedFileNames, error)) {
         SetStatus("BeatLeader Maps to Conquer playlists were written, but obsolete files could not be cleaned up: " + error);
         return false;
     }
     SetStatus("BeatLeader Maps to Conquer updated " + std::to_string(clanPlaylists.size()) +
-              " clan playlist(s) with " + std::to_string(totalSongs) + " songs total (" +
-              std::to_string(minStars) + "–" + std::to_string(maxStars) + " stars).");
-    return true;
+              " clan playlist(s) with " + std::to_string(totalSongs) + " songs total; " +
+              (settings.legacyClanPlaylists ? "legacy gap selection." : "automatic skill and impact selection."));
+    return succeeded;
 }
 
 static void RefreshAll(const RefreshSettings& settings) {
@@ -200,7 +199,7 @@ static void RefreshAll(const RefreshSettings& settings) {
                     settings.simpleMode, beatLeaderHistory, &beatLeaderNotPlayedRange);
             });
             if (settings.enableClanPlaylist) success = timed("BeatLeader clans", [&] {
-                return RefreshClanPlaylist(settings, beatLeaderHistory, &beatLeaderNotPlayedRange, clanIconWarnings);
+                return RefreshClanPlaylist(settings, beatLeaderHistory, clanIconWarnings);
             }) && success;
             return success;
         };
@@ -258,7 +257,7 @@ void StartRefresh() {
     try {
         auto settings = CaptureRefreshSettings();
         ConfigureRecommendationPreviews(settings.minClearRate, settings.simpleMode,
-                                         settings.enableBeatLeader, settings.enableScoreSaber);
+                                         settings.enableBeatLeader, settings.enableScoreSaber, settings.enableClanPlaylist);
         SetStatus("Fetching leaderboard data…");
         std::thread(RefreshWorker, std::move(settings)).detach();
     } catch (const std::exception& exception) {
@@ -305,9 +304,7 @@ static void SettingsDidActivate(HMUI::ViewController* self,
     AddConfigValueToggle(parent, getModConfig().EnableBeatLeader);
     AddConfigValueToggle(parent, getModConfig().EnableScoreSaber);
     AddConfigValueToggle(parent, getModConfig().EnableClanPlaylist);
-    AddConfigValueToggle(parent, getModConfig().ClanPlaylistAutoStarFilter);
-    AddConfigValueIncrementDouble(parent, getModConfig().ClanPlaylistMinStars, 1, 0.5, 0.0, 20.0);
-    AddConfigValueIncrementDouble(parent, getModConfig().ClanPlaylistMaxStars, 1, 0.5, 0.0, 20.0);
+    AddConfigValueToggle(parent, getModConfig().LegacyClanPlaylists);
     AddConfigValueToggle(parent, getModConfig().ClanPlaylistAllClans);
 }
 

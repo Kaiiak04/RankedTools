@@ -50,13 +50,14 @@ bool WritePlaylistFile(const std::string& title,
                        const std::string& fileName,
                        const std::string& image,
                        const std::vector<MapEntry>& entries,
-                       std::string& error) {
+                       std::string& error,
+                       const std::string& description = "Generated in Beat Saber from public leaderboard data.") {
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
     writer.StartObject();
     AddString(writer, "playlistTitle", title);
     AddString(writer, "playlistAuthor", "RankedTools");
-    AddString(writer, "playlistDescription", "Generated in Beat Saber from public leaderboard data.");
+    AddString(writer, "playlistDescription", description);
     writer.Key("songs");
     writer.StartArray();
     for (const auto& entry : entries) {
@@ -149,11 +150,18 @@ bool WriteClanPlaylist(const std::string& clanTag,
                        bool perClan,
                        const std::vector<MapEntry>& entries,
                        std::string& error,
-                       const std::string& clanImage) {
+                       const std::string& clanImage,
+                       bool hypothetical, bool legacy) {
     try {
-        return WritePlaylistFile(ClanPlaylistTitle(clanTag), ClanPlaylistFileName(clanTag, perClan),
+        return WritePlaylistFile(ClanPlaylistTitle(clanTag + (legacy ? "; legacy" : "") + (hypothetical ? "; what-if primary clan" : "")), ClanPlaylistFileName(clanTag, perClan),
                                  clanImage.empty() ? PlaylistImage("beatleader_clan_toconquer.png") : clanImage,
-                                 entries, error);
+                                 entries, error, legacy
+                                     ? (hypothetical
+                                         ? "Legacy clan-gap order for a what-if primary clan. Current clan totals determine the order; eligible personal PBs filter out charts without a predicted improvement. Automatic maximum stars; no lower star limit."
+                                         : "Legacy clan-gap order with an automatic maximum star cap and personal PB filtering. Includes unplayed charts and predicted improvements, with no lower star limit.")
+                                     : hypothetical
+                                     ? "Estimated captures and progress if this clan becomes your primary clan. Existing PBs are transferred before measuring gameplay gains. Targeted verification may miss opportunities."
+                                     : "Personalized estimated captures first, then useful weighted clan PP progress. Targeted verification may miss opportunities.");
     } catch (const std::exception& exception) {
         error = exception.what();
         return false;

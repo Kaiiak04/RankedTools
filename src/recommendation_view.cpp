@@ -1,5 +1,6 @@
 #include "recommendation_view.hpp"
 #include "ability_chart.hpp"
+#include "recommendation_api.hpp"
 
 #include "bsml/shared/BSML.hpp"
 #include "bsml/shared/BSML/MainThreadScheduler.hpp"
@@ -23,6 +24,7 @@
 #include <mutex>
 #include <memory>
 #include <cstring>
+#include <cmath>
 #include <sstream>
 
 namespace rankedpractice {
@@ -31,12 +33,15 @@ namespace {
 struct PreviewList {
     bool ready{false};
     std::vector<MapEntry> entries;
+    std::string title, note, error;
+    bool clan{false};
+    bool legacy{false};
 };
 
 std::mutex previewMutex;
 std::string refreshStatus{"Open this tab to refresh recommendations."};
 double previewMinClearRate{0.50};
-std::array<PreviewList, 6> previewLists;
+std::vector<PreviewList> previewLists(6);
 std::vector<int> activeLists{0, 1, 3, 4};
 SafePtrUnity<HMUI::CurvedTextMeshPro> statusText;
 SafePtrUnity<HMUI::CurvedTextMeshPro> detailsText;
@@ -102,11 +107,13 @@ std::string ConfidenceLabel(double confidence) {
 
 std::string RenderDetails(const PreviewList& list, double minClearRate, bool hasLists) {
     std::ostringstream output;
-    if (!hasLists) return "Enable a leaderboard playlist to see song recommendations here. Clan playlists are refreshed separately.";
-    output << listNames[selectedList] << "\n";
-    if (selectedList % 3 != 1) output << "Min Clear Rate: " << std::fixed << std::setprecision(0)
+    if (!hasLists) return "Enable a leaderboard or clan playlist to see song recommendations here.";
+    output << (list.clan ? list.title : listNames[selectedList]) << "\n";
+    if (!list.note.empty()) output << list.note << "\n";
+    if (!list.error.empty()) { output << "Previous playlist preserved. " << list.error; return output.str(); }
+    if (list.clan || selectedList % 3 != 1) output << "Min Clear Rate: " << std::fixed << std::setprecision(0)
                                     << minClearRate * 100.0 << "%\n";
-    if (selectedList % 3 == 2) output << "Sorted by weighted PP gain\n";
+    if (!list.clan && selectedList % 3 == 2) output << "Sorted by weighted PP gain\n";
     if (!list.ready) {
         output << "Waiting for recommendations...";
         return output.str();
@@ -125,7 +132,26 @@ std::string RenderDetails(const PreviewList& list, double minClearRate, bool has
            << "Predicted accuracy: " << std::setprecision(1)
            << entry.predictedAccuracy * 100.0 << "%\n"
            << "Predicted score: " << std::setprecision(1) << entry.predictedPp << " PP\n";
-    if (!entry.isImprovement) {
+    if (list.legacy) {
+        output << (entry.isImprovement ? "Improve an existing score" : "New contribution") << "\n"
+               << "Current personal score: " << std::setprecision(1) << entry.currentPp << " PP\n"
+               << "Rough clear chance: " << std::setprecision(0) << entry.clearChance*100 << "%\n"
+               << "Current clan gap: " << std::setprecision(2) << std::max(0.0,-entry.priority) << " weighted PP\n"
+               << "Sorted by the current clan gap; personal PP filters completed targets.\n";
+    } else if (entry.clanImpact) {
+        const auto& impact = *entry.clanImpact;
+        output << (entry.isImprovement ? "Improve an existing score" : "New contribution") << "\n"
+               << "Current personal score: " << std::setprecision(1) << entry.currentPp << " PP\n"
+               << "Rough clear chance: " << std::setprecision(0) << entry.clearChance * 100 << "%\n"
+               << "Remaining clan gap: " << std::setprecision(2) << impact.gap << " weighted PP\n"
+               << "Projected clan gain: +" << impact.gain << " weighted PP\n"
+               << (impact.captures ? "Capture at predicted score" : "Useful progress toward capture") << "\n";
+        if (impact.requiredPp && impact.requiredAccuracy)
+            output << "Capture target: " << std::setprecision(2) << std::ceil(*impact.requiredPp * 100) / 100 << " personal PP / "
+                   << std::ceil(*impact.requiredAccuracy * 10000) / 100 << "% accuracy (unmodified)\n";
+        else output << "Capture exceeds the theoretical unmodified maximum.\n";
+        output << "Capture is an estimate, not a calibrated probability.\n";
+    } else if (!entry.isImprovement) {
         output << "Rough clear chance: " << std::setprecision(0)
                << entry.clearChance * 100.0 << "%\n"
                << "Weighted PP gain if cleared: +" << std::setprecision(2)
@@ -342,10 +368,10 @@ void SetViewStatus(const std::string& status) {
 }
 
 void ConfigureRecommendationPreviews(double minClearRate, bool simpleMode,
-                                      bool enableBeatLeader, bool enableScoreSaber) {
+                                      bool enableBeatLeader, bool enableScoreSaber, bool enableClans) {
     {
         std::lock_guard<std::mutex> lock(previewMutex);
-        for (auto& list : previewLists) list = {};
+        previewLists.assign(6, {});
         abilityPreviews = {};
         enabledServices = {enableBeatLeader, enableScoreSaber};
         selectedService = enableBeatLeader || !enableScoreSaber ? 0 : 1;
@@ -356,8 +382,50 @@ void ConfigureRecommendationPreviews(double minClearRate, bool simpleMode,
             if (simpleMode) activeLists.push_back(base + 2);
             else { activeLists.push_back(base); activeLists.push_back(base + 1); }
         }
+        if (enableClans) {
+            PreviewList clan; clan.clan = true; clan.title = "BeatLeader - Maps to Conquer";
+            previewLists.push_back(std::move(clan)); activeLists.push_back(6);
+        }
         selectedList = activeLists.empty() ? 0 : activeLists.front();
         selectedSong = 0;
+    }
+    ScheduleUpdate();
+}
+
+void PublishClanPreviews(const std::vector<ClanPlaylistRecommendations>& playlists) {
+    {
+        std::lock_guard<std::mutex> lock(previewMutex);
+        previewLists.resize(6);
+        activeLists.erase(std::remove_if(activeLists.begin(), activeLists.end(), [](int i) { return i >= 6; }), activeLists.end());
+        for (const auto& playlist : playlists) {
+            PreviewList list; list.ready = true; list.clan = true; list.entries = playlist.entries;
+            list.legacy=playlist.legacy;
+            list.title = ClanPlaylistTitle(playlist.clanTag+(playlist.legacy?"; legacy":""));
+            list.note = playlist.hypothetical ? "What-if primary clan: requires changing your primary clan.\n" : "";
+            if (playlist.legacy) {
+                std::ostringstream note;
+                note << "Legacy clan-gap order. ";
+                if (std::isfinite(playlist.legacyMaxStars))
+                    note << "Automatic maximum: " << std::fixed << std::setprecision(2)
+                         << std::floor(playlist.legacyMaxStars*100)/100 << " stars; no lower star limit.\n";
+                else note << "Maximum stars disabled at 0% Min Clear Rate.\n";
+                note << "Keeps unplayed charts and predicted personal improvements.\n";
+                if (playlist.hypothetical) note << "Order uses current clan totals before any primary-clan transfer.\n";
+                list.note+=note.str();
+            } else {
+                list.note += "Estimated captures first, then useful progress.\nVerified " +
+                    std::to_string(playlist.checkedCharts - playlist.failedCharts) + " of " + std::to_string(playlist.eligibleCharts) +
+                    " eligible charts. Targeted search may miss opportunities.";
+                list.note += "\nRechecked "+std::to_string(playlist.recheckedCharts)+" previous picks; learned clan impact for "+
+                    std::to_string(playlist.learnedCharts)+" candidates.";
+            }
+            if (!playlist.warning.empty()) list.note += "\n" + playlist.warning;
+            list.error = playlist.error;
+            activeLists.push_back(static_cast<int>(previewLists.size())); previewLists.push_back(std::move(list));
+        }
+        if (selectedList >= static_cast<int>(previewLists.size()) ||
+            std::find(activeLists.begin(), activeLists.end(), selectedList) == activeLists.end())
+            selectedList = activeLists.empty() ? 0 : activeLists.front();
     }
     ScheduleUpdate();
 }

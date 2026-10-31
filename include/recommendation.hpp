@@ -20,6 +20,19 @@ struct Difficulty {
     std::optional<double> noteSpan; // Presence selects PPv4, including an explicit zero.
 };
 
+struct ClanImpact {
+    double currentClanPp{0.0};
+    double rivalPp{0.0};
+    double gap{0.0};
+    double gain{0.0};
+    double gapClosure{0.0};
+    double adjustedGain{0.0};
+    std::optional<double> requiredPp;
+    std::optional<double> requiredAccuracy;
+    bool captures{false};
+    bool hypothetical{false};
+};
+
 struct MapEntry {
     std::string hash;
     std::string songName;
@@ -47,6 +60,7 @@ struct MapEntry {
     bool noFail{false};
     bool ranked{true};
     bool isImprovement{false};
+    std::optional<ClanImpact> clanImpact;
 };
 
 enum class ListKind { NotPlayed, ToImprove, Combined };
@@ -72,10 +86,14 @@ void ResolveAttemptRatings(std::vector<Attempt>& attempts, const std::vector<Map
 std::vector<MapEntry> MergeRecommendations(std::vector<MapEntry> notPlayed,
                                            std::vector<MapEntry> toImprove,
                                            int limit);
-std::vector<MapEntry> SelectClanRecommendations(std::vector<MapEntry> entries,
-                                                double minStars,
-                                                double maxStars,
-                                                int limit);
+// Per-chart estimates without personal-profile PP gain filtering or song deduplication.
+std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& charts,
+                                               const std::vector<MapEntry>& scores,
+                                               const std::vector<Attempt>& attempts = {});
+double PredictBeatLeaderPp(double accuracy, const Difficulty& difficulty);
+// Global clearability boundary for legacy clans. Zero rate disables the cap.
+double EstimateClanMaxStars(const std::vector<MapEntry>& scores, double minClearRate,
+                            const std::vector<Attempt>& attempts = {});
 std::string PlaylistFileName(const std::string& service, ListKind kind);
 std::string PlaylistTitle(const std::string& service, ListKind kind);
 std::string ClanPlaylistFileName(const std::string& clanTag, bool perClan);

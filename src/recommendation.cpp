@@ -279,6 +279,47 @@ public:
         });
     }
 
+    double MaximumStars(double minClearRate) const {
+        // Predict clamps its lower tail to 2%. At 0% (the UI's disabled
+        // setting), or any threshold below that floor, there is no upper cap.
+        if (minClearRate<=.02) return std::numeric_limits<double>::infinity();
+        double maxClearStars=supportedStars_, clearWeight=0;
+        for (const auto& observation:observations_) if (observation.cleared) {
+            maxClearStars=std::max(maxClearStars,observation.stars);
+            clearWeight+=observation.weight;
+        }
+        // Beyond this evidence-derived tail, clear weight <= threshold/2
+        // and the prior <= threshold/4, so Predict must be below threshold.
+        const double gaussianTail=.8*std::sqrt(2*std::log(std::max(1.0,2*clearWeight/minClearRate)));
+        const double priorTail=.7*std::log((4-minClearRate)/minClearRate);
+        const double upper=maxClearStars+std::max(gaussianTail,priorTail)+.05;
+        double next=upper;
+        // The local model needn't be monotonic. Search from the upper tail
+        // to find the highest qualifying region, then refine its boundary.
+        for (double stars=upper;stars>=0;stars-=.05) {
+            if (Predict(stars)>=minClearRate) {
+                double low=stars,high=next;
+                for (int i=0;i<32;++i) {
+                    const double mid=(low+high)/2;
+                    if (Predict(mid)>=minClearRate) low=mid;
+                    else high=mid;
+                }
+                return low;
+            }
+            next=stars;
+        }
+        if (Predict(0)>=minClearRate) {
+            double low=0,high=next;
+            for (int i=0;i<32;++i) {
+                const double mid=(low+high)/2;
+                if (Predict(mid)>=minClearRate) low=mid;
+                else high=mid;
+            }
+            return low;
+        }
+        return 0;
+    }
+
 private:
     std::vector<ClearObservation> observations_;
     double supportedStars_{7.0};
@@ -467,6 +508,59 @@ int NormalizeMinClearRatePercent(int percent) {
     return (std::clamp(percent, 0, 95) + 2) / 5 * 5;
 }
 
+namespace {
+void ApplyPerformance(MapEntry& entry, const Difficulty& difficulty, RatingSystem system,
+                      const AccuracyCurve& accuracy, const ClearabilityModel& clearability,
+                      bool includeClearSupport) {
+    entry.predictedAccuracy = accuracy.Predict(difficulty.stars);
+    entry.predictedPp = system == RatingSystem::BeatLeader ? BeatLeaderPp(entry.predictedAccuracy, difficulty)
+        : ScoreSaberPp(difficulty.stars, entry.predictedAccuracy);
+    entry.clearChance = clearability.Predict(difficulty.stars, ScoreKey(entry, difficulty));
+    entry.confidence = std::clamp(accuracy.LocalSupport(difficulty.stars) / 3.0, 0.0, 1.0);
+    if (includeClearSupport) entry.confidence = std::min(entry.confidence,
+        std::clamp(clearability.LocalSupport(difficulty.stars) / 4.0, 0.0, 1.0));
+    const auto [clears, noFail] = clearability.NearbyCounts(difficulty.stars);
+    entry.nearbyClears = clears; entry.nearbyNoFail = noFail;
+    entry.nearbyFailures = clearability.NearbyFailures(difficulty.stars);
+}
+}
+double PredictBeatLeaderPp(double accuracy, const Difficulty& difficulty) { return BeatLeaderPp(accuracy, difficulty); }
+double EstimateClanMaxStars(const std::vector<MapEntry>& scores, double minClearRate,
+                            const std::vector<Attempt>& attempts) {
+    minClearRate=std::isfinite(minClearRate)?std::clamp(minClearRate,0.0,.95):.5;
+    auto resolved=attempts;
+    ResolveAttemptRatings(resolved,scores);
+    return ClearabilityModel(scores,resolved).MaximumStars(minClearRate);
+}
+std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& charts,
+                                               const std::vector<MapEntry>& scores,
+                                               const std::vector<Attempt>& attempts) {
+    const AccuracyCurve accuracy(scores);
+    if (!accuracy.HasObservations()) return {};
+    auto resolved = attempts;
+    ResolveAttemptRatings(resolved, scores);
+    ResolveAttemptRatings(resolved, charts);
+    const ClearabilityModel clearability(scores, resolved);
+    const auto profile = MakeWeightedProfile(scores);
+    std::unordered_map<std::string, double> currentPp;
+    for (const auto& [key, pp] : profile.scores) currentPp.emplace(key, pp);
+    std::vector<MapEntry> result;
+    for (const auto& chart : charts) {
+        if (!chart.ranked || !IsValidSongHash(chart.hash) || chart.songName.empty()) continue;
+        for (const auto& difficulty : chart.difficulties) {
+            if (Canonical(difficulty.characteristic) != "standard" || !std::isfinite(difficulty.stars) || difficulty.stars <= 0) continue;
+            MapEntry entry = chart;
+            entry.difficulties = {difficulty}; entry.stars = difficulty.stars;
+            ApplyPerformance(entry, difficulty, RatingSystem::BeatLeader, accuracy, clearability, true);
+            const auto current = currentPp.find(ScoreKey(entry, difficulty));
+            entry.currentPp = current == currentPp.end() ? 0.0 : current->second;
+            entry.isImprovement = entry.currentPp > 0;
+            if (std::isfinite(entry.predictedPp) && entry.predictedPp > 0) result.push_back(std::move(entry));
+        }
+    }
+    return result;
+}
+
 std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
                                             ListKind kind,
                                             int limit,
@@ -498,12 +592,11 @@ std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
         MapEntry selected = entry;
         double bestPriority = 0.0;
         for (const auto& difficulty : entry.difficulties) {
-            const double predictedAccuracy = accuracyCurve.Predict(difficulty.stars);
-            const double clearChance = clearability.Predict(difficulty.stars,
-                Canonical(entry.hash) + "|" + Canonical(difficulty.characteristic) + "|" + Canonical(difficulty.name));
-            const double predictedPp = system == RatingSystem::ScoreSaber
-                ? ScoreSaberPp(difficulty.stars, predictedAccuracy)
-                : BeatLeaderPp(predictedAccuracy, difficulty);
+            MapEntry performance = entry;
+            ApplyPerformance(performance, difficulty, system, accuracyCurve, clearability, kind == ListKind::NotPlayed);
+            const double predictedAccuracy = performance.predictedAccuracy;
+            const double predictedPp = performance.predictedPp;
+            const double clearChance = performance.clearChance;
             if (predictedPp <= 0.0) continue;
 
             const auto scoreKey = ScoreKey(entry, difficulty);
@@ -525,16 +618,10 @@ std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
                 selected.isImprovement = kind == ListKind::ToImprove;
                 selected.weightedPpGain = weightedGain;
                 selected.clearChance = clearChance;
-                selected.confidence = std::clamp(accuracyCurve.LocalSupport(difficulty.stars) / 3.0,
-                                                  0.0, 1.0);
-                if (kind == ListKind::NotPlayed) {
-                    selected.confidence = std::min(selected.confidence,
-                        std::clamp(clearability.LocalSupport(difficulty.stars) / 4.0, 0.0, 1.0));
-                }
-                const auto [nearbyClears, nearbyNoFail] = clearability.NearbyCounts(difficulty.stars);
-                selected.nearbyClears = nearbyClears;
-                selected.nearbyNoFail = nearbyNoFail;
-                selected.nearbyFailures = clearability.NearbyFailures(difficulty.stars);
+                selected.confidence = performance.confidence;
+                selected.nearbyClears = performance.nearbyClears;
+                selected.nearbyNoFail = performance.nearbyNoFail;
+                selected.nearbyFailures = performance.nearbyFailures;
             }
         }
         if (!hasRecommendation) continue;
@@ -650,50 +737,6 @@ std::vector<MapEntry> MergeRecommendations(std::vector<MapEntry> notPlayed,
     };
     collect(notPlayed, false);
     collect(toImprove, true);
-    std::vector<MapEntry> result;
-    result.reserve(unique.size());
-    for (auto& [_, entry] : unique) result.push_back(std::move(entry));
-    std::sort(result.begin(), result.end(), [](const MapEntry& left, const MapEntry& right) {
-        if (left.priority != right.priority) return left.priority > right.priority;
-        if (left.songName != right.songName) return left.songName < right.songName;
-        return left.hash < right.hash;
-    });
-    if (limit >= 0 && result.size() > static_cast<size_t>(limit)) result.resize(static_cast<size_t>(limit));
-    return result;
-}
-
-std::vector<MapEntry> SelectClanRecommendations(std::vector<MapEntry> entries,
-                                                double minStars,
-                                                double maxStars,
-                                                int limit) {
-    if (minStars > maxStars) std::swap(minStars, maxStars);
-    std::unordered_map<std::string, MapEntry> unique;
-    for (auto& entry : entries) {
-        if (!IsValidSongHash(entry.hash) || entry.songName.empty() || entry.leaderboardId.empty() ||
-            !std::isfinite(entry.pp) || entry.difficulties.empty()) continue;
-        entry.difficulties.erase(std::remove_if(entry.difficulties.begin(), entry.difficulties.end(),
-            [minStars, maxStars](const Difficulty& difficulty) {
-                return Canonical(difficulty.characteristic) != "standard" ||
-                       difficulty.stars < minStars || difficulty.stars > maxStars;
-            }), entry.difficulties.end());
-        if (entry.difficulties.empty()) continue;
-
-        // The clan endpoint's signed PP field is the amount needed to pass the
-        // current clan result; values closer to zero are nearest to conquest.
-        entry.priority = entry.pp;
-        const auto best = std::max_element(entry.difficulties.begin(), entry.difficulties.end(),
-            [](const Difficulty& left, const Difficulty& right) { return left.stars < right.stars; });
-        const Difficulty selectedDifficulty = *best;
-        entry.difficulties = {selectedDifficulty};
-        entry.stars = selectedDifficulty.stars;
-
-        const auto key = Canonical(entry.hash);
-        auto found = unique.find(key);
-        if (found == unique.end() || entry.priority > found->second.priority) {
-            unique[key] = std::move(entry);
-        }
-    }
-
     std::vector<MapEntry> result;
     result.reserve(unique.size());
     for (auto& [_, entry] : unique) result.push_back(std::move(entry));
