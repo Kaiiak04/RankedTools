@@ -1,6 +1,6 @@
-# RankedTools PCVR preview 0.1.25
+# RankedTools PCVR preview 0.1.26
 
-This update adds **Sync** to the PCVR previews for **Beat Saber 1.40.8 and 1.44.1**.
+This update fixes **Sync** for accounts with built-in OST scores, for **Beat Saber 1.40.8 and 1.44.1**. The previous preview treated official-song level IDs as malformed custom-map hashes and stopped the refresh. Official-song records are now excluded while malformed custom records still preserve the previous playlist.
 
 Select both accounts and enable **Create Sync playlist** in Mod Settings. Sync finds exact charts ranked on both ScoreSaber and BeatLeader with a posted score on only one, helping you fill the other leaderboard's scores. It includes all matching charts across all characteristics, ignores the playlist song-count setting, and uses the new supplied cover unchanged. No Fail scores count as posted scores; local attempts do not. Song previews show which service is missing each chart. Failed or incomplete refreshes preserve the previous playlist.
 

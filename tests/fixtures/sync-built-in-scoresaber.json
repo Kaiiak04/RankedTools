@@ -1,0 +1,59 @@
+{
+  "metadata": {
+    "page": 1,
+    "total": 3
+  },
+  "playerScores": [
+    {
+      "score": {
+        "baseScore": 1
+      },
+      "leaderboard": {
+        "id": 590349,
+        "songHash": "ost_DollarSeventyEight",
+        "songName": "$1.78",
+        "ranked": false,
+        "difficulty": {
+          "leaderboardId": 590349,
+          "difficulty": 7,
+          "gameMode": "SoloStandard",
+          "difficultyRaw": "_Expert_SoloStandard"
+        }
+      }
+    },
+    {
+      "score": {
+        "baseScore": 1
+      },
+      "leaderboard": {
+        "id": 649740,
+        "songHash": "ost_TheMaster",
+        "songName": "The Master",
+        "ranked": false,
+        "difficulty": {
+          "leaderboardId": 649740,
+          "difficulty": 7,
+          "gameMode": "SoloStandard",
+          "difficultyRaw": "_Expert_SoloStandard"
+        }
+      }
+    },
+    {
+      "score": {
+        "baseScore": 1
+      },
+      "leaderboard": {
+        "id": 585196,
+        "songHash": "ost_IWannaBeAMachine",
+        "songName": "I Wanna Be A Machine",
+        "ranked": false,
+        "difficulty": {
+          "leaderboardId": 585196,
+          "difficulty": 9,
+          "gameMode": "SoloStandard",
+          "difficultyRaw": "_ExpertPlus_SoloStandard"
+        }
+      }
+    }
+  ]
+}

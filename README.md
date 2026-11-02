@@ -4,7 +4,7 @@ RankedTools is a Quest Beat Saber mod that creates personalized BeatLeader and S
 
 **Current version: [0.1.24 Quest preview](https://github.com/Kaiiak04/RankedTools/releases/tag/v0.1.24), for Quest Beat Saber 1.40.8_7379.** Download `RankedTools-0.1.24.qmod` from the release assets. This update personalizes clan recommendations, improves refresh performance, and adds optional legacy clan playlists with a clear-rate-based star cap. See [0.1.24 changes](CHANGES-0.1.24.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
-**PCVR preview:** Windows x64 builds target **Beat Saber 1.40.8 and 1.44.1**, developed on `codex/pcvr`. Get the matching ZIP from the [PCVR preview release](https://github.com/Kaiiak04/RankedTools/releases/tag/pcvr-v0.1.25-preview.1). See [PC installation and compatibility](pcvr/README.md) and the [tester checklist](pcvr/TESTING.md). Both target builds still need in-game validation; the existing Quest release remains separate.
+**PCVR preview:** Windows x64 builds target **Beat Saber 1.40.8 and 1.44.1**, developed on `codex/pcvr`. Get the matching ZIP from the [PCVR preview release](https://github.com/Kaiiak04/RankedTools/releases/tag/pcvr-v0.1.26-preview.1). See [PC installation and compatibility](pcvr/README.md) and the [tester checklist](pcvr/TESTING.md). Both target builds still need in-game validation; the existing Quest release remains separate.
 
 Recent updates: [0.1.23](CHANGES-0.1.23.md) adds BeatLeader PPv4 curves and PP calculations, refreshes cached attempt ratings after the reweight, and replaces the bundled HTTPS stack. The Quest build and 3,028 automated checks passed locally. [0.1.22](CHANGES-0.1.22.md) reuses HTTPS connections, refreshes the leaderboards concurrently, improves ScoreSaber API compatibility and displays elapsed refresh time. [0.1.21](CHANGES-0.1.21.md) moves RankedTools from Early Mod to normal Scotland2 loading. Actual refresh times still need measurement on a headset.
 
@@ -77,7 +77,7 @@ qpm s qmod
 
 The QMod manifest currently targets Beat Saber `1.40.8_7379`. Confirm the modding tool you use offers that build before installing; Quest mod compatibility depends on the exact game build and the current community mod catalog.
 
-The `codex/pcvr` branch adds Sync in 0.1.25 for the existing Quest target and both PCVR previews. Future Quest migration to `1.45.3_30054` remains separate. Migration will follow compatible PlaylistManager, BeatLeader and ScoreSaber dependencies; this QMOD retains the existing game and dependency targets.
+The `codex/pcvr` branch adds Sync in 0.1.26 for the existing Quest target and both PCVR previews. Future Quest migration to `1.45.3_30054` remains separate. Migration will follow compatible PlaylistManager, BeatLeader and ScoreSaber dependencies; this QMOD retains the existing game and dependency targets.
 
 Regression checks and their runner are documented in [tests/README.md](tests/README.md). The original review and resolved findings are in [CODE_REVIEW.md](CODE_REVIEW.md) and [FIXES.md](FIXES.md).
 

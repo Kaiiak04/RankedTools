@@ -1211,12 +1211,13 @@ void DefaultRealmCompatibility() {
 
 int main(int argc, char** argv) {
     try {
-        if (argc == 4 && std::string(argv[1]) == "--validate-sync-catalog") {
+        if (argc == 4 && (std::string(argv[1]) == "--validate-sync-catalog" || std::string(argv[1]) == "--validate-sync-scores")) {
             std::vector<MapEntry> charts;
             std::string error;
-            const auto system = std::string(argv[2]) == "ScoreSaber" ? RatingSystem::ScoreSaber : RatingSystem::BeatLeader;
-            CHECK(ParseSyncPage(ReadFile(argv[3]), system, false, charts, error, nullptr));
-            std::cout << "Validated " << charts.size() << " ranked chart identities.\n";
+            const auto system = Lower(argv[2]) == "scoresaber" ? RatingSystem::ScoreSaber : RatingSystem::BeatLeader;
+            const bool scores = std::string(argv[1]) == "--validate-sync-scores";
+            if (!ParseSyncPage(ReadFile(argv[3]), system, scores, charts, error, nullptr)) throw std::runtime_error(error);
+            std::cout << "Validated " << charts.size() << " custom chart identities.\n";
             return 0;
         }
         if (argc == 4 && std::string(argv[1]) == "--audit-clan-profile") return AuditClanProfile(argv[2], argv[3]);

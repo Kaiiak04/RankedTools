@@ -8,6 +8,22 @@ bool SyncIdentity(const Context& context) {
          context.difficulty == "Expert" || context.difficulty == "ExpertPlus");
 }
 
+bool SyncBuiltInScore(const rapidjson::Value& leaderboard, RatingSystem system, const Context& context) {
+    if (context.ranked || context.hash.empty()) return false;
+    // Official-song scores are returned alongside custom maps. Their level IDs
+    // cannot match the SHA-1 hashes in either ranked custom-map catalog.
+    if (system == RatingSystem::ScoreSaber) {
+        return Lower(context.hash).starts_with("ost_") && context.hash.size() > 4;
+    }
+    if (!leaderboard.HasMember("song") || !leaderboard["song"].IsObject()) return false;
+    std::string id;
+    if (!ReadString(leaderboard["song"], "id", id) || id != context.hash || id.starts_with("custom_level_")) return false;
+    // BeatLeader custom songs have a BeatSaver ID separate from their hash.
+    // Do not silently discard an empty, truncated or otherwise invalid hash.
+    return std::any_of(id.begin(), id.end(), [](unsigned char c) { return !std::isxdigit(c); }) &&
+        std::all_of(id.begin(), id.end(), [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '-'; });
+}
+
 bool ParseSyncPage(const std::string& body, RatingSystem system, bool scores,
                    std::vector<MapEntry>& entries, std::string& error, PageInfo* info) {
     rapidjson::Document document;
@@ -35,7 +51,10 @@ bool ParseSyncPage(const std::string& body, RatingSystem system, bool scores,
     }
     std::vector<MapEntry> parsed;
     auto emit = [&](Context context) {
-        if (!SyncIdentity(context)) { error = "Sync could not identify every chart; previous playlist preserved."; return false; }
+        if (!SyncIdentity(context)) {
+            error = "Sync could not identify a custom chart (hash, characteristic or difficulty); previous playlist preserved.";
+            return false;
+        }
         // Presence is independent of PP, accuracy, NF, stars and applicability.
         context.applicable = true;
         if (context.songName.empty()) context.songName = context.hash;
@@ -71,6 +90,7 @@ bool ParseSyncPage(const std::string& body, RatingSystem system, bool scores,
         } else {
             if (leaderboard.HasMember("difficulty") && leaderboard["difficulty"].IsObject())
                 UpdateContext(leaderboard["difficulty"], context);
+            if (scores && SyncBuiltInScore(leaderboard, system, context)) continue;
             if (!scores) {
                 const bool hasStatus = leaderboard.HasMember("ranked") || leaderboard.HasMember("leaderboardStatus") ||
                     (leaderboard.HasMember("realm") && leaderboard["realm"].IsObject() && leaderboard["realm"].HasMember("leaderboardStatus"));

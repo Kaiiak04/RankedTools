@@ -25,6 +25,26 @@ void SyncPlaylistContract() {
         CHECK(ParseSyncPage(ReadFile(std::string("tests/fixtures/") + provider.first + ".json"), provider.second, true, posted, error, &info));
         CHECK(posted.size() == info.rawRows); // Real nested PB schemas retain every chart.
     }
+    for (const auto& provider : {std::pair{"beatleader", RatingSystem::BeatLeader},
+                                 std::pair{"scoresaber", RatingSystem::ScoreSaber}}) {
+        const auto source = ReadFile(std::string("tests/fixtures/sync-built-in-") + provider.first + ".json");
+        std::vector<MapEntry> posted;
+        CHECK(ParseSyncPage(source, provider.second, true, posted, error, &info));
+        CHECK(info.rawRows == 3 && posted.empty()); // Complete history pages may contain only OST scores.
+        rapidjson::Document mixed; mixed.Parse(source.c_str());
+        auto& rows = mixed[provider.second == RatingSystem::BeatLeader ? "data" : "playerScores"];
+        rapidjson::Document custom; custom.Parse(Chart(55, 0, true, "NF").c_str());
+        rows.PushBack(rapidjson::Value(custom, mixed.GetAllocator()), mixed.GetAllocator());
+        rapidjson::StringBuffer body; rapidjson::Writer<rapidjson::StringBuffer> writer(body); mixed.Accept(writer);
+        CHECK(ParseSyncPage(body.GetString(), provider.second, true, posted, error, &info));
+        CHECK(info.rawRows == 4 && posted.size() == 1 && posted[0].hash == Hash(55));
+        // Known built-ins are skipped, but damaged custom rows still abort the page.
+        rows[3]["hash"].SetString("invalid-custom-hash", mixed.GetAllocator());
+        rows[3].AddMember("ranked", false, mixed.GetAllocator());
+        body.Clear(); writer.Reset(body); mixed.Accept(writer);
+        posted.clear();
+        CHECK(!ParseSyncPage(body.GetString(), provider.second, true, posted, error, &info) && posted.empty());
+    }
     for (const auto& mode : {"Standard", "OneSaber", "NoArrows", "90Degree", "360Degree", "Lawless", "CustomMode"}) {
         CHECK(ParseSyncPage(Page(1, 1, {SyncBlRow(1, mode)}), RatingSystem::BeatLeader, false, bl, error, &info));
         CHECK(ParseSyncPage(Page(1, 1, {SyncSsRow(1, mode)}), RatingSystem::ScoreSaber, false, ss, error, &info));
@@ -83,6 +103,22 @@ void SyncPlaylistContract() {
     CHECK(blScores == 3 && ssScores == 1 && blPages == 3 && ssPages == 3);
     CHECK(FetchSyncPlaylistInternal("123", "456", result, error, &blHistory, &ssHistory, get, false));
     CHECK(result.size() == 205 && blScores == 3 && ssScores == 1); // Histories reused.
+    auto builtInHistory = [&](const std::string& url, std::string& body, std::string& failure) {
+        if (url.find("/scores?") == std::string::npos) return get(url, body, failure);
+        const bool beatLeader = url.find("beatleader.com") != std::string::npos;
+        if (url.ends_with("page=2")) { body = Page(2, 4, {Chart(55, 0, true, "NF")}); return true; }
+        const auto source = ReadFile(std::string("tests/fixtures/sync-built-in-") + (beatLeader ? "beatleader" : "scoresaber") + ".json");
+        rapidjson::Document document; document.Parse(source.c_str());
+        if (beatLeader) document["metadata"]["total"].SetInt(4);
+        rapidjson::StringBuffer buffer; rapidjson::Writer<rapidjson::StringBuffer> writer(buffer); document.Accept(writer);
+        body = buffer.GetString(); return true;
+    };
+    ScoreHistory builtInBl, builtInSs;
+    CHECK(FetchSyncPlaylistInternal("123", "456", result, error, &builtInBl, &builtInSs, builtInHistory, false));
+    CHECK(builtInBl.syncComplete && builtInSs.syncComplete);
+    CHECK(builtInBl.syncScores.size() == 1 && builtInSs.syncScores.empty());
+    CHECK(result.size() == 1 && result[0].hash == Hash(55)); // An all-OST page must not terminate pagination early.
+    CHECK(result[0].syncTargets[0].missingService == "ScoreSaber");
     CHECK(!FetchSyncPlaylistInternal("", "456", result, error, &blHistory, &ssHistory, get, false) && result.empty());
     auto failed = [&](const std::string& url, std::string& body, std::string& failure) {
         if (url.find("scoresaber.com/api/v2") != std::string::npos && url.ends_with("page=2")) {

@@ -14,7 +14,7 @@ bool FetchSyncPlaylistInternal(const std::string& blId, const std::string& ssId,
                       std::vector<MapEntry>& catalog, std::string& failure) {
         if (!LoadScoreHistory(id, system, history, failure, get, pace, false)) return false;
         if (!history.syncComplete) {
-            failure = history.syncError.empty() ? "Posted-score identities were incomplete." : history.syncError;
+            failure = "Posted-score history: " + (history.syncError.empty() ? "Chart identities were incomplete." : history.syncError);
             return false;
         }
         const bool beatLeader = system == RatingSystem::BeatLeader;
