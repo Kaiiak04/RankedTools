@@ -1,8 +1,6 @@
 #include <iostream>
 #include <stdexcept>
 // Exercise the real writer and cleanup against a workspace-local test directory.
-#define RANKEDTOOLS_PLAYLIST_DIRECTORY "tests/playlist-sandbox"
-#define RANKEDTOOLS_ICON_DIRECTORY "tests/playlist-icon-sandbox"
 #include "../src/playlist_writer.cpp"
 #include "../src/playlist_image.cpp"
 #include <rapidjson/document.h>
@@ -13,7 +11,9 @@ int checks = 0;
     std::string("Line ") + std::to_string(__LINE__) + ": " #condition); } while (false)
 
 int main() {
-    const std::filesystem::path directory(kPlaylistDirectory);
+    RuntimePaths().playlists = "tests/playlist-sandbox";
+    RuntimePaths().icons = "tests/playlist-icon-sandbox";
+    const auto& directory = RuntimePaths().playlists;
     const std::vector<std::string> protectedFiles{
         "RankedPractice_ScoreSaber_NotPlayed.bplist", "RankedPractice_BeatLeader_Clan_ToConquer.bplist",
         "MyPlaylist.bplist", "RankedPractice_BeatLeader_NotPlayed.bplist.bak"
@@ -35,6 +35,7 @@ int main() {
         CHECK(std::filesystem::exists(combinedPath));
         std::ifstream input(combinedPath);
         const std::string json{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+        input.close();
         rapidjson::Document playlist; playlist.Parse(json.c_str());
         CHECK(!playlist.HasParseError());
         CHECK(std::string(playlist["playlistTitle"].GetString()) == "BeatLeader - PP Gain");
@@ -55,7 +56,7 @@ int main() {
         std::ifstream pngInput("tests/fixtures/clan-icon-live.png", std::ios::binary);
         const std::string png{std::istreambuf_iterator<char>(pngInput), std::istreambuf_iterator<char>()};
         CHECK(!png.empty());
-        const auto iconDirectory = std::filesystem::path(kIconDirectory);
+        const auto& iconDirectory = RuntimePaths().icons;
         CHECK(!std::filesystem::exists(iconDirectory));
         std::filesystem::create_directories(iconDirectory);
         const auto fallbackIcon = iconDirectory / "beatleader_clan_toconquer.png";

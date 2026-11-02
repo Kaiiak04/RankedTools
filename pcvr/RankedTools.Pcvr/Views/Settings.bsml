@@ -1,0 +1,64 @@
+<bsml>
+  <scrollable-settings-container>
+    <text text="~beatleader-account" font-size="3.5" rich-text="false" word-wrapping="true" />
+    <button text="Choose BeatLeader account" on-click="choose-beatleader" />
+    <text text="~scoresaber-account" font-size="3.5" rich-text="false" word-wrapping="true" />
+    <button text="Choose ScoreSaber account" on-click="choose-scoresaber" />
+    <button text="Show / hide IDs" on-click="toggle-ids" />
+    <vertical active="~picker-open" spacing="2">
+      <text text="~picker-title" font-size="4" rich-text="false" />
+      <string-setting text="Find account" value="search-input" />
+      <horizontal spacing="2">
+        <button text="Find account" on-click="find" interactable="~can-find" />
+        <button text="Use current PC account" on-click="use-pc-account" interactable="~can-find" />
+      </horizontal>
+      <text text="~lookup-status" font-size="3" rich-text="false" word-wrapping="true" />
+      <horizontal spacing="2">
+        <button text="Previous page" on-click="previous-page" interactable="~can-previous" />
+        <button text="Next page" on-click="next-page" interactable="~can-next" />
+      </horizontal>
+      <horizontal active="~has-0" spacing="2">
+        <image id="avatar-0" pref-width="12" pref-height="12" preserve-aspect="true" />
+        <text text="~row-0" font-size="3" rich-text="false" word-wrapping="true" />
+        <button text="Select" on-click="select-0" />
+      </horizontal>
+      <horizontal active="~has-1" spacing="2">
+        <image id="avatar-1" pref-width="12" pref-height="12" preserve-aspect="true" />
+        <text text="~row-1" font-size="3" rich-text="false" word-wrapping="true" />
+        <button text="Select" on-click="select-1" />
+      </horizontal>
+      <horizontal active="~has-2" spacing="2">
+        <image id="avatar-2" pref-width="12" pref-height="12" preserve-aspect="true" />
+        <text text="~row-2" font-size="3" rich-text="false" word-wrapping="true" />
+        <button text="Select" on-click="select-2" />
+      </horizontal>
+      <horizontal active="~has-3" spacing="2">
+        <image id="avatar-3" pref-width="12" pref-height="12" preserve-aspect="true" />
+        <text text="~row-3" font-size="3" rich-text="false" word-wrapping="true" />
+        <button text="Select" on-click="select-3" />
+      </horizontal>
+      <horizontal active="~has-4" spacing="2">
+        <image id="avatar-4" pref-width="12" pref-height="12" preserve-aspect="true" />
+        <text text="~row-4" font-size="3" rich-text="false" word-wrapping="true" />
+        <button text="Select" on-click="select-4" />
+      </horizontal>
+      <horizontal spacing="2">
+        <button text="Clear saved account" on-click="clear-account" />
+        <button text="Cancel" on-click="cancel" />
+      </horizontal>
+    </vertical>
+    <increment-setting text="Tracks per playlist" value="track-limit" min="1" max="100" increment="1" integer-only="true" />
+    <slider-setting text="Min Clear Rate" value="clear-rate" min="0" max="95" increment="5" integer-only="true" formatter="clear-rate-format" />
+    <text text="Clear estimates are heuristic. 0% disables the threshold and chance adjustment; legacy clan mode also removes its maximum star cap." font-size="3" word-wrapping="true" />
+    <toggle-setting text="Simple Mode" value="simple-mode" hover-hint="One combined PP Gain playlist per leaderboard. Applies on refresh." />
+    <toggle-setting text="Record local attempts" value="record-attempts" />
+    <text text="Use your own player IDs when recording attempts. Turn recording off when inspecting someone else's profile." font-size="3" word-wrapping="true" />
+    <toggle-setting text="Import attempt history" value="import-attempts" />
+    <toggle-setting text="Create BeatLeader playlists" value="enable-beatleader" />
+    <toggle-setting text="Create ScoreSaber playlists" value="enable-scoresaber" />
+    <toggle-setting text="Create BeatLeader clan playlist" value="enable-clans" />
+    <toggle-setting text="Legacy Clan Playlists" value="legacy-clans" hover-hint="Use legacy clan-gap order and the direct clearability-based maximum star cap." />
+    <toggle-setting text="Include all clans" value="all-clans" />
+    <text text="Only your primary clan receives actual contributions. Secondary-clan playlists show what-if estimates. Refresh recommendations to apply settings." font-size="3" word-wrapping="true" />
+  </scrollable-settings-container>
+</bsml>

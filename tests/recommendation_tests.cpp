@@ -26,7 +26,7 @@ int checks = 0;
     std::string("Line ") + std::to_string(__LINE__) + ": " #condition); } while (false)
 
 std::string ReadFile(const std::string& path) {
-    std::ifstream input(path);
+    std::ifstream input(path, std::ios::binary);
     CHECK(input.good());
     return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
 }
@@ -472,10 +472,11 @@ void ClansAndSettings() {
     std::thread worker([snapshot] { CHECK(snapshot.beatLeaderPlayerId == "123" && snapshot.limit == 16); });
     worker.join();
     const auto main = ReadFile("src/main.cpp");
-    const auto workerStart = main.find("static bool RefreshPlaylist");
+    const auto workerStart = main.find("static void RefreshWorker");
     const auto launch = main.find("void StartRefresh()");
     CHECK(workerStart != std::string::npos && launch > workerStart);
     CHECK(main.substr(workerStart, launch - workerStart).find("getModConfig()") == std::string::npos);
+    CHECK(ReadFile("src/refresh_engine.cpp").find("getModConfig()") == std::string::npos);
     CHECK(main.find("std::thread(RefreshWorker, std::move(settings))") != std::string::npos);
     std::cout << "PASS: empty clan cleanup, invalid membership protection, selected chart, immutable worker settings\n";
 }

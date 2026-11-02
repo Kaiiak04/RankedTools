@@ -1,0 +1,86 @@
+name: PCVR build and regression checks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, codex/pcvr]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pcvr-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Build the shared Windows x64 engine and native checks
+        shell: pwsh
+        run: |
+          cmake -S pcvr/native -B build/pcvr-native -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Native configuration failed.' }
+          cmake --build build/pcvr-native --config Release --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw 'Native build failed.' }
+          ctest --test-dir build/pcvr-native -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Native regression checks failed.' }
+          $report = @{ sourceCommit = (git rev-parse HEAD); offlineChecks = 'passed'; nativeSha256 = (Get-FileHash build/pcvr-native/Release/RankedTools.Core.dll -Algorithm SHA256).Hash.ToLowerInvariant() }
+          $report | ConvertTo-Json | Set-Content build/pcvr-native/native-validation.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pcvr-shared-engine
+          path: |
+            build/pcvr-native/Release/RankedTools.Core.dll
+            build/pcvr-native/native-build.json
+            build/pcvr-native/native-validation.json
+          if-no-files-found: error
+
+  managed:
+    needs: native
+    runs-on: windows-2022
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ['1.40.8', '1.44.1']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore pinned compile-only references and dependencies
+        shell: pwsh
+        run: ./pcvr/restore.ps1 -GameVersion '${{ matrix.game }}'
+      - uses: actions/download-artifact@v4
+        with:
+          name: pcvr-shared-engine
+          path: build/pcvr-native
+      - name: Compile the target plugin
+        shell: pwsh
+        run: |
+          dotnet restore pcvr/RankedTools.Pcvr/RankedTools.Pcvr.csproj --locked-mode --packages .cache/pcvr/nuget
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin restore failed.' }
+          dotnet build pcvr/RankedTools.Pcvr/RankedTools.Pcvr.csproj -c Release --no-restore -p:GameVersion=${{ matrix.game }}
+          if ($LASTEXITCODE -ne 0) { throw 'Plugin build failed.' }
+      - name: Verify managed state, BSML bindings, native interop and real HTTPS
+        shell: pwsh
+        run: ./pcvr/test.ps1 -GameVersions '${{ matrix.game }}' -LiveHttps -SkipNativeTests
+      - name: Package tested binaries and required resources
+        shell: pwsh
+        run: ./pcvr/package.ps1 -GameVersion '${{ matrix.game }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RankedTools-PCVR-bs${{ matrix.game }}
+          path: |
+            pcvr/dist/RankedTools-PCVR-*-bs${{ matrix.game }}.zip
+            pcvr/dist/SHA256SUMS.txt
+          if-no-files-found: error

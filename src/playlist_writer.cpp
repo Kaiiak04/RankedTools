@@ -1,3 +1,4 @@
+#include "platform.hpp"
 #include "playlist_writer.hpp"
 #include "playlist_image.hpp"
 
@@ -5,6 +6,7 @@
 #include <rapidjson/writer.h>
 
 #include <cstdio>
+#include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
@@ -15,14 +17,6 @@
 namespace rankedpractice {
 namespace {
 
-#ifndef RANKEDTOOLS_PLAYLIST_DIRECTORY
-#define RANKEDTOOLS_PLAYLIST_DIRECTORY "/sdcard/ModData/com.beatgames.beatsaber/Mods/PlaylistManager/Playlists"
-#endif
-constexpr const char* kPlaylistDirectory = RANKEDTOOLS_PLAYLIST_DIRECTORY;
-#ifndef RANKEDTOOLS_ICON_DIRECTORY
-#define RANKEDTOOLS_ICON_DIRECTORY "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice"
-#endif
-constexpr const char* kIconDirectory = RANKEDTOOLS_ICON_DIRECTORY;
 constexpr const char* kClanPlaylistFilePrefix =
     "RankedPractice_BeatLeader_Clan_ToConquer";
 
@@ -34,7 +28,7 @@ void AddString(rapidjson::Writer<rapidjson::StringBuffer>& writer,
 }
 
 std::string PlaylistImage(const std::string& fileName) {
-    const std::filesystem::path path = std::filesystem::path(kIconDirectory) / fileName;
+    const std::filesystem::path path = RuntimePaths().icons / fileName;
     std::ifstream input(path, std::ios::binary);
     if (!input) return {};
     const std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
@@ -91,7 +85,7 @@ bool WritePlaylistFile(const std::string& title,
     writer.EndObject();
     writer.EndObject();
 
-    const std::filesystem::path directory(kPlaylistDirectory);
+    const auto& directory = RuntimePaths().playlists;
     if (!std::filesystem::exists(directory.parent_path())) {
         error = "PlaylistManager is not installed, or its playlist folder is unavailable.";
         return false;
@@ -114,12 +108,7 @@ bool WritePlaylistFile(const std::string& title,
         }
     }
     std::error_code ec;
-    std::filesystem::rename(tempPath, finalPath, ec);
-    if (ec) {
-        std::filesystem::remove(finalPath, ec);
-        ec.clear();
-        std::filesystem::rename(tempPath, finalPath, ec);
-    }
+    ReplaceFile(tempPath, finalPath, ec);
     if (ec) {
         error = "Playlist was written to a temporary file, but could not be installed: " + ec.message();
         return false;
@@ -171,7 +160,7 @@ bool WriteClanPlaylist(const std::string& clanTag,
 bool PruneClanPlaylists(const std::vector<std::string>& expectedFileNames,
                         std::string& error) {
     try {
-        const std::filesystem::path directory(kPlaylistDirectory);
+        const auto& directory = RuntimePaths().playlists;
         if (!std::filesystem::exists(directory)) return true;
 
         const std::unordered_set<std::string> expected(expectedFileNames.begin(),
@@ -204,7 +193,7 @@ bool PruneLeaderboardPlaylists(const std::string& service,
         for (auto kind : {ListKind::NotPlayed, ListKind::ToImprove, ListKind::Combined}) {
             const auto name = PlaylistFileName(service, kind);
             if (expected.contains(name)) continue;
-            const auto path = std::filesystem::path(kPlaylistDirectory) / name;
+            const auto path = RuntimePaths().playlists / name;
             std::error_code ec;
             // remove() also succeeds if the file no longer exists.
             std::filesystem::remove(path, ec);

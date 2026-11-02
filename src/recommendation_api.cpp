@@ -1,3 +1,4 @@
+#include "platform.hpp"
 #include "recommendation_api.hpp"
 #include "playlist_image.hpp"
 #include "account.hpp"
@@ -32,10 +33,6 @@
 namespace rankedpractice {
 namespace {
 
-#ifndef RANKEDTOOLS_CA_BUNDLE_PATH
-#define RANKEDTOOLS_CA_BUNDLE_PATH "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/cacert.pem"
-#endif
-constexpr const char* kCaBundlePath = RANKEDTOOLS_CA_BUNDLE_PATH;
 constexpr double kDefaultTargetStars = 7.0;
 constexpr double kTargetWindowStars = 1.50;
 
@@ -95,6 +92,7 @@ size_t CurlWrite(char* data, size_t size, size_t count, void* userData) {
 
 bool HttpGetInternal(const std::string& url, std::string& body, std::string& error,
                      size_t limit, long timeout) {
+    if (RuntimeCancelled().load()) { error = "Request cancelled during shutdown."; return false; }
     static const bool curlReady = curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK;
     if (!curlReady) {
         error = "Could not initialize the HTTPS client.";
@@ -119,16 +117,30 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "https");
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "RankedPractice/0.1 (Beat Saber Quest mod)");
+#ifdef RANKEDTOOLS_PCVR
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION,
+        +[](void*, curl_off_t, curl_off_t, curl_off_t, curl_off_t) -> int {
+            return RuntimeCancelled().load() ? 1 : 0;
+        });
+#endif
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, RuntimePaths().userAgent.c_str());
     // The source-built HTTPS stack does not ship with a default
     // CA bundle. The QMOD copies cacert.pem to this path at install time.
-    if (std::filesystem::exists(kCaBundlePath)) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, kCaBundlePath);
+#ifdef RANKEDTOOLS_PCVR
+    const auto& certificates = RuntimePaths().caCertificates;
+    curl_blob caBlob{const_cast<char*>(certificates.data()), certificates.size(), CURL_BLOB_COPY};
+    curl_easy_setopt(curl, CURLOPT_CAINFO_BLOB, &caBlob);
+#else
+    const auto caBundle = PathUtf8(RuntimePaths().caBundle);
+    if (std::filesystem::exists(RuntimePaths().caBundle)) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, caBundle.c_str());
     } else {
         // Keep a useful fallback for devices whose system CA directory is
         // readable by the TLS backend.
         curl_easy_setopt(curl, CURLOPT_CAPATH, "/system/etc/security/cacerts");
     }
+#endif
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     const auto result = curl_easy_perform(curl);
@@ -745,8 +757,7 @@ bool ParseAttemptPage(const std::string& body, std::vector<Attempt>& attempts,
 
 std::string AttemptUtcDate(double timestamp) {
     const auto seconds = static_cast<std::time_t>(timestamp);
-    std::tm date{};
-    gmtime_r(&seconds, &date);
+    const auto date = UtcTime(seconds);
     std::ostringstream text; text << std::put_time(&date, "%Y-%m-%dT%H:%M:%SZ");
     return text.str();
 }
@@ -1000,6 +1011,15 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
 } // namespace
 
 HttpStatistics GetHttpStatistics() { return httpStatistics; }
+
+bool ProbeHttps(const std::string& url, std::string& error) {
+    std::string body;
+    return HttpGetInternal(url, body, error, 4 * 1024 * 1024, 8L);
+}
+std::string HttpsImplementation() {
+    const auto* version = curl_version_info(CURLVERSION_NOW);
+    return version && version->ssl_version ? version->ssl_version : "unavailable";
+}
 
 bool FindAccounts(AccountService service, const std::string& input, int page,
                   AccountPage& result, std::string& error) {

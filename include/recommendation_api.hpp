@@ -16,6 +16,10 @@ struct HttpStatistics {
     double seconds{0.0};
 };
 HttpStatistics GetHttpStatistics();
+// Diagnostic used by the packaged-engine smoke check; retains production TLS,
+// certificate verification, protocol restrictions, and connection ownership.
+bool ProbeHttps(const std::string& url, std::string& error);
+std::string HttpsImplementation();
 
 struct StarRange {
     double minStars{0.0};

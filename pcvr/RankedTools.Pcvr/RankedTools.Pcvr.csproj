@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyName>RankedTools</AssemblyName>
+    <RootNamespace>RankedTools.Pcvr</RootNamespace>
+    <Version>0.1.24-pcvr.1</Version>
+    <AssemblyVersion>0.1.24.1</AssemblyVersion>
+    <GameVersion Condition="'$(GameVersion)' == ''">1.40.8</GameVersion>
+    <LegatoSourceVersion>1.44.1</LegatoSourceVersion>
+    <LegatoTargetVersion>$(GameVersion)</LegatoTargetVersion>
+    <BeatSaberDir Condition="'$(BeatSaberDir)' == ''">$(MSBuildThisFileDirectory)..\..\.cache\pcvr\refs-$(GameVersion)</BeatSaberDir>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\$(GameVersion)\</OutputPath>
+    <Deterministic>true</Deterministic>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <LegatoEnableSongCore>false</LegatoEnableSongCore>
+    <LegatoEnableGameplay>false</LegatoEnableGameplay>
+    <LegatoEnableHarmonyEvents>false</LegatoEnableHarmonyEvents>
+    <LegatoEnableXR>false</LegatoEnableXR>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="LegatoBS" Version="0.1.1" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all" />
+    <_GameAssembly Include="$(BeatSaberDir)\Beat Saber_Data\Managed\*.dll"
+      Exclude="$(BeatSaberDir)\Beat Saber_Data\Managed\System*.dll;$(BeatSaberDir)\Beat Saber_Data\Managed\mscorlib.dll;$(BeatSaberDir)\Beat Saber_Data\Managed\netstandard.dll;$(BeatSaberDir)\Beat Saber_Data\Managed\Mono*.dll;$(BeatSaberDir)\Beat Saber_Data\Managed\Microsoft*.dll;$(BeatSaberDir)\Beat Saber_Data\Managed\I18N*.dll" />
+    <Reference Include="@(_GameAssembly)">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BSML"><HintPath>$(BeatSaberDir)\Plugins\BSML.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SiraUtil"><HintPath>$(BeatSaberDir)\Plugins\SiraUtil.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="SongCore"><HintPath>$(BeatSaberDir)\Plugins\SongCore.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(BeatSaberDir)\Libs\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BeatSaberPlaylistsLib"><HintPath>$(BeatSaberDir)\Libs\BeatSaberPlaylistsLib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(BeatSaberDir)\Libs\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Hive.Versioning"><HintPath>$(BeatSaberDir)\Libs\Hive.Versioning.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Views\*.bsml" />
+    <EmbeddedResource Include="manifest.$(GameVersion).json" LogicalName="RankedTools.Pcvr.manifest.json" />
+  </ItemGroup>
+  <Target Name="ValidateTarget" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(GameVersion)' != '1.40.8' AND '$(GameVersion)' != '1.44.1'" Text="Supported preview targets: 1.40.8 and 1.44.1." />
+    <Error Condition="!Exists('$(BeatSaberDir)\Plugins\BSML.dll')" Text="Restore PCVR references with pcvr/restore.ps1 first." />
+  </Target>
+</Project>

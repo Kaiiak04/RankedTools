@@ -4,6 +4,8 @@ RankedTools is a Quest Beat Saber mod that creates personalized BeatLeader and S
 
 **Current version: [0.1.24 Quest preview](https://github.com/Kaiiak04/RankedTools/releases/tag/v0.1.24), for Quest Beat Saber 1.40.8_7379.** Download `RankedTools-0.1.24.qmod` from the release assets. This update personalizes clan recommendations, improves refresh performance, and adds optional legacy clan playlists with a clear-rate-based star cap. See [0.1.24 changes](CHANGES-0.1.24.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
 
+**PCVR preview:** Windows x64 builds for **Beat Saber 1.40.8 and 1.44.1** are being prepared on `codex/pcvr`. See [PC installation and compatibility](pcvr/README.md) and the [tester checklist](pcvr/TESTING.md). Both target builds still need in-game validation; the existing Quest release remains separate.
+
 Recent updates: [0.1.23](CHANGES-0.1.23.md) adds BeatLeader PPv4 curves and PP calculations, refreshes cached attempt ratings after the reweight, and replaces the bundled HTTPS stack. The Quest build and 3,028 automated checks passed locally. [0.1.22](CHANGES-0.1.22.md) reuses HTTPS connections, refreshes the leaderboards concurrently, improves ScoreSaber API compatibility and displays elapsed refresh time. [0.1.21](CHANGES-0.1.21.md) moves RankedTools from Early Mod to normal Scotland2 loading. Actual refresh times still need measurement on a headset.
 
 For each enabled leaderboard, the mod normally writes two PlaylistManager playlists:

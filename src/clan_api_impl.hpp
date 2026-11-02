@@ -1,8 +1,5 @@
 // Included inside recommendation_api.cpp's private namespace. Shares its
 // injected HTTP boundary, parsing, pagination and refresh-owned score history.
-#ifndef RANKEDTOOLS_CLAN_CURSOR_DIRECTORY
-#define RANKEDTOOLS_CLAN_CURSOR_DIRECTORY "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/clan-search"
-#endif
 struct ClanMemberInfo { int id; std::string tag, icon; };
 struct ClanTotal { double pp; int rank; };
 using ClanTotals = std::unordered_map<std::string, ClanTotal>;
@@ -31,7 +28,7 @@ std::filesystem::path ClanCursorPath(const std::string& id, const std::string& t
     constexpr char hex[] = "0123456789abcdef";
     for (unsigned char c : tag) { encoded += hex[c >> 4]; encoded += hex[c & 15]; }
     if (encoded.empty() || encoded.size() > 256) throw std::runtime_error("Invalid clan-search tag.");
-    return std::filesystem::path(RANKEDTOOLS_CLAN_CURSOR_DIRECTORY) / (id + "_" + encoded + ".json");
+    return RuntimePaths().clanSearch / (id + "_" + encoded + ".json");
 }
 #include "clan_search_state.hpp"
 std::size_t ReadClanCursor(const std::string& id, const std::string& tag, std::string& warning) {

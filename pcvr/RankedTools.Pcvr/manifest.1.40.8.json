@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/bsmg/BSIPA-MetadataFileSchema/master/Schema.json",
+  "id": "RankedTools",
+  "name": "RankedTools",
+  "author": "Kaiiak04",
+  "version": "0.1.24-pcvr.1",
+  "gameVersion": "1.40.8",
+  "description": "Personalized BeatLeader and ScoreSaber playlists, clan recommendations, and ability charts. PCVR preview; in-game validation pending.",
+  "dependsOn": {
+    "BSIPA": "^4.3.6",
+    "BeatSaberMarkupLanguage": "^1.12.5",
+    "SiraUtil": "^3.2.1",
+    "SongCore": "^3.15.3",
+    "BeatSaberPlaylistsLib": "^1.7.2"
+  },
+  "loadAfter": [
+    "PlaylistManager",
+    "BeatLeader",
+    "ScoreSaber"
+  ],
+  "links": {
+    "project-home": "https://github.com/Kaiiak04/RankedTools",
+    "project-source": "https://github.com/Kaiiak04/RankedTools/tree/codex/pcvr"
+  }
+}

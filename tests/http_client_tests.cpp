@@ -99,10 +99,16 @@ CURLcode MockEasyGetinfo(CURL* curl, int info, ...) {
     return CURLE_OK;
 }
 extern "C" const char* curl_easy_strerror(CURLcode) { return "mock failure"; }
+extern "C" curl_version_info_data* curl_version_info(CURLversion) {
+    static curl_version_info_data version{};
+    version.ssl_version = "mock TLS";
+    return &version;
+}
 
 int main() {
     using namespace rankedpractice;
     try {
+        CHECK(HttpsImplementation() == "mock TLS");
         std::string body, error;
         CHECK(HttpGetInternal("https://example.test/first", body, error, 100, 18));
         CHECK(body == "ok" && created == 1);
