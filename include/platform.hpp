@@ -46,7 +46,7 @@ struct PlatformPaths {
     std::filesystem::path icons{RANKEDTOOLS_ICON_DIRECTORY};
     std::filesystem::path caBundle{RANKEDTOOLS_CA_BUNDLE_PATH};
     std::string caCertificates; // PC loads PEM through a Unicode-aware filesystem path.
-    std::string userAgent{"RankedTools/0.1.24 (Beat Saber Quest mod)"};
+    std::string userAgent{"RankedTools/0.1.25 (Beat Saber Quest mod)"};
 };
 inline PlatformPaths &RuntimePaths() {
     static PlatformPaths paths;

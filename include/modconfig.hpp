@@ -21,6 +21,7 @@ DECLARE_CONFIG(ModConfig) {
     CONFIG_VALUE(EnableBeatLeader, bool, "Create BeatLeader playlists", true);
     CONFIG_VALUE(EnableScoreSaber, bool, "Create ScoreSaber playlists", true);
     CONFIG_VALUE(EnableClanPlaylist, bool, "Create BeatLeader clan playlist", true);
+    CONFIG_VALUE(EnableSyncPlaylist, bool, "Create Sync playlist", false);
     CONFIG_VALUE(LegacyClanPlaylists, bool, "Legacy Clan Playlists", false,
                  "Use legacy clan-gap ordering instead of personalized clan impact. Automatically caps maximum stars using Min Clear Rate, with no lower star limit. Omits charts whose eligible PB meets or exceeds predicted PP. Applies on refresh.");
     CONFIG_VALUE(ClanPlaylistAllClans, bool, "Include all clans (off = main clan)", false);

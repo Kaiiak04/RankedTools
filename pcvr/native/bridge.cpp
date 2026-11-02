@@ -116,6 +116,16 @@ void EntryJson(Writer &w, const MapEntry &e) {
         w.EndObject();
     }
     w.EndArray();
+    w.Key("syncTargets");
+    w.StartArray();
+    for (const auto &target : e.syncTargets) {
+        w.StartObject();
+        Text(w, "characteristic", target.characteristic);
+        Text(w, "difficulty", target.difficulty);
+        Text(w, "missingService", target.missingService);
+        w.EndObject();
+    }
+    w.EndArray();
     if (e.clanImpact) {
         const auto &c = *e.clanImpact;
         w.Key("clanImpact");
@@ -201,6 +211,7 @@ RefreshSettings Settings(const Json &j) {
     s.enableBeatLeader = Bool(j, "enableBeatLeader", true);
     s.enableScoreSaber = Bool(j, "enableScoreSaber", true);
     s.enableClanPlaylist = Bool(j, "enableClanPlaylist", true);
+    s.enableSyncPlaylist = Bool(j, "enableSyncPlaylist", false);
     s.legacyClanPlaylists = Bool(j, "legacyClanPlaylists", false);
     s.allClans = Bool(j, "allClans", false);
     return s;
@@ -235,7 +246,23 @@ void Refresh(const Json &j) {
             }
         }
     }
+    if (settings.enableSyncPlaylist) {
+        std::lock_guard lock(stateMutex);
+        List list;
+        list.service = "Sync";
+        list.kind = static_cast<int>(ListKind::Sync);
+        list.title = "Sync";
+        list.fileName = PlaylistFileName("Sync", ListKind::Sync);
+        lists.push_back(std::move(list));
+    }
     RefreshObserver observer;
+    observer.syncError = [](const std::string &error) {
+        std::lock_guard lock(stateMutex);
+        for (auto &list : lists) if (list.kind == static_cast<int>(ListKind::Sync)) {
+            list.ready = true;
+            list.error = error;
+        }
+    };
     observer.status = [](const std::string &text) {
         std::lock_guard lock(stateMutex);
         status = text;
@@ -319,7 +346,7 @@ void Initialize(const Json &j) {
     paths.clanSearch = root / "clan-search";
     paths.icons = root / "assets";
     paths.caBundle = root / "cacert.pem";
-    paths.userAgent = "RankedTools/0.1.24-pcvr.1 (Beat Saber PCVR mod)";
+    paths.userAgent = "RankedTools/0.1.25-pcvr.1 (Beat Saber PCVR mod)";
     if (!std::filesystem::is_regular_file(paths.caBundle))
         throw std::runtime_error("RankedTools' CA bundle is missing. Extract the complete preview ZIP.");
     if (std::filesystem::file_size(paths.caBundle) > 2 * 1024 * 1024)

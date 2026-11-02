@@ -20,7 +20,7 @@ The remaining QPM packages are fetched for building/linking and keep their upstr
 
 The bundled `cacert.pem` contains public Mozilla CA root certificates extracted with curl's mk-ca-bundle tooling. Its provenance, date and source links are retained in that file.
 
-The seven playlist covers are original hand-drawn artwork supplied by the RankedTools project owner. They are included under this project's GPLv3 license. See [assets/ARTWORK.md](assets/ARTWORK.md). BeatLeader/ScoreSaber names identify the services the mod supports; this project does not claim endorsement by them. Clan icons are retrieved at runtime from BeatLeader and are not bundled in the repository.
+The eight playlist covers are original hand-drawn artwork supplied by the RankedTools project owner. They are included under this project's GPLv3 license. See [assets/ARTWORK.md](assets/ARTWORK.md). BeatLeader/ScoreSaber names identify the services the mod supports; this project does not claim endorsement by them. Clan icons are retrieved at runtime from BeatLeader and are not bundled in the repository.
 
 ## HTTPS build and binary distribution
 

@@ -19,7 +19,7 @@ foreach($folder in @('Plugins','Libs/Native','UserData/RankedTools/assets','lice
 Copy-Item -LiteralPath $plugin -Destination (Join-Path $stage 'Plugins/RankedTools.dll')
 Copy-Item -LiteralPath $native -Destination (Join-Path $stage 'Libs/Native/RankedTools.Core.dll')
 Copy-Item -LiteralPath (Join-Path $root 'cacert.pem') -Destination (Join-Path $stage 'UserData/RankedTools/cacert.pem')
-foreach($cover in @('beatleader_notplayed','beatleader_toimprove','beatleader_ppgain','beatleader_clan_toconquer','scoresaber_notplayed','scoresaber_toimprove','scoresaber_ppgain')){Copy-Item -LiteralPath (Join-Path $root "$cover.png") -Destination (Join-Path $stage "UserData/RankedTools/assets/$cover.png")}
+foreach($cover in @('sync','beatleader_notplayed','beatleader_toimprove','beatleader_ppgain','beatleader_clan_toconquer','scoresaber_notplayed','scoresaber_toimprove','scoresaber_ppgain')){Copy-Item -LiteralPath (Join-Path $root "$cover.png") -Destination (Join-Path $stage "UserData/RankedTools/assets/$cover.png")}
 Copy-Item -LiteralPath (Join-Path $root 'assets/ARTWORK.md') -Destination (Join-Path $stage 'UserData/RankedTools/assets/ARTWORK.md')
 foreach($file in @('LICENSE','THIRD_PARTY_NOTICES.md')){Copy-Item -LiteralPath (Join-Path $root $file) -Destination $stage}
 foreach($file in @('README.md','TESTING.md','dependencies.lock.json','optional-dependencies.lock.json','targets.json')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $stage}
@@ -37,7 +37,7 @@ $buildInfo | Add-Member -NotePropertyName gameVersion -NotePropertyValue $GameVe
 $buildInfo | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'build-info.json') -Encoding utf8
 Copy-Item -LiteralPath $reportPath -Destination (Join-Path $stage 'validation.json')
 $dist=Join-Path $PSScriptRoot 'dist'; New-Item -ItemType Directory -Path $dist -Force | Out-Null
-$zip=Join-Path $dist "RankedTools-PCVR-0.1.24-preview.1-bs$GameVersion.zip"
+$zip=Join-Path $dist "RankedTools-PCVR-0.1.25-preview.1-bs$GameVersion.zip"
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 $archive=[IO.Compression.ZipFile]::OpenRead($zip)
 try {

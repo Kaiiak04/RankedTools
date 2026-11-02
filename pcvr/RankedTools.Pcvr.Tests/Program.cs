@@ -22,6 +22,9 @@ static class Program
         var config=new PluginConfig(); var captured=config.CaptureRefresh();
         Check(captured.Value<int>("limit")==16 && captured.Value<int>("minClearRate")==50,"defaults");
         Check(captured.Value<bool>("importAttempts") && !captured.Value<bool>("legacyClanPlaylists"),"mode defaults");
+        Check(!captured.Value<bool>("enableSyncPlaylist"),"Sync is opt-in");
+        config.EnableSyncPlaylist=true;
+        Check(config.CaptureRefresh().Value<bool>("enableSyncPlaylist"),"Sync setting reaches native request");
         config.BeatLeaderPlayerId="76561198000000001"; config.MaxTracksPerPlaylist=1000; config.MinClearRate=53;
         var snapshot=config.CaptureRefresh(); config.BeatLeaderPlayerId="456"; config.MaxTracksPerPlaylist=2;
         Check(snapshot.Value<string>("beatLeaderPlayerId")=="76561198000000001" && snapshot.Value<int>("limit")==100,"immutable settings and exact ID");

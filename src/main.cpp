@@ -33,6 +33,7 @@ static RefreshSettings CaptureRefreshSettings() {
     settings.enableBeatLeader = getModConfig().EnableBeatLeader.GetValue();
     settings.enableScoreSaber = getModConfig().EnableScoreSaber.GetValue();
     settings.enableClanPlaylist = getModConfig().EnableClanPlaylist.GetValue();
+    settings.enableSyncPlaylist = getModConfig().EnableSyncPlaylist.GetValue();
     settings.legacyClanPlaylists = getModConfig().LegacyClanPlaylists.GetValue();
     settings.allClans = getModConfig().ClanPlaylistAllClans.GetValue();
     return settings;
@@ -51,6 +52,7 @@ static void RefreshWorker(const RefreshSettings settings) noexcept {
         observer.playlist = PublishRecommendationPreview;
         observer.clans = PublishClanPreviews;
         observer.ability = PublishAbilityPreview;
+        observer.syncError = PublishSyncError;
         RunRefresh(settings, observer);
         refreshInProgress.store(false);
     } catch (const std::exception& exception) {
@@ -71,7 +73,8 @@ void StartRefresh() {
     try {
         auto settings = CaptureRefreshSettings();
         ConfigureRecommendationPreviews(settings.minClearRate, settings.simpleMode,
-                                         settings.enableBeatLeader, settings.enableScoreSaber, settings.enableClanPlaylist);
+                                         settings.enableBeatLeader, settings.enableScoreSaber, settings.enableClanPlaylist,
+                                         settings.enableSyncPlaylist);
         SetStatus("Fetching leaderboard data…");
         std::thread(RefreshWorker, std::move(settings)).detach();
     } catch (const std::exception& exception) {
@@ -118,6 +121,7 @@ static void SettingsDidActivate(HMUI::ViewController* self,
     AddConfigValueToggle(parent, getModConfig().EnableBeatLeader);
     AddConfigValueToggle(parent, getModConfig().EnableScoreSaber);
     AddConfigValueToggle(parent, getModConfig().EnableClanPlaylist);
+    AddConfigValueToggle(parent, getModConfig().EnableSyncPlaylist);
     AddConfigValueToggle(parent, getModConfig().LegacyClanPlaylists);
     AddConfigValueToggle(parent, getModConfig().ClanPlaylistAllClans);
 }

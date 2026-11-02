@@ -1,6 +1,6 @@
 # RankedTools artwork
 
-The current bundled covers are hand-drawn developer artwork supplied by the project owner on 2026-10-05. They replace the earlier AI-generated covers. Each supplied image is used unchanged as a 512 × 512 PNG.
+The bundled covers are hand-drawn developer artwork supplied by the project owner on 2026-10-05, with the Sync cover added on 2026-11-01. They replace the earlier AI-generated covers. Each supplied image is used unchanged as a 512 × 512 PNG.
 
 The files in this directory are mirrored at the project root, where the QMOD packaging script reads them. Keep both copies synchronized when changing artwork.
 
@@ -13,6 +13,7 @@ The files in this directory are mirrored at the project root, where the QMOD pac
 | `scoresaber_toimprove.png` | ScoreSaber To Improve |
 | `scoresaber_ppgain.png` | ScoreSaber PP Gain / Simple Mode |
 | `beatleader_clan_toconquer.png` | Maps to Conquer fallback |
+| `sync.png` | Sync |
 
 Maps to Conquer continues to prefer the actual clan icon fetched from BeatLeader, independently for every clan playlist. The bundled clan cover is used only when that icon is unavailable.
 

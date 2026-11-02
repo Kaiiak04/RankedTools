@@ -57,6 +57,7 @@
     <toggle-setting text="Create BeatLeader playlists" value="enable-beatleader" />
     <toggle-setting text="Create ScoreSaber playlists" value="enable-scoresaber" />
     <toggle-setting text="Create BeatLeader clan playlist" value="enable-clans" />
+    <toggle-setting text="Create Sync playlist" value="enable-sync" />
     <toggle-setting text="Legacy Clan Playlists" value="legacy-clans" hover-hint="Use legacy clan-gap order and the direct clearability-based maximum star cap." />
     <toggle-setting text="Include all clans" value="all-clans" />
     <text text="Only your primary clan receives actual contributions. Secondary-clan playlists show what-if estimates. Refresh recommendations to apply settings." font-size="3" word-wrapping="true" />

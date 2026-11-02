@@ -64,7 +64,7 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
     private static string F(double value,int decimals=1) => value.ToString("F"+decimals,CultureInfo.InvariantCulture);
     private string SongDetails()
     {
-        var list=List; if(list==null)return "Enable a leaderboard or clan playlist in Mod Settings, then refresh.";
+        var list=List; if(list==null)return "Enable a leaderboard, clan or Sync playlist in Mod Settings, then refresh.";
         var text=new StringBuilder(); text.AppendLine(list.Value<string>("title")); text.AppendLine(list.Value<string>("note"));
         var error=list.Value<string>("error"); if(!string.IsNullOrEmpty(error))return text+"Previous playlist preserved. "+error;
         if(list.Value<bool?>("ready")!=true)return text+"Waiting for recommendations...";
@@ -72,6 +72,13 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
         var difficulty=song["difficulties"]?.First;
         text.AppendLine("Song "+(Math.Min(songIndex,Entries.Count-1)+1)+" of "+Entries.Count);
         text.AppendLine(song.Value<string>("songName"));
+        if(list.Value<int>("kind")==3)
+        {
+            text.AppendLine("Ranked on both leaderboards. All matching charts; no song limit.");
+            foreach(var target in (song["syncTargets"] as JArray) ?? new JArray())
+                text.AppendLine(target.Value<string>("characteristic")+" / "+target.Value<string>("difficulty")+": missing on "+target.Value<string>("missingService"));
+            return text.ToString();
+        }
         text.AppendLine((difficulty?.Value<string>("name")??"")+" | "+F(difficulty?.Value<double?>("stars")??0,2)+" stars");
         text.AppendLine("Predicted accuracy: "+F(song.Value<double>("predictedAccuracy")*100)+"%");
         text.AppendLine("Predicted score: "+F(song.Value<double>("predictedPp"))+" PP");

@@ -12,6 +12,7 @@ struct RefreshObserver {
     std::function<void(const std::string &, ListKind, const std::vector<MapEntry> &)> playlist;
     std::function<void(const std::vector<ClanPlaylistRecommendations> &)> clans;
     std::function<void(const std::string &, const std::vector<MapEntry> &, const std::string &)> ability;
+    std::function<void(const std::string &)> syncError;
 };
 struct RefreshResult {
     bool succeeded{false};

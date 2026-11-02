@@ -229,6 +229,26 @@ class RefreshRun {
             if (!results[i].error.empty())
                 SetStatus(std::string(i == 0 ? "BeatLeader" : "ScoreSaber") + " refresh stopped: " + results[i].error);
         }
+        if (settings.enableSyncPlaylist) {
+            attempted = true;
+            const bool syncOk = timed("Sync", [&] {
+                SetStatus("Sync: checking both ranked catalogs and posted-score histories...");
+                std::vector<MapEntry> entries;
+                std::string error;
+                if (!FetchSyncPlaylist(settings.beatLeaderPlayerId, settings.scoreSaberPlayerId, entries, error,
+                                       &beatLeaderHistory, &scoreSaberHistory) ||
+                    !WritePlaylist("Sync", ListKind::Sync, entries, error)) {
+                    if (observer.syncError) observer.syncError(error);
+                    SetStatus("Sync failed; previous playlist preserved. " + error);
+                    return false;
+                }
+                filesChanged.store(true);
+                PublishRecommendationPreview("Sync", ListKind::Sync, entries);
+                SetStatus("Sync updated with " + std::to_string(entries.size()) + " songs (all matching charts).");
+                return true;
+            });
+            allSucceeded = syncOk && allSucceeded;
+        }
         const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
         Log("Recommendation refresh finished in " + std::to_string(elapsed) +
             "s (success: " + (allSucceeded ? "true" : "false") + ").");

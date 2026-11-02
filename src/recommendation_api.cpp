@@ -344,9 +344,8 @@ std::string NormalizeDifficulty(std::string raw) {
 }
 
 std::string NormalizeCharacteristic(std::string raw) {
-    if (raw == "SoloStandard") return "Standard";
-    if (raw == "SoloOneSaber") return "OneSaber";
-    if (raw == "SoloNoArrows") return "NoArrows";
+    // ScoreSaber prefixes characteristics, including rotation/custom modes.
+    if (raw.starts_with("Solo")) return raw.substr(4);
     return raw;
 }
 
@@ -889,6 +888,8 @@ double EstimateTargetStars(const std::vector<MapEntry>& scores, RatingSystem sys
     return target > 0.0 ? target : kDefaultTargetStars;
 }
 
+#include "sync_catalog_impl.hpp"
+
 bool LoadScoreHistory(const std::string& id, RatingSystem system, ScoreHistory& history,
                       std::string& error, const HttpGetter& get = HttpGet, bool pace = true, bool loadAttempts = true) {
     if (history.loaded && history.playerId == id && history.system == system) return true;
@@ -896,7 +897,10 @@ bool LoadScoreHistory(const std::string& id, RatingSystem system, ScoreHistory& 
     history = {};
     history.importAttempts = importAttempts;
     std::vector<MapEntry> scores;
-    if (!FetchAllPages([&id, system](int page) {
+    bool syncComplete = true;
+    std::vector<MapEntry> syncScores;
+    std::string syncError;
+    if (!FetchPages<MapEntry>([&id, system](int page) {
         std::ostringstream url;
         if (system == RatingSystem::BeatLeader) {
             url << "https://api.beatleader.com/player/" << id
@@ -906,11 +910,18 @@ bool LoadScoreHistory(const std::string& id, RatingSystem system, ScoreHistory& 
                 << "/scores?limit=100&sort=top&page=" << page;
         }
         return url.str();
-    }, scores, error, get, pace)) return false;
+    }, scores, error, [&](const std::string& body, std::vector<MapEntry>& rows, std::string& failure, PageInfo* info) {
+        if (!ParseEntries(body, rows, failure, info)) return false;
+        if (syncComplete && !ParseSyncPage(body, system, true, syncScores, syncError, nullptr)) syncComplete = false;
+        return true;
+    }, get, pace)) return false;
     history.playerId = id;
     history.system = system;
     history.scores = std::move(scores);
     history.loaded = true;
+    history.syncComplete = syncComplete;
+    history.syncScores = std::move(syncScores);
+    history.syncError = std::move(syncError);
     if (loadAttempts) LoadAttempts(id, system, history, get, pace);
     return true;
 }
@@ -1007,6 +1018,7 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
 }
 
 #include "clan_api_impl.hpp"
+#include "sync_api_impl.hpp"
 
 } // namespace
 
@@ -1065,6 +1077,11 @@ bool FetchClanToConquer(const std::string& playerId,
                         std::string& error, double minClearRate, ScoreHistory* history, bool legacy) {
     return FetchClanToConquerInternal(playerId, allClans,
                                       limit, clanPlaylists, error, HttpGet, HttpGetIcon, minClearRate, history, true, &SharedClanScreenCache(), legacy);
+}
+
+bool FetchSyncPlaylist(const std::string& blId, const std::string& ssId, std::vector<MapEntry>& entries,
+                       std::string& error, ScoreHistory* blHistory, ScoreHistory* ssHistory) {
+    return FetchSyncPlaylistInternal(blId, ssId, entries, error, blHistory, ssHistory);
 }
 
 bool SaveClanExplorationCursor(const std::string& id, const std::string& tag, std::size_t cursor, std::string& error) {

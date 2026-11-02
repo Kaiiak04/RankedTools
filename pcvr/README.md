@@ -2,7 +2,7 @@
 
 RankedTools creates personalized BeatLeader and ScoreSaber playlists to help you gain PP, improve existing scores, and discover ranked maps suited to your ability. This is the Windows x64 PCVR port of the Quest mod.
 
-**Preview version: 0.1.24-pcvr.1. Targets: Beat Saber 1.40.8 and 1.44.1. In-game validation is pending on both.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
+**Preview version: 0.1.25-pcvr.1. Targets: Beat Saber 1.40.8 and 1.44.1. In-game validation is pending on both.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
 
 ## Install
 
@@ -14,6 +14,8 @@ RankedTools creates personalized BeatLeader and ScoreSaber playlists to help you
 BeatLeader and ScoreSaber's in-game mods are optional. Recommendations use their public APIs directly. **Use current PC account** reads your Steam/Oculus PC user ID, verifies the corresponding public profile, and saves that selection. Account search also accepts display names, profile URLs, or numeric IDs, with explicit selection and page buttons. It never reads login tokens. Your PC platform account may differ from a manually selected leaderboard account, so check the displayed profile.
 
 ## Use
+
+Enable **Create Sync playlist** after selecting both accounts to fill missing scores between leaderboards. Sync matches exact hash, characteristic and difficulty, requires ranked status on both services, and includes all charts scored on exactly one. All characteristics and all matches are included, regardless of song count, Simple Mode, Min Clear Rate or personal playlist toggles. Posted No Fail scores count as filled; local attempts do not. Multiple qualifying charts are grouped under the song, with each missing leaderboard shown in the preview. Complete catalogs can take longer to fetch. A failed or incomplete fetch/save preserves the prior playlist; a successful empty result writes an empty playlist.
 
 - The normal layout creates **Not Played** and **To Improve** playlists for each enabled leaderboard. **Simple Mode** replaces those with one **PP Gain** playlist per leaderboard.
 - **Min Clear Rate** defaults to 50% and ranges from 0–95% in 5% steps. At 0%, the threshold and chance adjustment are disabled. Clearability is a heuristic, not a measured probability.

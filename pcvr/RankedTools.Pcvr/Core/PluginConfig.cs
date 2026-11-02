@@ -17,6 +17,7 @@ public class PluginConfig
     public virtual bool EnableBeatLeader { get; set; } = true;
     public virtual bool EnableScoreSaber { get; set; } = true;
     public virtual bool EnableClanPlaylist { get; set; } = true;
+    public virtual bool EnableSyncPlaylist { get; set; }
     public virtual bool LegacyClanPlaylists { get; set; }
     public virtual bool ClanPlaylistAllClans { get; set; }
 
@@ -29,6 +30,7 @@ public class PluginConfig
         ["simpleMode"] = SimpleMode, ["importAttempts"] = ImportAttemptHistory,
         ["enableBeatLeader"] = EnableBeatLeader, ["enableScoreSaber"] = EnableScoreSaber,
         ["enableClanPlaylist"] = EnableClanPlaylist, ["legacyClanPlaylists"] = LegacyClanPlaylists,
+        ["enableSyncPlaylist"] = EnableSyncPlaylist,
         ["allClans"] = ClanPlaylistAllClans,
     };
 

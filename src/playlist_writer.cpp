@@ -123,6 +123,14 @@ bool WritePlaylist(const std::string& service,
                    const std::vector<MapEntry>& entries,
                    std::string& error) {
     try {
+        if (kind == ListKind::Sync) {
+            if (std::any_of(entries.begin(), entries.end(), [](const MapEntry& entry) {
+                return !IsValidSongHash(entry.hash) || entry.difficulties.empty();
+            })) { error = "Sync contains an invalid chart; previous playlist preserved."; return false; }
+            return WritePlaylistFile("Sync", PlaylistFileName(service, kind), PlaylistImage("sync.png"),
+                entries, error, "All charts ranked on both ScoreSaber and BeatLeader with a posted score on exactly one. "
+                "Exact hash, characteristic and difficulty; includes No Fail scores. No song-count limit.");
+        }
         const auto icon = service == "ScoreSaber" ? "scoresaber_" : "beatleader_";
         const auto image = PlaylistImage(std::string(icon) +
             (kind == ListKind::Combined ? "ppgain.png" :

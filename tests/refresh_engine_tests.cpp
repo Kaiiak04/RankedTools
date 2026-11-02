@@ -90,6 +90,14 @@ bool PruneClanPlaylists(const std::vector<std::string> &, std::string &) {
 bool SaveClanSearchState(const std::string &, const std::string &, const ClanSearchState &, std::string &) {
     return true;
 }
+bool FetchSyncPlaylist(const std::string& bl, const std::string& ss, std::vector<MapEntry>& entries,
+                       std::string& error, ScoreHistory* blHistory, ScoreHistory* ssHistory) {
+    ++fetches;
+    CHECK(blHistory != nullptr && ssHistory != nullptr);
+    if (failFetch || bl.empty() || ss.empty()) { error = "incomplete Sync input"; return false; }
+    entries.resize(205);
+    return true;
+}
 } // namespace rankedpractice
 int main() {
     try {
@@ -162,6 +170,27 @@ int main() {
         CHECK(result.succeeded);
         CHECK(writes.size() == 4);
         CHECK(fetches == 4);
+        Reset();
+        s.enableBeatLeader = s.enableScoreSaber = s.enableClanPlaylist = false;
+        s.enableSyncPlaylist = true; s.limit = 1; s.simpleMode = true; s.minClearRate = .95;
+        size_t syncSongs = 0;
+        observer.playlist = [&](const std::string& service, ListKind kind, const std::vector<MapEntry>& entries) {
+            CHECK(service == "Sync" && kind == ListKind::Sync); syncSongs = entries.size();
+        };
+        result = RunRefresh(s, observer);
+        CHECK(result.succeeded && result.filesChanged && syncSongs == 205 && fetches == 1);
+        CHECK(writes == std::vector<std::string>{"Sync3"});
+        Reset(); failFetch = true;
+        std::string syncError;
+        observer.syncError = [&](const std::string& error) { syncError = error; };
+        result = RunRefresh(s, observer);
+        CHECK(!result.succeeded && writes.empty() && !syncError.empty());
+        Reset(); failWrite = true;
+        result = RunRefresh(s, observer);
+        CHECK(!result.succeeded && writes.empty() && syncError == "disk full");
+        Reset(); s.scoreSaberPlayerId.clear();
+        result = RunRefresh(s, observer);
+        CHECK(!result.succeeded && writes.empty());
         std::cout << checks << " refresh orchestration checks passed.\n";
         return 0;
     } catch (const std::exception &e) {

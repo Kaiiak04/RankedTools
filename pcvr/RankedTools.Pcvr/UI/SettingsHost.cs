@@ -66,6 +66,7 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
     [UIValue("enable-beatleader")] public bool EnableBeatLeader { get=>Config.EnableBeatLeader; set=>Config.EnableBeatLeader=value; }
     [UIValue("enable-scoresaber")] public bool EnableScoreSaber { get=>Config.EnableScoreSaber; set=>Config.EnableScoreSaber=value; }
     [UIValue("enable-clans")] public bool EnableClans { get=>Config.EnableClanPlaylist; set=>Config.EnableClanPlaylist=value; }
+    [UIValue("enable-sync")] public bool EnableSync { get=>Config.EnableSyncPlaylist; set=>Config.EnableSyncPlaylist=value; }
     [UIValue("legacy-clans")] public bool LegacyClans { get=>Config.LegacyClanPlaylists; set=>Config.LegacyClanPlaylists=value; }
     [UIValue("all-clans")] public bool AllClans { get=>Config.ClanPlaylistAllClans; set=>Config.ClanPlaylistAllClans=value; }
 

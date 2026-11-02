@@ -16,6 +16,7 @@ struct RefreshSettings {
     bool enableBeatLeader{true};
     bool enableScoreSaber{true};
     bool enableClanPlaylist{true};
+    bool enableSyncPlaylist{false};
     bool legacyClanPlaylists{false};
     bool allClans{false};
 };

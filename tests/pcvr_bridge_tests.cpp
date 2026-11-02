@@ -40,7 +40,7 @@ rapidjson::Document Call(const std::string &text, bool expected = true) {
 namespace rankedpractice {
 // Fixture-backed provider boundary. The actual bridge, models, chart renderer,
 // storage, serializers, and C allocation/free functions are production code.
-RefreshResult RunRefresh(const RefreshSettings &, const RefreshObserver &observer) {
+RefreshResult RunRefresh(const RefreshSettings &settings, const RefreshObserver &observer) {
     {
         std::unique_lock lock(barrierMutex);
         entered = true;
@@ -63,6 +63,10 @@ RefreshResult RunRefresh(const RefreshSettings &, const RefreshObserver &observe
     }
     observer.ability("BeatLeader", scores, "");
     observer.playlist("BeatLeader", ListKind::Combined, {scores.front()});
+    if (settings.enableSyncPlaylist) {
+        scores.front().syncTargets = {{"OneSaber", "Expert", "ScoreSaber"}, {"Standard", "Hard", "BeatLeader"}};
+        observer.playlist("Sync", ListKind::Sync, {scores.front()});
+    }
     observer.status("Fixture refresh completed.");
     return {true, true};
 }
@@ -94,7 +98,7 @@ int main() {
         Call("{\"command\":\"unknown\"}", false);
         Call("{\"command\":\"refresh\",\"beatLeaderPlayerId\":123}", false);
         const std::string refresh =
-            R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"simpleMode":true})";
+            R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"enableSyncPlaylist":true,"simpleMode":true})";
         std::string workerError;
         std::thread worker([&] {
             try {
@@ -121,7 +125,14 @@ int main() {
         snapshot = Call(R"({"command":"snapshot"})");
         CHECK(!snapshot["running"].GetBool());
         CHECK(snapshot["succeeded"].GetBool());
-        CHECK(snapshot["playlists"].Size() == 1);
+        CHECK(snapshot["playlists"].Size() == 2);
+        const auto& sync = snapshot["playlists"][1];
+        CHECK(sync["kind"].GetDouble() == 3 && sync["ready"].GetBool());
+        CHECK(std::string(sync["fileName"].GetString()) == "RankedPractice_Sync.bplist");
+        const auto& targets = sync["entries"][0]["syncTargets"];
+        CHECK(targets.Size() == 2);
+        CHECK(std::string(targets[0]["characteristic"].GetString()) == "OneSaber");
+        CHECK(std::string(targets[1]["missingService"].GetString()) == "BeatLeader");
         CHECK(snapshot["playlists"][0]["entries"][0]["predictedPp"].GetDouble() == 123.45);
         CHECK(std::string(snapshot["playlists"][0]["entries"][0]["songName"].GetString()) == "\xc3\x85 fixture");
         CHECK(snapshot["abilities"][0]["scoreCount"].GetDouble() == 24);

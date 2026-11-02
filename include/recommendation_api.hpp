@@ -56,7 +56,16 @@ struct ScoreHistory {
     std::vector<Attempt> attempts;
     std::string attemptWarning;
     bool importAttempts{true};
+    // Unfiltered posted-score identities, including NF and inapplicable charts.
+    // Collected alongside the ordinary profile without another network pass.
+    bool syncComplete{false};
+    std::vector<MapEntry> syncScores;
+    std::string syncError;
 };
+
+bool FetchSyncPlaylist(const std::string& beatLeaderPlayerId, const std::string& scoreSaberPlayerId,
+                       std::vector<MapEntry>& entries, std::string& error,
+                       ScoreHistory* beatLeaderHistory = nullptr, ScoreHistory* scoreSaberHistory = nullptr);
 
 bool FetchRecommendations(const std::string& service,
                           const std::string& playerId,

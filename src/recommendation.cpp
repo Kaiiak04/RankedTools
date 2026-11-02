@@ -750,6 +750,7 @@ std::vector<MapEntry> MergeRecommendations(std::vector<MapEntry> notPlayed,
 }
 
 std::string PlaylistFileName(const std::string& service, ListKind kind) {
+    if (kind == ListKind::Sync) return "RankedPractice_Sync.bplist";
     const auto provider = Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
     return std::string("RankedPractice_") + provider +
            (kind == ListKind::Combined ? "_PPGain.bplist" :
@@ -757,6 +758,7 @@ std::string PlaylistFileName(const std::string& service, ListKind kind) {
 }
 
 std::string PlaylistTitle(const std::string& service, ListKind kind) {
+    if (kind == ListKind::Sync) return "Sync";
     const auto provider = Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
     return std::string(provider) + (kind == ListKind::Combined ? " - PP Gain" :
                                   kind == ListKind::NotPlayed ? " - Not Played" : " - To Improve");

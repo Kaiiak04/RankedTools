@@ -1203,6 +1203,7 @@ void DefaultRealmCompatibility() {
 }
 
 #include "clan_recommendation_tests.hpp"
+#include "sync_playlist_tests.hpp"
 #include "clan_api_audit.hpp"
 #include "clan_refresh_tests.hpp"
 #include "clan_search_tests.hpp"
@@ -1210,6 +1211,14 @@ void DefaultRealmCompatibility() {
 
 int main(int argc, char** argv) {
     try {
+        if (argc == 4 && std::string(argv[1]) == "--validate-sync-catalog") {
+            std::vector<MapEntry> charts;
+            std::string error;
+            const auto system = std::string(argv[2]) == "ScoreSaber" ? RatingSystem::ScoreSaber : RatingSystem::BeatLeader;
+            CHECK(ParseSyncPage(ReadFile(argv[3]), system, false, charts, error, nullptr));
+            std::cout << "Validated " << charts.size() << " ranked chart identities.\n";
+            return 0;
+        }
         if (argc == 4 && std::string(argv[1]) == "--audit-clan-profile") return AuditClanProfile(argv[2], argv[3]);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-clan-profile") return AuditClanProfile(argv[2], argv[3], true);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-paced-clan-profile") return AuditClanProfile(argv[2], argv[3], true, true);
@@ -1221,6 +1230,7 @@ int main(int argc, char** argv) {
         AccountLookupContract();
         ConcurrentRefreshContract();
         DefaultRealmCompatibility();
+        SyncPlaylistContract();
         if (argc > 1 && std::string(argv[1]) == "--export-ability-chart") ExportAbilityPreview();
         std::cout << "All " << checks << " regression checks passed.\n";
     } catch (const std::exception& exception) {

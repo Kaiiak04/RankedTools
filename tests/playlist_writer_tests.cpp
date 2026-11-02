@@ -53,6 +53,41 @@ int main() {
         CHECK(PruneLeaderboardPlaylists("BeatLeader", {
               PlaylistFileName("BeatLeader", ListKind::NotPlayed), PlaylistFileName("BeatLeader", ListKind::ToImprove)}, error));
         // Clean up only the enumerated fixtures in this workspace-local sandbox.
+        std::ifstream syncInput("sync.png", std::ios::binary);
+        const std::string syncPng{std::istreambuf_iterator<char>(syncInput), std::istreambuf_iterator<char>()};
+        syncInput.close();
+        CHECK(!syncPng.empty());
+        const auto syncPath = directory / PlaylistFileName("Sync", ListKind::Sync);
+        // The actual packaged artwork, all 205 songs and both selected chart modes.
+        std::filesystem::create_directories(RuntimePaths().icons);
+        { std::ofstream cover(RuntimePaths().icons / "sync.png", std::ios::binary); cover << syncPng; }
+        auto syncEntry = entry;
+        syncEntry.difficulties.push_back({"OneSaber", "Hard", 0});
+        CHECK(WritePlaylist("Sync", ListKind::Sync, std::vector<MapEntry>(205, syncEntry), error));
+        {
+            std::ifstream file(syncPath);
+            const std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+            rapidjson::Document doc; doc.Parse(text.c_str());
+            CHECK(!doc.HasParseError() && doc["songs"].Size() == 205);
+            CHECK(std::string(doc["playlistTitle"].GetString()) == "Sync");
+            CHECK(std::string(doc["image"].GetString()) == EncodePlaylistImage(syncPng, "image/png"));
+            CHECK(doc["songs"][0]["difficulties"].Size() == 2);
+        }
+        CHECK(PruneLeaderboardPlaylists("BeatLeader", {}, error));
+        CHECK(PruneLeaderboardPlaylists("ScoreSaber", {}, error));
+        CHECK(std::filesystem::exists(syncPath));
+        auto invalidSync = syncEntry; invalidSync.hash = "invalid";
+        auto syncBytes = [&] {
+            std::ifstream file(syncPath, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        };
+        const auto beforeFailure = syncBytes();
+        CHECK(!WritePlaylist("Sync", ListKind::Sync, {invalidSync}, error));
+        CHECK(syncBytes() == beforeFailure);
+        CHECK(WritePlaylist("Sync", ListKind::Sync, {}, error)); // A successful empty result replaces old entries.
+        std::filesystem::remove(syncPath);
+        std::filesystem::remove(RuntimePaths().icons / "sync.png");
+        std::filesystem::remove(RuntimePaths().icons);
         std::ifstream pngInput("tests/fixtures/clan-icon-live.png", std::ios::binary);
         const std::string png{std::istreambuf_iterator<char>(pngInput), std::istreambuf_iterator<char>()};
         CHECK(!png.empty());
