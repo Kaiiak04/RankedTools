@@ -103,11 +103,15 @@ void SyncPlaylistContract() {
     CHECK(blScores == 3 && ssScores == 1 && blPages == 3 && ssPages == 3);
     CHECK(FetchSyncPlaylistInternal("123", "456", result, error, &blHistory, &ssHistory, get, false));
     CHECK(result.size() == 205 && blScores == 3 && ssScores == 1); // Histories reused.
+    // Load on this thread: ReadFile increments the test counter and must not run
+    // concurrently inside the provider callbacks.
+    const auto builtInBlSource = ReadFile("tests/fixtures/sync-built-in-beatleader.json");
+    const auto builtInSsSource = ReadFile("tests/fixtures/sync-built-in-scoresaber.json");
     auto builtInHistory = [&](const std::string& url, std::string& body, std::string& failure) {
         if (url.find("/scores?") == std::string::npos) return get(url, body, failure);
         const bool beatLeader = url.find("beatleader.com") != std::string::npos;
         if (url.ends_with("page=2")) { body = Page(2, 4, {Chart(55, 0, true, "NF")}); return true; }
-        const auto source = ReadFile(std::string("tests/fixtures/sync-built-in-") + (beatLeader ? "beatleader" : "scoresaber") + ".json");
+        const auto& source = beatLeader ? builtInBlSource : builtInSsSource;
         rapidjson::Document document; document.Parse(source.c_str());
         if (beatLeader) document["metadata"]["total"].SetInt(4);
         rapidjson::StringBuffer buffer; rapidjson::Writer<rapidjson::StringBuffer> writer(buffer); document.Accept(writer);
