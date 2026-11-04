@@ -41,7 +41,7 @@ struct PreviewList {
 std::mutex previewMutex;
 std::string refreshStatus{"Open this tab to refresh recommendations."};
 double previewMinClearRate{0.50};
-std::vector<PreviewList> previewLists(6);
+std::vector<PreviewList> previewLists(7);
 std::vector<int> activeLists{0, 1, 3, 4};
 SafePtrUnity<HMUI::CurvedTextMeshPro> statusText;
 SafePtrUnity<HMUI::CurvedTextMeshPro> detailsText;
@@ -89,12 +89,13 @@ void UploadChart(const std::shared_ptr<const AbilityChart>& chart) {
     renderedChart = chart;
 }
 
-constexpr std::array<const char*, 6> listNames{
+constexpr std::array<const char*, 7> listNames{
     "BeatLeader - Not Played", "BeatLeader - To Improve", "BeatLeader - PP Gain",
-    "ScoreSaber - Not Played", "ScoreSaber - To Improve", "ScoreSaber - PP Gain"
+    "ScoreSaber - Not Played", "ScoreSaber - To Improve", "ScoreSaber - PP Gain", "Sync"
 };
 
 int ListIndex(const std::string& service, ListKind kind) {
+    if (kind == ListKind::Sync) return 6;
     const int base = service == "ScoreSaber" ? 3 : 0;
     return base + (kind == ListKind::Combined ? 2 : kind == ListKind::ToImprove ? 1 : 0);
 }
@@ -107,11 +108,11 @@ std::string ConfidenceLabel(double confidence) {
 
 std::string RenderDetails(const PreviewList& list, double minClearRate, bool hasLists) {
     std::ostringstream output;
-    if (!hasLists) return "Enable a leaderboard or clan playlist to see song recommendations here.";
+    if (!hasLists) return "Enable a leaderboard, clan or Sync playlist to see songs here.";
     output << (list.clan ? list.title : listNames[selectedList]) << "\n";
     if (!list.note.empty()) output << list.note << "\n";
     if (!list.error.empty()) { output << "Previous playlist preserved. " << list.error; return output.str(); }
-    if (list.clan || selectedList % 3 != 1) output << "Min Clear Rate: " << std::fixed << std::setprecision(0)
+    if (selectedList != 6 && (list.clan || selectedList % 3 != 1)) output << "Min Clear Rate: " << std::fixed << std::setprecision(0)
                                     << minClearRate * 100.0 << "%\n";
     if (!list.clan && selectedList % 3 == 2) output << "Sorted by weighted PP gain\n";
     if (!list.ready) {
@@ -124,6 +125,13 @@ std::string RenderDetails(const PreviewList& list, double minClearRate, bool has
     }
     selectedSong = std::min(selectedSong, list.entries.size() - 1);
     const auto& entry = list.entries[selectedSong];
+    if (selectedList == 6) {
+        output << "Song " << (selectedSong + 1) << " of " << list.entries.size() << "\n" << entry.songName << "\n"
+               << "Ranked on both leaderboards. All matching charts; no song limit.\n";
+        for (const auto& target : entry.syncTargets)
+            output << target.characteristic << " / " << target.difficulty << ": missing on " << target.missingService << "\n";
+        return output.str();
+    }
     const auto& difficulty = entry.difficulties.front();
     output << "Song " << (selectedSong + 1) << " of " << list.entries.size() << "\n"
            << entry.songName << "\n"
@@ -368,10 +376,10 @@ void SetViewStatus(const std::string& status) {
 }
 
 void ConfigureRecommendationPreviews(double minClearRate, bool simpleMode,
-                                      bool enableBeatLeader, bool enableScoreSaber, bool enableClans) {
+                                      bool enableBeatLeader, bool enableScoreSaber, bool enableClans, bool enableSync) {
     {
         std::lock_guard<std::mutex> lock(previewMutex);
-        previewLists.assign(6, {});
+        previewLists.assign(7, {});
         abilityPreviews = {};
         enabledServices = {enableBeatLeader, enableScoreSaber};
         selectedService = enableBeatLeader || !enableScoreSaber ? 0 : 1;
@@ -382,9 +390,10 @@ void ConfigureRecommendationPreviews(double minClearRate, bool simpleMode,
             if (simpleMode) activeLists.push_back(base + 2);
             else { activeLists.push_back(base); activeLists.push_back(base + 1); }
         }
+        if (enableSync) activeLists.push_back(6);
         if (enableClans) {
             PreviewList clan; clan.clan = true; clan.title = "BeatLeader - Maps to Conquer";
-            previewLists.push_back(std::move(clan)); activeLists.push_back(6);
+            previewLists.push_back(std::move(clan)); activeLists.push_back(7);
         }
         selectedList = activeLists.empty() ? 0 : activeLists.front();
         selectedSong = 0;
@@ -395,8 +404,8 @@ void ConfigureRecommendationPreviews(double minClearRate, bool simpleMode,
 void PublishClanPreviews(const std::vector<ClanPlaylistRecommendations>& playlists) {
     {
         std::lock_guard<std::mutex> lock(previewMutex);
-        previewLists.resize(6);
-        activeLists.erase(std::remove_if(activeLists.begin(), activeLists.end(), [](int i) { return i >= 6; }), activeLists.end());
+        previewLists.resize(7);
+        activeLists.erase(std::remove_if(activeLists.begin(), activeLists.end(), [](int i) { return i >= 7; }), activeLists.end());
         for (const auto& playlist : playlists) {
             PreviewList list; list.ready = true; list.clan = true; list.entries = playlist.entries;
             list.legacy=playlist.legacy;
@@ -437,6 +446,15 @@ void PublishAbilityPreview(const std::string& service, const std::vector<MapEntr
     {
         std::lock_guard<std::mutex> lock(previewMutex);
         abilityPreviews[service == "ScoreSaber" ? 1 : 0] = {true, std::move(chart), error};
+    }
+    ScheduleUpdate();
+}
+
+void PublishSyncError(const std::string& error) {
+    {
+        std::lock_guard<std::mutex> lock(previewMutex);
+        previewLists[6].ready = true;
+        previewLists[6].error = error;
     }
     ScheduleUpdate();
 }

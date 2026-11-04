@@ -1,0 +1,31 @@
+<vertical id="recommendation-layout" pad="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+  <horizontal pref-width="106" pref-height="6" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+    <text text="~status" font-size="3.2" align="Left" rich-text="false" word-wrapping="false" overflow-mode="Ellipsis" />
+  </horizontal>
+  <horizontal pref-width="106" pref-height="7" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+    <button text="Back" on-click="back" pref-width="18" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="18" min-height="7" flexible-width="0" flexible-height="0" />
+    <button text="Refresh" on-click="refresh" pref-width="22" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" interactable="~can-refresh" min-width="22" min-height="7" flexible-width="0" flexible-height="0" />
+    <button text="Song details" on-click="details-view" pref-width="28" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="28" min-height="7" flexible-width="0" flexible-height="0" />
+    <button text="Ability chart" on-click="ability-view" pref-width="28" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="28" min-height="7" flexible-width="0" flexible-height="0" />
+  </horizontal>
+  <horizontal pref-width="106" pref-height="7" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" active="~show-details">
+    <button text="Previous playlist" on-click="previous-list" pref-width="42" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="42" min-height="7" flexible-width="0" flexible-height="0" />
+    <button text="Next playlist" on-click="next-list" pref-width="42" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="42" min-height="7" flexible-width="0" flexible-height="0" />
+  </horizontal>
+  <horizontal pref-width="106" pref-height="7" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" active="~show-details">
+    <button text="Previous song" on-click="previous-song" pref-width="42" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="42" min-height="7" flexible-width="0" flexible-height="0" />
+    <button text="Next song" on-click="next-song" pref-width="42" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="42" min-height="7" flexible-width="0" flexible-height="0" />
+  </horizontal>
+  <horizontal pref-width="106" pref-height="7" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" active="~show-ability">
+    <button text="Previous leaderboard" on-click="previous-service" pref-width="44" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="44" min-height="7" flexible-width="0" flexible-height="0" />
+    <button text="Next leaderboard" on-click="next-service" pref-width="44" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="44" min-height="7" flexible-width="0" flexible-height="0" />
+  </horizontal>
+  <scroll-view min-height="0" pref-height="0" flexible-height="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="UpperCenter" id="recommendation-scroll">
+    <vertical pref-width="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="UpperCenter" horizontal-fit="Unconstrained" vertical-fit="PreferredSize" flexible-width="1">
+      <text text="~details" font-size="3.2" rich-text="false" word-wrapping="true" align="TopLeft" />
+      <image id="ability-image" active="~has-chart" preserve-aspect="true" pref-width="94" pref-height="52.875" />
+      <text text="~chart-notes" font-size="3.2" rich-text="false" word-wrapping="true" active="~has-chart" />
+      <text text="~refresh-notes" font-size="3.2" rich-text="false" word-wrapping="true" active="~has-refresh-notes" />
+    </vertical>
+  </scroll-view>
+</vertical>

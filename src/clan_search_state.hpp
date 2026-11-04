@@ -82,8 +82,7 @@ bool PersistClanSearchState(const std::string& id, const std::string& tag, const
         auto temp=path; temp+=".tmp";
         { std::ofstream file(temp,std::ios::trunc); file.write(buffer.GetString(),buffer.GetSize());
           file.flush(); if (!file) throw std::runtime_error("Could not write clan search history."); }
-        std::error_code ec; std::filesystem::rename(temp,path,ec);
-        if (ec) { std::filesystem::remove(path,ec); ec.clear(); std::filesystem::rename(temp,path,ec); }
+        std::error_code ec; ReplaceFile(temp,path,ec);
         if (ec) throw std::runtime_error("Could not save clan search history.");
         return true;
     } catch (const std::exception& e) { error=e.what(); return false; }

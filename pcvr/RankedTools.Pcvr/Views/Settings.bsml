@@ -1,0 +1,85 @@
+<vertical id="settings-layout" pad="0" spacing="0" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+  <scroll-view min-height="0" pref-height="0" flexible-height="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="UpperCenter" id="preferences-scroll" active="~show-settings">
+    <vertical pref-width="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="UpperCenter" horizontal-fit="Unconstrained" vertical-fit="PreferredSize" flexible-width="1">
+      <text text="~beatleader-account" font-size="3.2" rich-text="false" word-wrapping="true" />
+      <button text="Choose BeatLeader account" on-click="choose-beatleader" pref-width="90" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="90" min-height="7" flexible-width="0" flexible-height="0" />
+      <text text="~scoresaber-account" font-size="3.2" rich-text="false" word-wrapping="true" />
+      <button text="Choose ScoreSaber account" on-click="choose-scoresaber" pref-width="90" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="90" min-height="7" flexible-width="0" flexible-height="0" />
+      <button text="Show / hide IDs" on-click="toggle-ids" pref-width="90" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="90" min-height="7" flexible-width="0" flexible-height="0" />
+      <increment-setting text="Tracks per playlist" value="track-limit" min="1" max="100" increment="1" integer-only="true" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <slider-setting text="Min Clear Rate" value="clear-rate" min="0" max="95" increment="5" integer-only="true" formatter="clear-rate-format" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <text text="Clear estimates are heuristic. 0% disables the threshold and chance adjustment; legacy clan mode also removes its maximum star cap." font-size="3.2" rich-text="false" word-wrapping="true" />
+      <toggle-setting text="Simple Mode" value="simple-mode" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Record local attempts" value="record-attempts" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <text text="Use your own player IDs when recording attempts. Turn recording off when inspecting someone else's profile." font-size="3.2" rich-text="false" word-wrapping="true" />
+      <toggle-setting text="Import attempt history" value="import-attempts" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Create BeatLeader playlists" value="enable-beatleader" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Create ScoreSaber playlists" value="enable-scoresaber" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Create BeatLeader clan playlist" value="enable-clans" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Create Sync playlist" value="enable-sync" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Legacy Clan Playlists" value="legacy-clans" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Include all clans" value="all-clans" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <text text="Only your primary clan receives actual contributions. Secondary-clan playlists show what-if estimates. Refresh recommendations to apply settings." font-size="3.2" rich-text="false" word-wrapping="true" />
+    </vertical>
+  </scroll-view>
+  <vertical id="account-picker" active="~picker-open" min-height="0" pref-height="0" flexible-height="1" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="UpperCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+    <horizontal pref-width="90" pref-height="5" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+      <text text="~picker-title" font-size="3.2" rich-text="false" word-wrapping="true" align="Left" />
+    </horizontal>
+    <string-setting text="Name / URL / ID" value="search-input" apply-on-change="true" bind-value="true" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+    <horizontal pref-width="90" pref-height="7" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+      <button text="Find account" on-click="find" pref-width="42" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" interactable="~can-find" min-width="42" min-height="7" flexible-width="0" flexible-height="0" />
+      <button text="Use PC account" on-click="use-pc-account" pref-width="42" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" interactable="~can-find" min-width="42" min-height="7" flexible-width="0" flexible-height="0" />
+    </horizontal>
+    <horizontal pref-width="90" pref-height="9" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+      <text text="~lookup-status" font-size="2.8" rich-text="false" word-wrapping="true" overflow-mode="Ellipsis" align="Left" />
+    </horizontal>
+    <horizontal pref-width="90" pref-height="6" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+      <button text="Previous page" on-click="previous-page" pref-width="42" pref-height="6" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" interactable="~can-previous" min-width="42" min-height="6" flexible-width="0" flexible-height="0" />
+      <button text="Next page" on-click="next-page" pref-width="42" pref-height="6" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" interactable="~can-next" min-width="42" min-height="6" flexible-width="0" flexible-height="0" />
+    </horizontal>
+    <scroll-view min-height="0" pref-height="0" flexible-height="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="UpperCenter" id="account-results-scroll" pref-width="110">
+      <vertical pref-width="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="UpperCenter" horizontal-fit="Unconstrained" vertical-fit="PreferredSize" flexible-width="1">
+        <horizontal pref-width="90" pref-height="12" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" active="~has-0">
+          <image id="avatar-0" pref-width="8" pref-height="8" preserve-aspect="true" />
+          <vertical pref-width="60" pref-height="12" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="MiddleLeft" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+            <text text="~row-0" font-size="2.8" rich-text="false" word-wrapping="false" overflow-mode="Ellipsis" />
+          </vertical>
+          <button text="Select" on-click="select-0" pref-width="18" pref-height="6" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="18" min-height="6" flexible-width="0" flexible-height="0" />
+        </horizontal>
+        <horizontal pref-width="90" pref-height="12" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" active="~has-1">
+          <image id="avatar-1" pref-width="8" pref-height="8" preserve-aspect="true" />
+          <vertical pref-width="60" pref-height="12" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="MiddleLeft" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+            <text text="~row-1" font-size="2.8" rich-text="false" word-wrapping="false" overflow-mode="Ellipsis" />
+          </vertical>
+          <button text="Select" on-click="select-1" pref-width="18" pref-height="6" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="18" min-height="6" flexible-width="0" flexible-height="0" />
+        </horizontal>
+        <horizontal pref-width="90" pref-height="12" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" active="~has-2">
+          <image id="avatar-2" pref-width="8" pref-height="8" preserve-aspect="true" />
+          <vertical pref-width="60" pref-height="12" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="MiddleLeft" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+            <text text="~row-2" font-size="2.8" rich-text="false" word-wrapping="false" overflow-mode="Ellipsis" />
+          </vertical>
+          <button text="Select" on-click="select-2" pref-width="18" pref-height="6" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="18" min-height="6" flexible-width="0" flexible-height="0" />
+        </horizontal>
+        <horizontal pref-width="90" pref-height="12" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" active="~has-3">
+          <image id="avatar-3" pref-width="8" pref-height="8" preserve-aspect="true" />
+          <vertical pref-width="60" pref-height="12" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="MiddleLeft" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+            <text text="~row-3" font-size="2.8" rich-text="false" word-wrapping="false" overflow-mode="Ellipsis" />
+          </vertical>
+          <button text="Select" on-click="select-3" pref-width="18" pref-height="6" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="18" min-height="6" flexible-width="0" flexible-height="0" />
+        </horizontal>
+        <horizontal pref-width="90" pref-height="12" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" active="~has-4">
+          <image id="avatar-4" pref-width="8" pref-height="8" preserve-aspect="true" />
+          <vertical pref-width="60" pref-height="12" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="MiddleLeft" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+            <text text="~row-4" font-size="2.8" rich-text="false" word-wrapping="false" overflow-mode="Ellipsis" />
+          </vertical>
+          <button text="Select" on-click="select-4" pref-width="18" pref-height="6" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="18" min-height="6" flexible-width="0" flexible-height="0" />
+        </horizontal>
+      </vertical>
+    </scroll-view>
+    <horizontal pref-width="90" pref-height="7" flexible-height="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+      <button text="Clear saved account" on-click="clear-account" pref-width="50" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="50" min-height="7" flexible-width="0" flexible-height="0" />
+      <button text="Cancel" on-click="cancel" pref-width="34" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="34" min-height="7" flexible-width="0" flexible-height="0" />
+    </horizontal>
+  </vertical>
+</vertical>

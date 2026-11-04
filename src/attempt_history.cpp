@@ -1,3 +1,4 @@
+#include "platform.hpp"
 #include "attempt_history.hpp"
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
@@ -12,9 +13,6 @@
 #include <unordered_map>
 #include <stdexcept>
 
-#ifndef RANKEDTOOLS_ATTEMPT_DIRECTORY
-#define RANKEDTOOLS_ATTEMPT_DIRECTORY "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/attempts"
-#endif
 namespace rankedpractice {
 namespace {
 std::mutex attemptFileMutex;
@@ -33,7 +31,7 @@ std::filesystem::path AttemptPath(const std::string& service, const std::string&
     if ((service != "beatleader" && service != "scoresaber") || id.empty() ||
         !std::all_of(id.begin(), id.end(), [](unsigned char c) { return std::isdigit(c); }))
         throw std::runtime_error("Invalid attempt-history player ID or service.");
-    return std::filesystem::path(RANKEDTOOLS_ATTEMPT_DIRECTORY) / (service + "_" + id + ".json");
+    return RuntimePaths().attempts / (service + "_" + id + ".json");
 }
 bool ReadAttemptsUnlocked(const std::filesystem::path& path, std::vector<Attempt>& result, std::string& error) {
     result.clear();
@@ -169,12 +167,13 @@ bool SaveAttemptHistory(const std::string& service, const std::string& id, const
         }
         writer.EndArray(); writer.EndObject();
         std::filesystem::create_directories(path.parent_path());
-        const auto temporary = path.string() + ".tmp";
+        auto temporary = path; temporary += ".tmp";
         std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
         file.write(buffer.GetString(), buffer.GetSize()); file.flush();
         if (!file) { error = "Could not save attempt history."; return false; }
         file.close();
-        std::filesystem::rename(temporary, path);
+        std::error_code ec; ReplaceFile(temporary, path, ec);
+        if (ec) { error = "Could not install attempt history: " + ec.message(); return false; }
         return true;
     } catch (const std::exception& ex) { error = ex.what(); return false; }
 }

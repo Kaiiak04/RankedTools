@@ -61,9 +61,15 @@ struct MapEntry {
     bool ranked{true};
     bool isImprovement{false};
     std::optional<ClanImpact> clanImpact;
+    struct SyncTarget {
+        std::string characteristic;
+        std::string difficulty;
+        std::string missingService;
+    };
+    std::vector<SyncTarget> syncTargets;
 };
 
-enum class ListKind { NotPlayed, ToImprove, Combined };
+enum class ListKind { NotPlayed, ToImprove, Combined, Sync };
 enum class RatingSystem { ScoreSaber, BeatLeader };
 // The settings UI uses whole percentages; recommendation code uses fractions.
 int NormalizeMinClearRatePercent(int percent);

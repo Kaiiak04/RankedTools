@@ -1,0 +1,104 @@
+{
+  "1.40.8": [
+    {
+      "version": "1.12.5",
+      "url": "https://beatmods.com/cdn/mod/ce406862c55fdc1b572f99f8e4dbd1eb.zip",
+      "sha256": "2e34a76e7b5750ce617c0df5adc995745cb9ab0d71dde9e0076b2ea592ebb7bd",
+      "id": 2188,
+      "name": "BeatSaberMarkupLanguage"
+    },
+    {
+      "version": "1.7.2",
+      "url": "https://beatmods.com/cdn/mod/a3418b75ed7294a3856f3eca12bbd672.zip",
+      "sha256": "dfb26cf90cb73834c405727418c0121d8546cad0403abd35a09437dab766bd32",
+      "id": 2852,
+      "name": "BeatSaberPlaylistsLib"
+    },
+    {
+      "version": "4.3.6",
+      "url": "https://beatmods.com/cdn/mod/22ddb9499bf8b308ea30d2b555172baf.zip",
+      "sha256": "fbd6eafb662d63032b06dc964b6cf84e8b5dd5566527131d8c0b8ea63280043a",
+      "id": 1158,
+      "name": "BSIPA"
+    },
+    {
+      "version": "2.0.0",
+      "url": "https://beatmods.com/cdn/mod/b642fec88b0f84a0643ebd401d08da35.zip",
+      "sha256": "b2bf6d195f25e1298199a389e381ab42f163b284105ae6181259d74f2528301b",
+      "id": 3332,
+      "name": "ImageSharp"
+    },
+    {
+      "version": "3.2.1",
+      "url": "https://beatmods.com/cdn/mod/5b90d82d3a9c095747c0ec8cde199d4c.zip",
+      "sha256": "b9c296d1a9ce6df2100f48510573db30242dcac6f58077ff359730c337c39858",
+      "id": 2487,
+      "name": "SiraUtil"
+    },
+    {
+      "version": "3.15.3",
+      "url": "https://beatmods.com/cdn/mod/146b940124681179768738b8ab336103.zip",
+      "sha256": "50225a4ad33d17952db5b05b30ffe365b3b0c165f265d2cc904865bfbc8a4c3f",
+      "id": 1860,
+      "name": "SongCore"
+    },
+    {
+      "version": "4.6.57",
+      "url": "https://beatmods.com/cdn/mod/a4e9e26f61967e56168e08eecb01ab88.zip",
+      "sha256": "9067ddaf52c077f38a27ace6180a8134ceaaf1ecba752d08de81b4cc0c13aa43",
+      "id": 3552,
+      "name": "System.IO.Compression"
+    }
+  ],
+  "1.44.1": [
+    {
+      "version": "1.14.1",
+      "url": "https://beatmods.com/cdn/mod/46149d03f8549e07f2c88fefde4337b2.zip",
+      "sha256": "816613459853955e2b7c02123ed42f8e5bdbd946cc774fd5fcc4e80a6a09120a",
+      "id": 2185,
+      "name": "BeatSaberMarkupLanguage"
+    },
+    {
+      "version": "1.7.2",
+      "url": "https://beatmods.com/cdn/mod/a3418b75ed7294a3856f3eca12bbd672.zip",
+      "sha256": "dfb26cf90cb73834c405727418c0121d8546cad0403abd35a09437dab766bd32",
+      "id": 2852,
+      "name": "BeatSaberPlaylistsLib"
+    },
+    {
+      "version": "4.3.7",
+      "url": "https://beatmods.com/cdn/mod/947774ef1010ff809ae05e345e269a90.zip",
+      "sha256": "899b8a1dda91935bd5c19a211fa48e44e32f7be9ab82b6fc796709c753b7b2bc",
+      "id": 1119,
+      "name": "BSIPA"
+    },
+    {
+      "version": "2.0.0",
+      "url": "https://beatmods.com/cdn/mod/b642fec88b0f84a0643ebd401d08da35.zip",
+      "sha256": "b2bf6d195f25e1298199a389e381ab42f163b284105ae6181259d74f2528301b",
+      "id": 3332,
+      "name": "ImageSharp"
+    },
+    {
+      "version": "3.3.1",
+      "url": "https://beatmods.com/cdn/mod/ae14f7d3192a919d5d996c802fbde037.zip",
+      "sha256": "2253e5c31324e1e01b23480acba5ceee6b67eb8f16a079f58bc2f6ce7b12051f",
+      "id": 2484,
+      "name": "SiraUtil"
+    },
+    {
+      "version": "3.16.0",
+      "url": "https://beatmods.com/cdn/mod/0af9c0a03074c17ca15c1b667a0e30c8.zip",
+      "sha256": "f9be5d66426d795c6c8af2a4da0150a298d2d6a65fbabcab316d379088a40019",
+      "id": 1859,
+      "name": "SongCore"
+    },
+    {
+      "version": "4.6.57",
+      "url": "https://beatmods.com/cdn/mod/a4e9e26f61967e56168e08eecb01ab88.zip",
+      "sha256": "9067ddaf52c077f38a27ace6180a8134ceaaf1ecba752d08de81b4cc0c13aa43",
+      "id": 3552,
+      "name": "System.IO.Compression"
+    }
+  ]
+}

@@ -3,7 +3,7 @@ name: Quest build and regression checks
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, codex/pcvr]
   pull_request:
     branches: [main]
 
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-${{ github.ref }}
+  group: build-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -20,6 +20,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install the tested Android NDK
         shell: bash
@@ -54,9 +56,11 @@ jobs:
           "$compiler" "${flags[@]}" tests/recommendation_tests.cpp -o tests/recommendation_tests
           "$compiler" "${flags[@]}" tests/playlist_writer_tests.cpp src/recommendation.cpp src/beatleader_pp.cpp src/attempt_history.cpp -o tests/playlist_writer_tests
           "$compiler" "${flags[@]}" tests/http_client_tests.cpp -o tests/http_client_tests
+          "$compiler" "${flags[@]}" tests/refresh_engine_tests.cpp src/refresh_engine.cpp -o build/refresh_engine_tests
           ./tests/recommendation_tests
           ./tests/playlist_writer_tests
           ./tests/http_client_tests
+          ./build/refresh_engine_tests
 
       - name: Verify the released TLS implementation
         shell: bash

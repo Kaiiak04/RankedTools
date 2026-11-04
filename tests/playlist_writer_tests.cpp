@@ -1,8 +1,6 @@
 #include <iostream>
 #include <stdexcept>
 // Exercise the real writer and cleanup against a workspace-local test directory.
-#define RANKEDTOOLS_PLAYLIST_DIRECTORY "tests/playlist-sandbox"
-#define RANKEDTOOLS_ICON_DIRECTORY "tests/playlist-icon-sandbox"
 #include "../src/playlist_writer.cpp"
 #include "../src/playlist_image.cpp"
 #include <rapidjson/document.h>
@@ -13,7 +11,9 @@ int checks = 0;
     std::string("Line ") + std::to_string(__LINE__) + ": " #condition); } while (false)
 
 int main() {
-    const std::filesystem::path directory(kPlaylistDirectory);
+    RuntimePaths().playlists = "tests/playlist-sandbox";
+    RuntimePaths().icons = "tests/playlist-icon-sandbox";
+    const auto& directory = RuntimePaths().playlists;
     const std::vector<std::string> protectedFiles{
         "RankedPractice_ScoreSaber_NotPlayed.bplist", "RankedPractice_BeatLeader_Clan_ToConquer.bplist",
         "MyPlaylist.bplist", "RankedPractice_BeatLeader_NotPlayed.bplist.bak"
@@ -35,6 +35,7 @@ int main() {
         CHECK(std::filesystem::exists(combinedPath));
         std::ifstream input(combinedPath);
         const std::string json{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+        input.close();
         rapidjson::Document playlist; playlist.Parse(json.c_str());
         CHECK(!playlist.HasParseError());
         CHECK(std::string(playlist["playlistTitle"].GetString()) == "BeatLeader - PP Gain");
@@ -52,10 +53,45 @@ int main() {
         CHECK(PruneLeaderboardPlaylists("BeatLeader", {
               PlaylistFileName("BeatLeader", ListKind::NotPlayed), PlaylistFileName("BeatLeader", ListKind::ToImprove)}, error));
         // Clean up only the enumerated fixtures in this workspace-local sandbox.
+        std::ifstream syncInput("sync.png", std::ios::binary);
+        const std::string syncPng{std::istreambuf_iterator<char>(syncInput), std::istreambuf_iterator<char>()};
+        syncInput.close();
+        CHECK(!syncPng.empty());
+        const auto syncPath = directory / PlaylistFileName("Sync", ListKind::Sync);
+        // The actual packaged artwork, all 205 songs and both selected chart modes.
+        std::filesystem::create_directories(RuntimePaths().icons);
+        { std::ofstream cover(RuntimePaths().icons / "sync.png", std::ios::binary); cover << syncPng; }
+        auto syncEntry = entry;
+        syncEntry.difficulties.push_back({"OneSaber", "Hard", 0});
+        CHECK(WritePlaylist("Sync", ListKind::Sync, std::vector<MapEntry>(205, syncEntry), error));
+        {
+            std::ifstream file(syncPath);
+            const std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+            rapidjson::Document doc; doc.Parse(text.c_str());
+            CHECK(!doc.HasParseError() && doc["songs"].Size() == 205);
+            CHECK(std::string(doc["playlistTitle"].GetString()) == "Sync");
+            CHECK(std::string(doc["image"].GetString()) == EncodePlaylistImage(syncPng, "image/png"));
+            CHECK(doc["songs"][0]["difficulties"].Size() == 2);
+        }
+        CHECK(PruneLeaderboardPlaylists("BeatLeader", {}, error));
+        CHECK(PruneLeaderboardPlaylists("ScoreSaber", {}, error));
+        CHECK(std::filesystem::exists(syncPath));
+        auto invalidSync = syncEntry; invalidSync.hash = "invalid";
+        auto syncBytes = [&] {
+            std::ifstream file(syncPath, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        };
+        const auto beforeFailure = syncBytes();
+        CHECK(!WritePlaylist("Sync", ListKind::Sync, {invalidSync}, error));
+        CHECK(syncBytes() == beforeFailure);
+        CHECK(WritePlaylist("Sync", ListKind::Sync, {}, error)); // A successful empty result replaces old entries.
+        std::filesystem::remove(syncPath);
+        std::filesystem::remove(RuntimePaths().icons / "sync.png");
+        std::filesystem::remove(RuntimePaths().icons);
         std::ifstream pngInput("tests/fixtures/clan-icon-live.png", std::ios::binary);
         const std::string png{std::istreambuf_iterator<char>(pngInput), std::istreambuf_iterator<char>()};
         CHECK(!png.empty());
-        const auto iconDirectory = std::filesystem::path(kIconDirectory);
+        const auto& iconDirectory = RuntimePaths().icons;
         CHECK(!std::filesystem::exists(iconDirectory));
         std::filesystem::create_directories(iconDirectory);
         const auto fallbackIcon = iconDirectory / "beatleader_clan_toconquer.png";

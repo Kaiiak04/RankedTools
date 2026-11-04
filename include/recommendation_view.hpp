@@ -13,7 +13,8 @@ void BuildRecommendationView(HMUI::ViewController* controller);
 void SetViewStatus(const std::string& status);
 void ConfigureRecommendationPreviews(double minClearRate, bool simpleMode,
                                       bool enableBeatLeader, bool enableScoreSaber,
-                                      bool enableClans = false);
+                                      bool enableClans = false, bool enableSync = false);
+void PublishSyncError(const std::string& error);
 void PublishClanPreviews(const std::vector<ClanPlaylistRecommendations>& playlists);
 void PublishRecommendationPreview(const std::string& service,
                                   ListKind kind,

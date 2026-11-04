@@ -1,6 +1,12 @@
 .cache/
 .tools/
 .review/
+pcvr/**/bin/
+pcvr/**/obj/
+pcvr/dist/
+tests/playlist-sandbox/
+tests/playlist-icon-sandbox/
+tests/pcvr-sandbox/
 analysis/
 .vscode/
 .github/actions/canary-ndk/

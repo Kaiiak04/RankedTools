@@ -26,7 +26,7 @@ int checks = 0;
     std::string("Line ") + std::to_string(__LINE__) + ": " #condition); } while (false)
 
 std::string ReadFile(const std::string& path) {
-    std::ifstream input(path);
+    std::ifstream input(path, std::ios::binary);
     CHECK(input.good());
     return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
 }
@@ -472,10 +472,11 @@ void ClansAndSettings() {
     std::thread worker([snapshot] { CHECK(snapshot.beatLeaderPlayerId == "123" && snapshot.limit == 16); });
     worker.join();
     const auto main = ReadFile("src/main.cpp");
-    const auto workerStart = main.find("static bool RefreshPlaylist");
+    const auto workerStart = main.find("static void RefreshWorker");
     const auto launch = main.find("void StartRefresh()");
     CHECK(workerStart != std::string::npos && launch > workerStart);
     CHECK(main.substr(workerStart, launch - workerStart).find("getModConfig()") == std::string::npos);
+    CHECK(ReadFile("src/refresh_engine.cpp").find("getModConfig()") == std::string::npos);
     CHECK(main.find("std::thread(RefreshWorker, std::move(settings))") != std::string::npos);
     std::cout << "PASS: empty clan cleanup, invalid membership protection, selected chart, immutable worker settings\n";
 }
@@ -1202,6 +1203,7 @@ void DefaultRealmCompatibility() {
 }
 
 #include "clan_recommendation_tests.hpp"
+#include "sync_playlist_tests.hpp"
 #include "clan_api_audit.hpp"
 #include "clan_refresh_tests.hpp"
 #include "clan_search_tests.hpp"
@@ -1209,6 +1211,15 @@ void DefaultRealmCompatibility() {
 
 int main(int argc, char** argv) {
     try {
+        if (argc == 4 && (std::string(argv[1]) == "--validate-sync-catalog" || std::string(argv[1]) == "--validate-sync-scores")) {
+            std::vector<MapEntry> charts;
+            std::string error;
+            const auto system = Lower(argv[2]) == "scoresaber" ? RatingSystem::ScoreSaber : RatingSystem::BeatLeader;
+            const bool scores = std::string(argv[1]) == "--validate-sync-scores";
+            if (!ParseSyncPage(ReadFile(argv[3]), system, scores, charts, error, nullptr)) throw std::runtime_error(error);
+            std::cout << "Validated " << charts.size() << " custom chart identities.\n";
+            return 0;
+        }
         if (argc == 4 && std::string(argv[1]) == "--audit-clan-profile") return AuditClanProfile(argv[2], argv[3]);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-clan-profile") return AuditClanProfile(argv[2], argv[3], true);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-paced-clan-profile") return AuditClanProfile(argv[2], argv[3], true, true);
@@ -1220,6 +1231,7 @@ int main(int argc, char** argv) {
         AccountLookupContract();
         ConcurrentRefreshContract();
         DefaultRealmCompatibility();
+        SyncPlaylistContract();
         if (argc > 1 && std::string(argv[1]) == "--export-ability-chart") ExportAbilityPreview();
         std::cout << "All " << checks << " regression checks passed.\n";
     } catch (const std::exception& exception) {
