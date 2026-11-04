@@ -58,8 +58,8 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
         return profile.Value<string>("name")+"\n"+(profile.Value<string>("country")??"Country unknown")+" | "+(rank>0?"Rank #"+rank:"Unranked")+"\nID: "+profile.Value<string>("id");
     }
     [UIValue("track-limit")] public int TrackLimit { get=>Config.MaxTracksPerPlaylist; set=>Config.MaxTracksPerPlaylist=Math.Max(1,Math.Min(100,value)); }
-    [UIValue("clear-rate")] public float ClearRate { get=>PluginConfig.NormalizeClearRate(Config.MinClearRate); set=>Config.MinClearRate=PluginConfig.NormalizeClearRate((int)value); }
-    [UIAction("clear-rate-format")] private string FormatClearRate(float value) => PluginConfig.NormalizeClearRate((int)value)+"%";
+    [UIValue("clear-rate")] public int ClearRate { get=>PluginConfig.NormalizeClearRate(Config.MinClearRate); set=>Config.MinClearRate=PluginConfig.NormalizeClearRate(value); }
+    [UIAction("clear-rate-format")] private string FormatClearRate(int value) => PluginConfig.NormalizeClearRate(value)+"%";
     [UIValue("simple-mode")] public bool SimpleMode { get=>Config.SimpleMode; set=>Config.SimpleMode=value; }
     [UIValue("record-attempts")] public bool RecordAttempts { get=>Config.RecordLocalAttempts; set=>Config.RecordLocalAttempts=value; }
     [UIValue("import-attempts")] public bool ImportAttempts { get=>Config.ImportAttemptHistory; set=>Config.ImportAttemptHistory=value; }

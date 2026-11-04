@@ -6,7 +6,7 @@
   <button text="Show / hide IDs" on-click="toggle-ids" />
   <vertical active="~picker-open" spacing="2">
     <text text="~picker-title" font-size="4" rich-text="false" />
-    <string-setting text="Find account" value="search-input" />
+    <string-setting text="Find account" value="search-input" apply-on-change="true" bind-value="true" />
     <horizontal spacing="2">
       <button text="Find account" on-click="find" interactable="~can-find" />
       <button text="Use current PC account" on-click="use-pc-account" interactable="~can-find" />

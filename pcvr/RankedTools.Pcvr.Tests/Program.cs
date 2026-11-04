@@ -95,7 +95,34 @@ static class Program
                 else if(key=="value")Check(values.Contains(value),name+" missing setting "+value);
                 else if(key is "text" or "active" or "interactable")Check(!values.Contains(value),name+" needs ~ on dynamic property "+value);
             }
+            foreach(var element in xml.Descendants().Where(e=>e.Attribute("value")!=null))
+            {
+                var id=element.Attribute("value")!.Value;
+                var property=host.Properties.Single(p=>Binding(p.CustomAttributes,"UIValue")==id);
+                var integerOnly=(bool?)element.Attribute("integer-only")==true;
+                var expected=element.Name.LocalName switch
+                {
+                    "slider-setting" or "increment-setting" => integerOnly?"System.Int32":"System.Single",
+                    "toggle-setting" => "System.Boolean",
+                    "string-setting" => "System.String",
+                    _ => null,
+                };
+                if(expected==null)continue;
+                Check(property.PropertyType.FullName==expected,name+" setting "+id+" uses "+property.PropertyType.FullName+"; "+element.Name.LocalName+" requires "+expected);
+                Check(property.GetMethod!=null && property.SetMethod!=null,name+" setting "+id+" needs a getter and setter");
+                if(element.Attribute("formatter") is { } format)
+                {
+                    var formatter=host.Methods.Single(m=>Binding(m.CustomAttributes,"UIAction")==format.Value);
+                    Check(formatter.Parameters.Count==1 && formatter.Parameters[0].ParameterType.FullName==expected && formatter.ReturnType.FullName=="System.String",name+" formatter "+format.Value+" must accept "+expected+" and return a string");
+                }
+            }
             foreach(var component in components)Check(xml.Descendants().Count(e=>e.Attribute("id")?.Value==component)==1,name+" missing component "+component);
+            if(name=="Settings")
+            {
+                var query=xml.Descendants("string-setting").Single(e=>(string?)e.Attribute("value")=="search-input");
+                Check((bool?)query.Attribute("apply-on-change")==true,"account query must reach the host before Find is clicked");
+                Check((bool?)query.Attribute("bind-value")==true,"account query must reflect clear/cancel and account-picker changes");
+            }
         }
     }
     static void Native(string dll,bool live,bool badCa)

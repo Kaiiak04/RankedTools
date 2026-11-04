@@ -2,7 +2,7 @@
 
 RankedTools creates personalized BeatLeader and ScoreSaber playlists to help you gain PP, improve existing scores, and discover ranked maps suited to your ability. This is the Windows x64 PCVR port of the Quest mod.
 
-**Preview version: 0.1.26-pcvr.2. Targets: Beat Saber 1.40.8 and 1.44.1. In-game validation is pending on both.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
+**Preview version: 0.1.26-pcvr.3. Targets: Beat Saber 1.40.8 and 1.44.1. In-game validation is pending on both.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
 
 ## Install
 
