@@ -17,6 +17,7 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
     private Texture2D? texture;
     private Sprite? sprite;
     private string chartError="";
+    internal Action? Close { get; set; }
     [UIComponent("ability-image")] private ImageView image = null!;
     public RecommendationsHost(Session session) { this.session=session; session.Changed+=Changed; }
     private JArray Lists => session.Snapshot["playlists"] as JArray??new JArray();
@@ -31,6 +32,7 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
     [UIValue("details")] public string Details => showAbility?AbilityDetails():SongDetails();
     [UIValue("chart-notes")] public string ChartNotes => "Gray: eligible best scores (older scores are dimmer). Cyan: fitted accuracy. Shaded / dashed: outside observed stars.\nEstimates accuracy on a scored run, not clear probability or map-style-specific ability. No Fail and sub-55% scores are excluded.";
     public void Open() { Changed(); if(!session.Busy)Refresh(); }
+    [UIAction("back")] private void Back() => Close?.Invoke();
     [UIAction("refresh")] private async void Refresh() { try { await session.Refresh(); } catch(Exception e) { if(!disposed)session.Report(e.Message); } }
     [UIAction("details-view")] private void DetailsView() { showAbility=false; Notify(); }
     [UIAction("ability-view")] private void AbilityView() { showAbility=true; UploadChart(); Notify(); }

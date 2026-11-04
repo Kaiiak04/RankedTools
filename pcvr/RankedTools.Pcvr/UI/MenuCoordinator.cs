@@ -24,6 +24,7 @@ internal sealed class MenuCoordinator : IInitializable, IDisposable
     private readonly RecommendationsHost recommendations;
     private readonly MenuButton button;
     private RankedToolsFlow? flow;
+    private bool closing;
 
     [Inject]
     public MenuCoordinator(Session session, BSMLSettings settings, MenuButtons buttons, MainFlowCoordinator main,
@@ -37,6 +38,7 @@ internal sealed class MenuCoordinator : IInitializable, IDisposable
         var adapter = new GamePlatformAdapter(platform);
         settingsHost = new SettingsHost(session, async () => (await adapter.GetUserInfo(CancellationToken.None)).platformUserId);
         recommendations = new RecommendationsHost(session);
+        recommendations.Close = Close;
         button = new MenuButton("RankedTools", "Refresh ranked and clan playlists", Open);
     }
     public void Initialize()
@@ -47,16 +49,37 @@ internal sealed class MenuCoordinator : IInitializable, IDisposable
     }
     private void Open()
     {
-        if (flow == null)
-        {
-            flow = BeatSaberUI.CreateFlowCoordinator<RankedToolsFlow>();
-            flow.Host = recommendations;
-            flow.Back = () => main.DismissFlowCoordinator(flow, () => button.Interactable=true);
-        }
         if(!button.Interactable)return;
         button.Interactable=false;
-        try { main.PresentFlowCoordinator(flow); }
-        catch(Exception e) { button.Interactable=true; session.Report("Could not open RankedTools: "+e.Message); }
+        try
+        {
+            if (flow == null)
+            {
+                flow = BeatSaberUI.CreateFlowCoordinator<RankedToolsFlow>();
+                flow.Back = Close;
+            }
+            // Build markup before HMUI begins its transition and disables input.
+            // A parser failure must leave the existing menu usable.
+            flow.Prepare(recommendations);
+            main.PresentFlowCoordinator(flow, () =>
+            {
+                try { recommendations.Open(); }
+                catch(Exception e) { session.Warn("RankedTools screen update failed: "+e); }
+            });
+        }
+        catch(Exception e)
+        {
+            button.Interactable=true;
+            session.Warn("Could not open RankedTools: "+e);
+            session.Report("Could not open RankedTools. See the game log for details.");
+        }
+    }
+    private void Close()
+    {
+        if(flow==null || closing)return;
+        closing=true;
+        try { main.DismissFlowCoordinator(flow, () => { closing=false; button.Interactable=true; }); }
+        catch(Exception e) { closing=false; session.Warn("Could not close RankedTools: "+e); }
     }
     public void Dispose()
     {
@@ -68,25 +91,30 @@ internal sealed class MenuCoordinator : IInitializable, IDisposable
 
 internal sealed class RankedToolsFlow : FlowCoordinator
 {
-    internal RecommendationsHost Host = null!;
     internal Action Back = null!;
-    private RankedToolsView? view;
+    private ViewController? view;
+    internal void Prepare(RecommendationsHost host)
+    {
+        if(view!=null)return;
+        var candidate=BeatSaberUI.CreateViewController<ViewController>();
+        try
+        {
+            Legato.Presentation.BsmlParser.Instance.Parse(
+                Utilities.GetResourceContent(typeof(Plugin).Assembly,"RankedTools.Pcvr.Views.Recommendations.bsml"),
+                candidate.gameObject,host);
+            view=candidate;
+        }
+        catch
+        {
+            UnityEngine.Object.Destroy(candidate.gameObject);
+            throw;
+        }
+    }
     protected override void DidActivate(bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling)
     {
         if (!firstActivation) return;
         SetTitle("RankedTools"); showBackButton = true;
-        view = BeatSaberUI.CreateViewController<RankedToolsView>(); view.Host = Host;
         ProvideInitialViewControllers(view);
     }
     protected override void BackButtonWasPressed(ViewController topViewController) => Back();
-}
-internal sealed class RankedToolsView : ViewController
-{
-    internal RecommendationsHost Host = null!;
-    protected override void DidActivate(bool firstActivation, bool addedToHierarchy, bool screenSystemEnabling)
-    {
-        if (firstActivation)
-            Legato.Presentation.BsmlParser.Instance.Parse(Utilities.GetResourceContent(typeof(Plugin).Assembly,"RankedTools.Pcvr.Views.Recommendations.bsml"),gameObject,Host);
-        Host.Open();
-    }
 }

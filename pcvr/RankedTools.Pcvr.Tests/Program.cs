@@ -64,6 +64,18 @@ static class Program
     static void Bindings(string plugin)
     {
         using var assembly=AssemblyDefinition.ReadAssembly(plugin);
+        var manifest=assembly.MainModule.Resources.OfType<EmbeddedResource>().Single(r=>r.Name=="RankedTools.Pcvr.manifest.json");
+        var json=JObject.Parse(Encoding.UTF8.GetString(manifest.GetResourceData()));
+        var game=json.Value<string>("gameVersion");
+        Check(game is "1.40.8" or "1.44.1","target manifest");
+        // Inspect the actual pinned PC BSML tag registry without loading Unity.
+        // XML validity and member bindings alone do not detect unsupported tags.
+        using var bsml=AssemblyDefinition.ReadAssembly(Path.Combine(".cache/pcvr/refs-"+game,"Plugins/BSML.dll"));
+        var tags=bsml.MainModule.Types.Where(t=>t.Namespace=="BeatSaberMarkupLanguage.Tags" || t.Namespace.StartsWith("BeatSaberMarkupLanguage.Tags.",StringComparison.Ordinal))
+            .SelectMany(t=>t.Methods.Where(m=>m.Name=="get_Aliases" && m.HasBody))
+            .SelectMany(m=>m.Body.Instructions.Where(i=>i.OpCode.Code==Mono.Cecil.Cil.Code.Ldstr))
+            .Select(i=>(string)i.Operand).ToHashSet(StringComparer.Ordinal);
+        Check(tags.Contains("vertical") && tags.Contains("scrollable-settings-container"),"pinned BSML tag registry");
         foreach(var name in new[]{"Settings","Recommendations"})
         {
             var host=assembly.MainModule.Types.Single(t=>t.FullName=="RankedTools.Pcvr.UI."+name+"Host");
@@ -73,6 +85,8 @@ static class Program
             var components=host.Fields.Select(p=>Binding(p.CustomAttributes,"UIComponent")).Where(x=>x!=null).ToHashSet();
             var resource=assembly.MainModule.Resources.OfType<EmbeddedResource>().Single(r=>r.Name=="RankedTools.Pcvr.Views."+name+".bsml");
             var xml=XDocument.Parse(Encoding.UTF8.GetString(resource.GetResourceData()));
+            foreach(var element in xml.Descendants())
+                Check(tags.Contains(element.Name.LocalName),name+" uses an unregistered PC BSML tag <"+element.Name.LocalName+">");
             foreach(var attribute in xml.Descendants().Attributes())
             {
                 var value=attribute.Value; var key=attribute.Name.LocalName;
@@ -83,9 +97,6 @@ static class Program
             }
             foreach(var component in components)Check(xml.Descendants().Count(e=>e.Attribute("id")?.Value==component)==1,name+" missing component "+component);
         }
-        var manifest=assembly.MainModule.Resources.OfType<EmbeddedResource>().Single(r=>r.Name=="RankedTools.Pcvr.manifest.json");
-        var json=JObject.Parse(Encoding.UTF8.GetString(manifest.GetResourceData()));
-        Check(json.Value<string>("gameVersion") is "1.40.8" or "1.44.1","target manifest");
     }
     static void Native(string dll,bool live,bool badCa)
     {

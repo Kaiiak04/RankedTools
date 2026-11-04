@@ -1,15 +1,16 @@
-# RankedTools PCVR preview 0.1.26
+# RankedTools PCVR 0.1.26 preview 2 — menu fix
 
-This update fixes **Sync** for accounts with built-in OST scores, for **Beat Saber 1.40.8 and 1.44.1**. The previous preview treated official-song level IDs as malformed custom-map hashes and stopped the refresh. Official-song records are now excluded while malformed custom records still preserve the previous playlist.
+Fixes invalid menu markup that can leave a blank RankedTools screen and an unfinished opening transition, as reported on **Beat Saber 1.40.8**. The fix is included in both **1.40.8** and **1.44.1** ZIPs.
 
-Select both accounts and enable **Create Sync playlist** in Mod Settings. Sync finds exact charts ranked on both ScoreSaber and BeatLeader with a posted score on only one, helping you fill the other leaderboard's scores. It includes all matching charts across all characteristics, ignores the playlist song-count setting, and uses the new supplied cover unchanged. No Fail scores count as posted scores; local attempts do not. Song previews show which service is missing each chart. Failed or incomplete refreshes preserve the previous playlist.
+- Removed unsupported `<bsml>` wrappers from the recommendations and settings menus.
+- Replaced the unsupported `scrollable-container` tag with the `scroll-view` supported by both pinned PC BSML versions.
+- Build the recommendations view before starting the opening transition, so a parser error is caught while the existing menu is still usable. Start automatic refresh after the presentation finishes.
+- Added a visible **Back** button and guarded repeated close requests. The header back arrow also returns to the main menu.
+- Expanded automated checks to validate every menu tag against each target's actual pinned PC BSML dependency. The old preview fails this new check.
+- Clarified the Windows copy/paste installation instructions.
 
-It includes both leaderboards, PP Gain / Not Played / To Improve playlists, personalized and legacy clan playlists, account search, song details, ability charts, and local attempt history. The recommendation engine is shared with the Quest version.
+Close Beat Saber, open the ZIP matching your game version, and copy everything inside into the folder containing **Beat Saber.exe**. Windows combines the folders automatically. Install the dependencies listed in the included README first.
 
-Download the ZIP matching your game version and extract **all** its contents into that game's folder. Install the core dependencies listed in the included README first. BeatLeader and ScoreSaber's in-game mods are optional.
+**The menu fix still needs in-game retesting.** Automated checks verify compiled bindings and dependency compatibility; they cannot verify VR interaction. Please test opening, closing and reopening the RankedTools screen, including closing during a refresh, and include `Logs/_latest.log` if it fails.
 
-**Both versions still need in-game testing.** The 1.44.1 build uses the compatible 1.42 API family because exact public 1.44.1 references are unavailable. Automated checks and HTTPS smoke tests pass; those do not verify VR menus or gameplay integration.
-
-PlaylistManager 1.7.3 is available for 1.40.8. For 1.44.1, the README links a community 1.42-family playlist browser build, whose actual 1.44.1 behavior also needs testing. RankedTools can generate playlist files without it.
-
-Please use the included `TESTING.md` checklist and report your game/dependency versions with any issues. Quest development remains on the existing build path; this port is being prepared on `codex/pcvr` before bringing both platforms together on `main`.
+The 1.44.1 preview continues to compile against the agreed public **1.42 API family** with Legato. Its in-game compatibility remains pending. See the included README and `TESTING.md` for dependency details and the full checklist.

@@ -1,29 +1,28 @@
-<bsml>
-  <vertical pad="2" spacing="2" pref-width="115">
-    <text text="~status" font-size="3.5" align="Left" rich-text="false" word-wrapping="true" />
-    <horizontal spacing="2">
-      <button text="Refresh" on-click="refresh" interactable="~can-refresh" />
-      <button text="Song details" on-click="details-view" />
-      <button text="Ability chart" on-click="ability-view" />
-    </horizontal>
-    <horizontal spacing="2" active="~show-details">
-      <button text="Previous playlist" on-click="previous-list" />
-      <button text="Next playlist" on-click="next-list" />
-    </horizontal>
-    <horizontal spacing="2" active="~show-details">
-      <button text="Previous song" on-click="previous-song" />
-      <button text="Next song" on-click="next-song" />
-    </horizontal>
-    <horizontal spacing="2" active="~show-ability">
-      <button text="Previous leaderboard" on-click="previous-service" />
-      <button text="Next leaderboard" on-click="next-service" />
-    </horizontal>
-    <scrollable-container id="recommendation-scroll" pref-height="58">
-      <vertical spacing="2" pad="2">
-        <text text="~details" font-size="3.5" align="TopLeft" rich-text="false" word-wrapping="true" />
-        <image id="ability-image" active="~has-chart" preserve-aspect="true" pref-width="102" pref-height="57.375" />
-        <text text="~chart-notes" active="~has-chart" font-size="3" rich-text="false" word-wrapping="true" />
-      </vertical>
-    </scrollable-container>
-  </vertical>
-</bsml>
+<vertical pad="2" spacing="2" pref-width="115">
+  <text text="~status" font-size="3.5" align="Left" rich-text="false" word-wrapping="true" />
+  <horizontal spacing="2">
+    <button text="Back" on-click="back" />
+    <button text="Refresh" on-click="refresh" interactable="~can-refresh" />
+    <button text="Song details" on-click="details-view" />
+    <button text="Ability chart" on-click="ability-view" />
+  </horizontal>
+  <horizontal spacing="2" active="~show-details">
+    <button text="Previous playlist" on-click="previous-list" />
+    <button text="Next playlist" on-click="next-list" />
+  </horizontal>
+  <horizontal spacing="2" active="~show-details">
+    <button text="Previous song" on-click="previous-song" />
+    <button text="Next song" on-click="next-song" />
+  </horizontal>
+  <horizontal spacing="2" active="~show-ability">
+    <button text="Previous leaderboard" on-click="previous-service" />
+    <button text="Next leaderboard" on-click="next-service" />
+  </horizontal>
+  <scroll-view id="recommendation-scroll" pref-height="58">
+    <vertical spacing="2" pad="2">
+      <text text="~details" font-size="3.5" align="TopLeft" rich-text="false" word-wrapping="true" />
+      <image id="ability-image" active="~has-chart" preserve-aspect="true" pref-width="102" pref-height="57.375" />
+      <text text="~chart-notes" active="~has-chart" font-size="3" rich-text="false" word-wrapping="true" />
+    </vertical>
+  </scroll-view>
+</vertical>

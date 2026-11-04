@@ -2,12 +2,12 @@
 
 RankedTools creates personalized BeatLeader and ScoreSaber playlists to help you gain PP, improve existing scores, and discover ranked maps suited to your ability. This is the Windows x64 PCVR port of the Quest mod.
 
-**Preview version: 0.1.26-pcvr.1. Targets: Beat Saber 1.40.8 and 1.44.1. In-game validation is pending on both.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
+**Preview version: 0.1.26-pcvr.2. Targets: Beat Saber 1.40.8 and 1.44.1. In-game validation is pending on both.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
 
 ## Install
 
 1. Install the core mods for your game version using BSManager: **BSIPA, BeatSaberMarkupLanguage, SiraUtil, SongCore, and BeatSaberPlaylistsLib**, including their dependencies.
-2. Close Beat Saber and extract the matching RankedTools ZIP into that version's game folder. Merge the `Plugins`, `Libs`, and `UserData` folders. Keep all files in the ZIP; copying only `RankedTools.dll` is insufficient.
+2. Close Beat Saber. Open the matching RankedTools ZIP, select everything inside it (Ctrl+A), and copy it (Ctrl+C). Open that version's game folder—the folder containing **Beat Saber.exe**—and paste (Ctrl+V). Windows combines the `Plugins`, `Libs`, and `UserData` folders automatically. Allow replacement of existing RankedTools files when updating. You should have `Plugins/RankedTools.dll` and `Libs/Native/RankedTools.Core.dll` directly beneath the game folder, along with the supplied `UserData/RankedTools/` assets and CA bundle.
 3. Install a compatible playlist browser/downloader if you want to browse the generated playlists and download missing maps. For **1.40.8**, PlaylistManager 1.7.3 is available through its verified mod list. For **1.44.1**, PlaylistManager is absent from the verified list checked for this preview; the [community PlaylistManager 1.7.4 build for the 1.42 API family](https://github.com/iza-ttv/PlaylistManager/releases/tag/v1.7.4) is a tester option, with actual 1.44.1 compatibility still pending. RankedTools can generate `.bplist` files independently of that browser. Exact optional download URLs and SHA-256 hashes are in `optional-dependencies.lock.json`.
 4. Start Beat Saber. Open **Mod Settings → RankedTools**, choose your accounts, then open **RankedTools** from the main menu to refresh recommendations.
 

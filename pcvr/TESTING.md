@@ -5,6 +5,7 @@ Please test **1.40.8 and 1.44.1 separately**. Automated build/test success is re
 Record your game version, RankedTools ZIP name, Steam or Oculus PC, and installed BSIPA/BSML/SiraUtil/SongCore/BeatSaberPlaylistsLib/playlist-browser versions. For 1.44.1, include the playlist browser's exact source, since the documented community build is not in the verified mod list.
 
 - [ ] Extract the complete ZIP. Start the game twice; confirm the RankedTools main-menu button and Mod Settings entry appear without startup errors.
+- [ ] Open RankedTools from the main-menu button. Confirm the screen has usable controls and return using both its **Back** button and the header back arrow, then reopen it. Repeat while a refresh is running. Open Mod Settings → RankedTools too. Neither path should leave the main menu visible behind a blank screen or require a forced exit. If it fails, include `Logs/_latest.log` and the exact game version.
 - [ ] Search for BeatLeader and ScoreSaber accounts by name, profile URL, and numeric ID. Check page buttons and explicit selection. Start a search, change the input or service, then confirm an old response cannot replace the new selection. Check avatars, clear/cancel, show/hide IDs, and the current-PC-account button.
 - [ ] Change settings, restart, and confirm account names/IDs, track limit, clear rate, toggles, and clan mode persist.
 - [ ] Refresh with each provider independently, then both. Click refresh repeatedly; only one refresh should run. Change a setting during refresh; it should apply to the next one.
