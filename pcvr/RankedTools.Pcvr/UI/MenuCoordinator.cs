@@ -97,11 +97,15 @@ internal sealed class RankedToolsFlow : FlowCoordinator
     {
         if(view!=null)return;
         var candidate=BeatSaberUI.CreateViewController<ViewController>();
+        candidate.rectTransform.anchorMin=new Vector2(.5f,0);
+        candidate.rectTransform.anchorMax=new Vector2(.5f,1);
+        candidate.rectTransform.sizeDelta=new Vector2(110,0);
         try
         {
             Legato.Presentation.BsmlParser.Instance.Parse(
                 Utilities.GetResourceContent(typeof(Plugin).Assembly,"RankedTools.Pcvr.Views.Recommendations.bsml"),
                 candidate.gameObject,host);
+            MenuLayout.Configure(candidate.gameObject);
             view=candidate;
         }
         catch

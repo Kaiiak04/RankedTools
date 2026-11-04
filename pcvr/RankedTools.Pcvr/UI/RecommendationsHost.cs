@@ -24,7 +24,9 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
     private JObject? List => Lists.Count==0?null:Lists[Math.Min(listIndex,Lists.Count-1)] as JObject;
     private JArray Entries => List?["entries"] as JArray??new JArray();
     private JObject? Song => Entries.Count==0?null:Entries[Math.Min(songIndex,Entries.Count-1)] as JObject;
-    [UIValue("status")] public string Status => session.Snapshot.Value<string>("status")??"";
+    [UIValue("status")] public string Status => RefreshStatusText.Summary(session.Snapshot.Value<string>("status")??"");
+    [UIValue("refresh-notes")] public string RefreshNotes => session.Snapshot.Value<string>("status")??"";
+    [UIValue("has-refresh-notes")] public bool HasRefreshNotes => RefreshNotes.Length>0;
     [UIValue("can-refresh")] public bool CanRefresh => !session.Busy;
     [UIValue("show-details")] public bool ShowDetails => !showAbility;
     [UIValue("show-ability")] public bool ShowAbility => showAbility;

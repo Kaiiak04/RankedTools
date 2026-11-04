@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <AssemblyName>RankedTools</AssemblyName>
     <RootNamespace>RankedTools.Pcvr</RootNamespace>
-    <Version>0.1.26-pcvr.3</Version>
-    <AssemblyVersion>0.1.26.3</AssemblyVersion>
+    <Version>0.1.26-pcvr.4</Version>
+    <AssemblyVersion>0.1.26.4</AssemblyVersion>
     <GameVersion Condition="'$(GameVersion)' == ''">1.40.8</GameVersion>
     <LegatoSourceVersion>1.44.1</LegatoSourceVersion>
     <LegatoTargetVersion>$(GameVersion)</LegatoTargetVersion>

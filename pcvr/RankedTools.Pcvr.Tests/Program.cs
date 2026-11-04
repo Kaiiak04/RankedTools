@@ -19,6 +19,9 @@ static class Program
     }
     static void Models()
     {
+        Check(RefreshStatusText.Summary("Updated.\nWarning one\nWarning two")=="Updated.","refresh summary occupies one header line");
+        Check(RefreshStatusText.Summary("Updated.\r\nWarning")=="Updated.","CRLF refresh messages");
+        Check(RefreshStatusText.Summary("")=="" && RefreshStatusText.Summary("Loading")=="Loading","empty and single-line refresh messages");
         var config=new PluginConfig(); var captured=config.CaptureRefresh();
         Check(captured.Value<int>("limit")==16 && captured.Value<int>("minClearRate")==50,"defaults");
         Check(captured.Value<bool>("importAttempts") && !captured.Value<bool>("legacyClanPlaylists"),"mode defaults");
@@ -76,15 +79,19 @@ static class Program
             .SelectMany(m=>m.Body.Instructions.Where(i=>i.OpCode.Code==Mono.Cecil.Cil.Code.Ldstr))
             .Select(i=>(string)i.Operand).ToHashSet(StringComparer.Ordinal);
         Check(tags.Contains("vertical") && tags.Contains("scrollable-settings-container"),"pinned BSML tag registry");
+        foreach(var factory in new[]{("ScrollViewTag","BSMLScrollViewContent"),("TextTag","BSMLText")})
+            Check(bsml.MainModule.Types.Single(t=>t.Name==factory.Item1).Methods.Single(m=>m.Name=="CreateObject").Body.Instructions
+                .Any(i=>i.OpCode.Code==Mono.Cecil.Cil.Code.Ldstr && (string)i.Operand==factory.Item2),"viewport layout adapter matches pinned "+factory.Item1);
         foreach(var name in new[]{"Settings","Recommendations"})
         {
             var host=assembly.MainModule.Types.Single(t=>t.FullName=="RankedTools.Pcvr.UI."+name+"Host");
             string? Binding(IEnumerable<CustomAttribute> attributes,string suffix) => attributes.FirstOrDefault(a=>a.AttributeType.Name==suffix)?.ConstructorArguments.FirstOrDefault().Value as string;
             var values=host.Properties.Select(p=>Binding(p.CustomAttributes,"UIValue")).Where(x=>x!=null).ToHashSet();
             var actions=host.Methods.Select(p=>Binding(p.CustomAttributes,"UIAction")).Where(x=>x!=null).ToHashSet();
-            var components=host.Fields.Select(p=>Binding(p.CustomAttributes,"UIComponent")).Where(x=>x!=null).ToHashSet();
+            var components=host.Fields.Select(p=>Binding(p.CustomAttributes,"UIComponent")??Binding(p.CustomAttributes,"UIObject")).Where(x=>x!=null).ToHashSet();
             var resource=assembly.MainModule.Resources.OfType<EmbeddedResource>().Single(r=>r.Name=="RankedTools.Pcvr.Views."+name+".bsml");
             var xml=XDocument.Parse(Encoding.UTF8.GetString(resource.GetResourceData()));
+            LayoutBounds(xml,name);
             foreach(var element in xml.Descendants())
                 Check(tags.Contains(element.Name.LocalName),name+" uses an unregistered PC BSML tag <"+element.Name.LocalName+">");
             foreach(var attribute in xml.Descendants().Attributes())
@@ -123,6 +130,51 @@ static class Program
                 Check((bool?)query.Attribute("apply-on-change")==true,"account query must reach the host before Find is clicked");
                 Check((bool?)query.Attribute("bind-value")==true,"account query must reflect clear/cancel and account-picker changes");
             }
+        }
+    }
+    static void LayoutBounds(XDocument xml,string name)
+    {
+        var root=xml.Root!;
+        foreach(var group in xml.Descendants().Where(e=>e.Name.LocalName is "vertical" or "horizontal" or "scroll-view"))
+        {
+            Check((bool?)group.Attribute("child-control-height")==true,name+" must size children from their layout preferences instead of default rectangles");
+            Check((bool?)group.Attribute("child-expand-height")==false,name+" must not stretch compact rows into empty space");
+        }
+        foreach(var button in xml.Descendants("button"))
+        {
+            Check((double?)button.Attribute("pref-height") is >0 and <=8,name+" button needs a bounded clickable height");
+            Check((string?)button.Attribute("horizontal-fit")=="Unconstrained" && (string?)button.Attribute("vertical-fit")=="Unconstrained",name+" button must respect its allocated rectangle");
+        }
+        if(name=="Settings")
+        {
+            var query=xml.Descendants("string-setting").Single(e=>(string?)e.Attribute("value")=="search-input");
+            Check(!query.Ancestors().Any(e=>e.Name.LocalName.Contains("scroll")),"account input must stay outside scrolling content");
+            var picker=xml.Descendants("vertical").Single(e=>(string?)e.Attribute("id")=="account-picker");
+            Check((double?)picker.Elements("scroll-view").Single().Attribute("flexible-height")==1,"account results use remaining picker space");
+            Check((bool?)query.Attribute("apply-on-change")==true && (bool?)query.Attribute("bind-value")==true,"fixed account input keeps live binding");
+            Check(picker.Descendants("button").Count(e=>((string?)e.Attribute("on-click"))?.StartsWith("select-")==true)==5,"all five API results remain selectable");
+            CheckRemaining(picker,4,8);
+        }
+        else
+        {
+            Check((string?)root.Attribute("vertical-fit")=="Unconstrained","recommendation root follows screen height");
+            Check((double?)root.Elements("scroll-view").Single().Attribute("pref-height")==0 && (double?)root.Elements("scroll-view").Single().Attribute("flexible-height")==1,"song details use remaining height instead of a fixed oversized viewport");
+            foreach(var row in root.Elements("horizontal"))
+            {
+                var buttons=row.Elements("button").ToArray();
+                if(buttons.Length>0)Check(buttons.Sum(b=>(double)b.Attribute("pref-width")!)+(buttons.Length-1)*(double)row.Attribute("spacing")!<=106,"navigation buttons fit the 110-unit panel with padding");
+            }
+            CheckRemaining(root,4,20);
+        }
+    }
+    static void CheckRemaining(XElement group,double padding,double minimum)
+    {
+        foreach(var ability in new[]{false,true})
+        {
+            var children=group.Elements().Where(e=>((string?)e.Attribute("active")) switch { "~show-details"=>!ability,"~show-ability"=>ability,_=>true }).ToArray();
+            var fixedHeight=children.Where(e=>e.Name.LocalName!="scroll-view").Sum(e=>(double?)e.Attribute("pref-height")??0);
+            var spacing=(double?)group.Attribute("spacing")??0;
+            foreach(var screenHeight in new[]{60,75,90})Check(screenHeight-padding-fixedHeight-spacing*(children.Length-1)>=minimum,"fixed controls leave a usable viewport at screen height "+screenHeight);
         }
     }
     static void Native(string dll,bool live,bool badCa)

@@ -2,7 +2,7 @@
 
 RankedTools creates personalized BeatLeader and ScoreSaber playlists to help you gain PP, improve existing scores, and discover ranked maps suited to your ability. This is the Windows x64 PCVR port of the Quest mod.
 
-**Preview version: 0.1.26-pcvr.3. Targets: Beat Saber 1.40.8 and 1.44.1. In-game validation is pending on both.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
+**Preview version: 0.1.26-pcvr.4. Targets: Beat Saber 1.40.8 and 1.44.1. Full in-game validation remains pending.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
 
 ## Install
 
@@ -20,7 +20,7 @@ Enable **Create Sync playlist** after selecting both accounts to fill missing sc
 - The normal layout creates **Not Played** and **To Improve** playlists for each enabled leaderboard. **Simple Mode** replaces those with one **PP Gain** playlist per leaderboard.
 - **Min Clear Rate** defaults to 50% and ranges from 0–95% in 5% steps. At 0%, the threshold and chance adjustment are disabled. Clearability is a heuristic, not a measured probability.
 - Clan playlists include personalized capture/progress suggestions, optional legacy ordering, main/all-clan selection, clan artwork, and capture targets. Only your primary clan receives actual contributions; secondary-clan results are labeled what-if estimates.
-- **Song details** has playlist and song navigation, predictions, weighted gains, confidence, and nearby attempt evidence. **Ability chart** shows the same fitted model used by recommendations, including its observed range and extrapolation.
+- **Song details** has playlist and song navigation, predictions, weighted gains, confidence, and nearby attempt evidence. **Ability chart** shows the same fitted model used by recommendations, including its observed range and extrapolation. Navigation stays above the scrolling details; full refresh messages and warnings appear beneath the song/chart information.
 - Local solo attempts and available public attempt imports are enabled by default. Configure your own IDs when recording. Practice, quit, restart, failure, modifier, and replay handling retains the existing recommendation semantics. Recognized BeatLeader and ScoreSaber replay sessions are excluded; if a loaded leaderboard mod's replay state cannot be verified, local recording skips that session and logs a warning. Public imports remain usable.
 - Refresh captures settings when it starts. Changes take effect on the next refresh. Saved playlists retain the stable `RankedPractice_` filenames. API or save failures preserve previous affected output; cleanup only targets this mod's generated files.
 
@@ -32,7 +32,7 @@ Settings are saved by BSIPA in `UserData/RankedTools.json`. Attempt history, cla
 
 | Package | Compilation references | Legato profile | In-game check |
 | --- | --- | --- | --- |
-| 1.40.8 | Exact public 1.40.8 references | 1.40.0 | Pending |
+| 1.40.8 | Exact public 1.40.8 references | 1.40.0 | Earlier preview's buttons/refresh confirmed by tester; new layout and full checklist pending |
 | 1.44.1 | Public 1.42.0 references | 1.42.0 | Pending |
 
 The public stripped-reference repository currently stops at 1.42.0. [Legato](https://github.com/ScoreSaber/legato) groups 1.42.0–1.44.1 into one compatibility profile. The 1.44.1 ZIP is an explicitly targeted preview built with that profile; compilation does not establish actual 1.44.1 behavior.

@@ -19,6 +19,7 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
     private bool picker, showIds, disposed;
     private long rowRevision;
     private PluginConfig Config => session.Config;
+    [UIObject("settings-layout")] private GameObject layoutRoot = null!;
     [UIComponent("avatar-0")] private ImageView avatar0 = null!;
     [UIComponent("avatar-1")] private ImageView avatar1 = null!;
     [UIComponent("avatar-2")] private ImageView avatar2 = null!;
@@ -30,6 +31,7 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
     [UIValue("scoresaber-account")] public string ScoreSaberAccount => AccountLabel("ScoreSaber",Config.ScoreSaberPlayerId,Config.ScoreSaberPlayerName);
     private string AccountLabel(string name,string id,string selected) => name+": "+(id.Length==0?"Not selected":selected.Length==0?"Saved account":selected)+(showIds&&id.Length>0?"\nID: "+id:"");
     [UIValue("picker-open")] public bool PickerOpen => picker;
+    [UIValue("show-settings")] public bool ShowSettings => !picker;
     [UIValue("picker-title")] public string PickerTitle => service+" account";
     [UIValue("lookup-status")] public string LookupStatus => message;
     [UIValue("search-input")] public string SearchInput
@@ -142,6 +144,7 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
     }
     [UIAction("#post-parse")] private async void Parsed()
     {
+        MenuLayout.Configure(layoutRoot);
         foreach(var provider in new[]{"BeatLeader","ScoreSaber"})
         {
             var id=provider=="BeatLeader"?Config.BeatLeaderPlayerId:Config.ScoreSaberPlayerId; if(id.Length==0)continue;
