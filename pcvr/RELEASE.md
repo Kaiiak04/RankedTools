@@ -1,6 +1,6 @@
 # RankedTools PCVR 0.1.28 preview 1
 
-Testing build for Beat Saber 1.40.8. Adds AccSaber account selection, AP recommendations by category, category ability charts, local attempt recording and three-service Sync. Separate New and Repeat Tracks defaults off; Required Sync Scoreboards defaults to 2 and currently allows 2–3. AccSaber personal playlists start off and default to Overall. Supplied personal covers and the replacement Sync image are bundled unchanged. AccSaber clans remain deferred.
+Windows x64 testing builds target Beat Saber 1.40.8 and 1.44.1; use the matching ZIP. Adds AccSaber account selection, AP recommendations by category, category ability charts, local attempt recording and three-service Sync. Separate New and Repeat Tracks defaults off; Required Sync Scoreboards defaults to 2 and currently allows 2–3. AccSaber personal playlists start off and default to Overall. Supplied personal covers and the replacement Sync image are bundled unchanged. AccSaber clans remain deferred.
 
 The shared engine uses a 30-day sigmoid accuracy fit for all services and categories. It also enables Mbed TLS threading and records detailed curl/TLS errors in persistent last-failure reports. These PC builds still need in-game testing; the maintainer's November 13 Quest result applies to the QMOD only.
 
