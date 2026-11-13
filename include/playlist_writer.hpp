@@ -6,6 +6,8 @@
 #include <vector>
 
 namespace rankedpractice {
+bool WriteAccSaberPlaylist(ListKind kind, const std::vector<MapEntry>& entries,
+                          std::string& error, const std::string& category);
 
 bool WritePlaylist(const std::string& service,
                    ListKind kind,

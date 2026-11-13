@@ -1,5 +1,6 @@
 #include "platform.hpp"
 #include "playlist_writer.hpp"
+#include "leaderboards.hpp"
 #include "playlist_image.hpp"
 
 #include <rapidjson/stringbuffer.h>
@@ -128,10 +129,10 @@ bool WritePlaylist(const std::string& service,
                 return !IsValidSongHash(entry.hash) || entry.difficulties.empty();
             })) { error = "Sync contains an invalid chart; previous playlist preserved."; return false; }
             return WritePlaylistFile("Sync", PlaylistFileName(service, kind), PlaylistImage("sync.png"),
-                entries, error, "All charts ranked on both ScoreSaber and BeatLeader with a posted score on exactly one. "
+                entries, error, "Charts ranked on at least the required number of selected scoreboards, with a posted score on at least one and missing on another. "
                 "Exact hash, characteristic and difficulty; includes No Fail scores. No song-count limit.");
         }
-        const auto icon = service == "ScoreSaber" ? "scoresaber_" : "beatleader_";
+        const auto icon = service == "AccSaber" ? "accsaber_" : service == "ScoreSaber" ? "scoresaber_" : "beatleader_";
         const auto image = PlaylistImage(std::string(icon) +
             (kind == ListKind::Combined ? "ppgain.png" :
              kind == ListKind::NotPlayed ? "notplayed.png" : "toimprove.png"));
@@ -141,6 +142,18 @@ bool WritePlaylist(const std::string& service,
         error = exception.what();
         return false;
     }
+}
+
+bool WriteAccSaberPlaylist(ListKind kind, const std::vector<MapEntry>& entries,
+                          std::string& error, const std::string& category) {
+    try {
+        const auto title = PlaylistTitle("AccSaber", kind) +
+            (category == "overall" ? "" : " (" + AccSaberCategoryName(category) + ")");
+        const auto file = kind == ListKind::Combined ? "accsaber_ppgain.png" :
+                          kind == ListKind::NotPlayed ? "accsaber_notplayed.png" : "accsaber_toimprove.png";
+        return WritePlaylistFile(title, PlaylistFileName("AccSaber", kind), PlaylistImage(file), entries, error,
+            "Predicted weighted AP gain using AccSaber category curves. Category: " + AccSaberCategoryName(category) + ".");
+    } catch (const std::exception& exception) { error = exception.what(); return false; }
 }
 
 bool WriteClanPlaylist(const std::string& clanTag,

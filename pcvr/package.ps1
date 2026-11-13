@@ -19,10 +19,10 @@ foreach($folder in @('Plugins','Libs/Native','UserData/RankedTools/assets','lice
 Copy-Item -LiteralPath $plugin -Destination (Join-Path $stage 'Plugins/RankedTools.dll')
 Copy-Item -LiteralPath $native -Destination (Join-Path $stage 'Libs/Native/RankedTools.Core.dll')
 Copy-Item -LiteralPath (Join-Path $root 'cacert.pem') -Destination (Join-Path $stage 'UserData/RankedTools/cacert.pem')
-foreach($cover in @('sync','beatleader_notplayed','beatleader_toimprove','beatleader_ppgain','beatleader_clan_toconquer','scoresaber_notplayed','scoresaber_toimprove','scoresaber_ppgain')){Copy-Item -LiteralPath (Join-Path $root "$cover.png") -Destination (Join-Path $stage "UserData/RankedTools/assets/$cover.png")}
+foreach($cover in @('accsaber_notplayed','accsaber_toimprove','accsaber_ppgain','sync','beatleader_notplayed','beatleader_toimprove','beatleader_ppgain','beatleader_clan_toconquer','scoresaber_notplayed','scoresaber_toimprove','scoresaber_ppgain')){Copy-Item -LiteralPath (Join-Path $root "$cover.png") -Destination (Join-Path $stage "UserData/RankedTools/assets/$cover.png")}
 Copy-Item -LiteralPath (Join-Path $root 'assets/ARTWORK.md') -Destination (Join-Path $stage 'UserData/RankedTools/assets/ARTWORK.md')
 foreach($file in @('LICENSE','THIRD_PARTY_NOTICES.md')){Copy-Item -LiteralPath (Join-Path $root $file) -Destination $stage}
-foreach($file in @('README.md','TESTING.md','dependencies.lock.json','optional-dependencies.lock.json','targets.json')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $stage}
+foreach($file in @('README.md','RELEASE.md','TESTING.md','dependencies.lock.json','optional-dependencies.lock.json','targets.json')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $stage}
 foreach($file in @('curl.txt','Mbed-TLS.txt','Mbed-TLS-third-party.txt','RapidJSON.txt')){Copy-Item -LiteralPath (Join-Path $root "licenses/$file") -Destination (Join-Path $stage 'licenses')}
 $legato=Join-Path $root '.cache/pcvr/nuget/legatobs/0.1.1/LICENSE'
 Copy-Item -LiteralPath $legato -Destination (Join-Path $stage 'licenses/Legato-GPL-3.0.txt')
@@ -33,11 +33,17 @@ if($buildInfo.compiler -eq 'Clang' -and $LlvmMingw) {
 }
 $commit=& git -C $root rev-parse HEAD
 $buildInfo | Add-Member -NotePropertyName sourceCommit -NotePropertyValue $commit
+$buildInfo | Add-Member -NotePropertyName sourceDirty -NotePropertyValue ([bool](& git -C $root status --porcelain))
 $buildInfo | Add-Member -NotePropertyName gameVersion -NotePropertyValue $GameVersion
+Copy-Item -LiteralPath (Join-Path $root 'TESTING-0.1.28.md') -Destination (Join-Path $stage 'TESTING-THIS-BUILD.md')
+New-Item -ItemType Directory -Path (Join-Path $stage 'docs') -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $root 'docs/ACCSABER.md') -Destination (Join-Path $stage 'docs/ACCSABER.md')
+$packagedReadme=Join-Path $stage 'README.md'
+[IO.File]::WriteAllText($packagedReadme,([IO.File]::ReadAllText($packagedReadme)).Replace('../docs/ACCSABER.md','docs/ACCSABER.md'))
 $buildInfo | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'build-info.json') -Encoding utf8
 Copy-Item -LiteralPath $reportPath -Destination (Join-Path $stage 'validation.json')
 $dist=Join-Path $PSScriptRoot 'dist'; New-Item -ItemType Directory -Path $dist -Force | Out-Null
-$zip=Join-Path $dist "RankedTools-PCVR-0.1.26-preview.4-bs$GameVersion.zip"
+$zip=Join-Path $dist "RankedTools-PCVR-0.1.28-preview.1-bs$GameVersion.zip"
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 $archive=[IO.Compression.ZipFile]::OpenRead($zip)
 try {

@@ -4,6 +4,8 @@
 #include "platform.hpp"
 #include "playlist_image.hpp"
 #include "refresh_engine.hpp"
+#include "leaderboards.hpp"
+#include "accsaber.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -37,7 +39,7 @@ std::mutex stateMutex, initializationMutex;
 std::atomic<bool> initialized{false}, running{false};
 std::string status{"Open RankedTools to refresh recommendations."};
 std::vector<List> lists;
-std::array<Ability, 2> abilities;
+std::array<Ability, 5> abilities;
 std::deque<std::string> logs;
 std::uint64_t logSequence{};
 bool succeeded{}, filesChanged{};
@@ -95,6 +97,9 @@ void EntryJson(Writer &w, const MapEntry &e) {
     Text(w, "hash", e.hash);
     Text(w, "songName", e.songName);
     Text(w, "songAuthorName", e.songAuthorName);
+    Text(w, "categoryCode", e.categoryCode);
+    Numeric(w, "maxScore", e.maxScore);
+    Numeric(w, "scoreNoMods", e.scoreNoMods);
     Numeric(w, "predictedAccuracy", e.predictedAccuracy);
     Numeric(w, "predictedPp", e.predictedPp);
     Numeric(w, "currentPp", e.currentPp);
@@ -113,6 +118,7 @@ void EntryJson(Writer &w, const MapEntry &e) {
         Text(w, "name", d.name);
         Text(w, "characteristic", d.characteristic);
         Numeric(w, "stars", d.stars);
+        if (d.complexity) Numeric(w, "complexity", *d.complexity);
         w.EndObject();
     }
     w.EndArray();
@@ -152,6 +158,9 @@ void Snapshot(Writer &w) {
     Numeric(w, "minClearRate", snapshotSettings.minClearRate * 100);
     Flag(w, "enableBeatLeader", snapshotSettings.enableBeatLeader);
     Flag(w, "enableScoreSaber", snapshotSettings.enableScoreSaber);
+    Flag(w, "enableAccSaber", snapshotSettings.enableAccSaber);
+    Text(w, "accSaberCategory", snapshotSettings.accSaberCategory);
+    Numeric(w, "requiredSyncScoreboards", snapshotSettings.requiredSyncScoreboards);
     w.Key("logSequence");
     w.Uint64(logSequence);
     w.Key("logs");
@@ -164,6 +173,8 @@ void Snapshot(Writer &w) {
     for (const auto &list : lists) {
         w.StartObject();
         Text(w, "service", list.service);
+        Text(w, "pointUnit", list.service == "AccSaber" ? "AP" : "PP");
+        Text(w, "ratingUnit", list.service == "AccSaber" ? "complexity" : "stars");
         Text(w, "title", list.title);
         Text(w, "fileName", list.fileName);
         Text(w, "note", list.note);
@@ -183,10 +194,14 @@ void Snapshot(Writer &w) {
     w.EndArray();
     w.Key("abilities");
     w.StartArray();
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < static_cast<int>(abilities.size()); ++i) {
         const auto &a = abilities[i];
         w.StartObject();
-        Text(w, "service", i == 0 ? "BeatLeader" : "ScoreSaber");
+        Text(w, "service", i < 2 ? std::string(kAbilityServices[i]) : "AccSaber");
+        Text(w, "title", AbilityName(i));
+        Text(w, "ratingUnit", i < 2 ? "stars" : "complexity");
+        Flag(w, "enabled", AbilityEnabled(i, snapshotSettings.enableBeatLeader, snapshotSettings.enableScoreSaber,
+            snapshotSettings.enableAccSaber, snapshotSettings.accSaberCategory));
         Flag(w, "ready", a.ready);
         Text(w, "error", a.error);
         Numeric(w, "scoreCount", a.chart.scores.size());
@@ -200,16 +215,20 @@ RefreshSettings Settings(const Json &j) {
     RefreshSettings s;
     s.beatLeaderPlayerId = String(j, "beatLeaderPlayerId");
     s.scoreSaberPlayerId = String(j, "scoreSaberPlayerId");
-    for (const auto *id : {&s.beatLeaderPlayerId, &s.scoreSaberPlayerId})
+    s.accSaberPlayerId = String(j, "accSaberPlayerId");
+    s.accSaberCategory = NormalizeAccSaberCategory(String(j, "accSaberCategory", "overall"));
+    s.requiredSyncScoreboards = NormalizeRequiredSyncScoreboards(static_cast<int>(std::clamp(Number(j, "requiredSyncScoreboards", 2), 2.0, static_cast<double>(kLeaderboardServices.size()))));
+    for (const auto *id : {&s.beatLeaderPlayerId, &s.scoreSaberPlayerId, &s.accSaberPlayerId})
         if (!id->empty() && !IsCanonicalAccountId(*id))
             throw std::invalid_argument("Select a valid numeric player ID.");
     s.limit = static_cast<int>(std::clamp(Number(j, "limit", 16), 1.0, 100.0));
     s.minClearRate =
         NormalizeMinClearRatePercent(static_cast<int>(std::clamp(Number(j, "minClearRate", 50), 0.0, 95.0))) / 100.0;
-    s.simpleMode = Bool(j, "simpleMode", false);
+    s.separateNewAndRepeatTracks = Bool(j, "separateNewAndRepeatTracks", false);
     s.importAttempts = Bool(j, "importAttempts", true);
     s.enableBeatLeader = Bool(j, "enableBeatLeader", true);
     s.enableScoreSaber = Bool(j, "enableScoreSaber", true);
+    s.enableAccSaber = Bool(j, "enableAccSaber", false);
     s.enableClanPlaylist = Bool(j, "enableClanPlaylist", true);
     s.enableSyncPlaylist = Bool(j, "enableSyncPlaylist", false);
     s.legacyClanPlaylists = Bool(j, "legacyClanPlaylists", false);
@@ -232,15 +251,17 @@ void Refresh(const Json &j) {
         filesChanged = false;
         snapshotSettings = settings;
         status = "Fetching leaderboard data...";
-        for (const auto *service : {"BeatLeader", "ScoreSaber"}) {
-            if (!(std::string(service) == "BeatLeader" ? settings.enableBeatLeader : settings.enableScoreSaber))
+        for (const auto serviceView : kLeaderboardServices) {
+            const std::string service(serviceView);
+            if (!(service == "BeatLeader" ? settings.enableBeatLeader : service == "ScoreSaber" ? settings.enableScoreSaber : settings.enableAccSaber))
                 continue;
-            for (const auto kind : settings.simpleMode ? std::vector{ListKind::Combined}
-                                                       : std::vector{ListKind::NotPlayed, ListKind::ToImprove}) {
+            for (const auto kind : settings.separateNewAndRepeatTracks ? std::vector{ListKind::NotPlayed, ListKind::ToImprove}
+                                                                       : std::vector{ListKind::Combined}) {
                 List list;
                 list.service = service;
                 list.kind = static_cast<int>(kind);
-                list.title = PlaylistTitle(service, kind);
+                list.title = PlaylistTitle(service, kind) + (service == "AccSaber" && settings.accSaberCategory != "overall" ?
+                    " (" + AccSaberCategoryName(settings.accSaberCategory) + ")" : "");
                 list.fileName = PlaylistFileName(service, kind);
                 lists.push_back(std::move(list));
             }
@@ -263,6 +284,10 @@ void Refresh(const Json &j) {
             list.error = error;
         }
     };
+    observer.playlistError = [](const std::string& service, const std::string& error) {
+        std::lock_guard lock(stateMutex);
+        for (auto& list : lists) if (!list.clan && list.service == service) { list.ready = true; list.error = error; }
+    };
     observer.status = [](const std::string &text) {
         std::lock_guard lock(stateMutex);
         status = text;
@@ -278,9 +303,12 @@ void Refresh(const Json &j) {
             }
     };
     observer.ability = [](const std::string &service, const std::vector<MapEntry> &scores, const std::string &error) {
-        auto chart = BuildAbilityChart(scores);
+        const int slot = AbilitySlot(service); if (slot < 0) return;
+        auto chart = slot < 2 ? BuildAbilityChart(scores, false,
+            slot == 0 ? RatingSystem::BeatLeader : RatingSystem::ScoreSaber) :
+            BuildAccSaberAbilityChart(scores, std::string(kAccSaberCategories[slot - 1]));
         std::lock_guard lock(stateMutex);
-        abilities[service == "ScoreSaber" ? 1 : 0] = {true, error, std::move(chart)};
+        abilities[slot] = {true, error, std::move(chart)};
     };
     observer.clans = [all = settings.allClans](const std::vector<ClanPlaylistRecommendations> &clans) {
         std::lock_guard lock(stateMutex);
@@ -346,7 +374,7 @@ void Initialize(const Json &j) {
     paths.clanSearch = root / "clan-search";
     paths.icons = root / "assets";
     paths.caBundle = root / "cacert.pem";
-    paths.userAgent = "RankedTools/0.1.26-pcvr.1 (Beat Saber PCVR mod)";
+    paths.userAgent = "RankedTools/0.1.28-pcvr.1 (Beat Saber PCVR mod)";
     if (!std::filesystem::is_regular_file(paths.caBundle))
         throw std::runtime_error("RankedTools' CA bundle is missing. Extract the complete preview ZIP.");
     if (std::filesystem::file_size(paths.caBundle) > 2 * 1024 * 1024)
@@ -384,7 +412,8 @@ void SubmitAttempt(const Json &j) {
         std::find(difficulties.begin(), difficulties.end(), a.difficulty) == difficulties.end())
         throw std::invalid_argument("Invalid local attempt.");
     for (const auto &pair : {std::pair{"beatleader", String(j, "beatLeaderPlayerId")},
-                             std::pair{"scoresaber", String(j, "scoreSaberPlayerId")}}) {
+                             std::pair{"scoresaber", String(j, "scoreSaberPlayerId")},
+                             std::pair{"accsaber", String(j, "accSaberPlayerId")}}) {
         if (pair.second.empty())
             continue;
         if (!IsCanonicalAccountId(pair.second))
@@ -417,12 +446,12 @@ std::string Invoke(const Json &j) {
             SubmitAttempt(j);
         else if (command == "accounts") {
             const auto service = String(j, "service");
-            if (service != "BeatLeader" && service != "ScoreSaber")
+            if (service != "BeatLeader" && service != "ScoreSaber" && service != "AccSaber")
                 throw std::invalid_argument("Unknown account service.");
             AccountPage page;
             std::string error;
             const int number = static_cast<int>(std::clamp(Number(j, "page", 1), 1.0, 100000.0));
-            if (!FindAccounts(service == "BeatLeader" ? AccountService::BeatLeader : AccountService::ScoreSaber,
+            if (!FindAccounts(service == "AccSaber" ? AccountService::AccSaber : service == "BeatLeader" ? AccountService::BeatLeader : AccountService::ScoreSaber,
                               String(j, "input"), number, page, error))
                 throw std::runtime_error(error);
             Numeric(w, "page", page.page);
@@ -504,7 +533,7 @@ extern "C" int rt_chart(int service, void **pixels, size_t *size, int *width, in
     *width = 0;
     *height = 0;
     try {
-        if (service < 0 || service > 1)
+        if (service < 0 || service >= static_cast<int>(abilities.size()))
             return 0;
         AbilityChart chart;
         {

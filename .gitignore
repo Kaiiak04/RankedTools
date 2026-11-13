@@ -4,6 +4,7 @@
 pcvr/**/bin/
 pcvr/**/obj/
 pcvr/dist/
+dist/
 tests/playlist-sandbox/
 tests/playlist-icon-sandbox/
 tests/pcvr-sandbox/

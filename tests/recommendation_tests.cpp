@@ -100,149 +100,152 @@ void DatesAndParsing() {
     std::cout << "PASS: ISO dates, recency, API schemas, one entry per chart, unrated history\n";
 }
 
-void MonotonicAccuracy() {
+void AccuracyTrainingContract() {
     auto point = [](int id, double stars, double accuracy) {
         auto score = Score(id);
-        score.stars = stars;
+        score.stars = score.difficulties[0].stars = stars;
         score.accuracy = accuracy;
         return score;
     };
     auto close = [](double actual, double expected) { return std::abs(actual - expected) < 1e-10; };
-    AccuracyCurve decreasing({point(1, 5, .96), point(2, 6, .92), point(3, 7, .88)});
-    CHECK(close(decreasing.Predict(5), .96));
-    CHECK(close(decreasing.Predict(6), .92));
-    CHECK(close(decreasing.Predict(7), .88));
-    CHECK(close(decreasing.Predict(5.5), .94));
-    CHECK(close(decreasing.Predict(6.5), .90));
-
-    AccuracyCurve reversal({point(1, 5, .96), point(2, 6, .92), point(3, 7, .94)});
-    CHECK(close(reversal.Predict(5), .96));
-    CHECK(close(reversal.Predict(6), .93));
-    CHECK(close(reversal.Predict(6.5), .93));
-    CHECK(close(reversal.Predict(7), .93));
-    // The last point forces pooling all the way back to the first block.
-    AccuracyCurve cascading({point(1, 5, .85), point(2, 6, .80), point(3, 7, .90), point(4, 8, .99)});
-    CHECK(close(cascading.Predict(5), .885));
-    CHECK(close(cascading.Predict(8), .885));
-
-    const double now = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
-    auto recent = point(1, 6, .92), old = point(2, 7, .98);
-    recent.timepost = now - 100 * 86400.0;
-    old.timepost = recent.timepost - 365 * 86400.0;
-    AccuracyCurve recency({recent, old});
-    const double weighted = (.92 + std::exp(-1.0) * .98) / (1 + std::exp(-1.0));
-    CHECK(close(recency.Predict(6), weighted));
-    CHECK(close(recency.Predict(7), weighted));
-    auto unknownDate = old; unknownDate.timepost = 0;
-    auto future = recent; future.timepost = now + 86400;
-    AccuracyCurve missingDate({future, unknownDate});
-    CHECK(close(missingDate.Predict(6.5), (.92 + .65 * .98) / 1.65));
-
-    // Equal-star scores have one weighted value, with no zero-length interpolation interval.
-    AccuracyCurve tied({point(1, 5, .96), point(2, 6, .90), point(3, 6, .98), point(4, 7, .92)});
-    CHECK(close(tied.Predict(6), .94));
-    CHECK(close(tied.Predict(5.5), .95));
-    CHECK(close(tied.Predict(6.5), .93));
-    AccuracyCurve tiedRecency({recent, point(2, 6, .98)});
-    const double recentWeight = ObservationWeight(recent, now);
-    CHECK(std::abs(tiedRecency.Predict(6) - (recentWeight * .92 + .65 * .98) / (recentWeight + .65)) < 1e-8);
-
-    AccuracyCurve empty({});
-    CHECK(!empty.HasObservations() && empty.Predict(0) == .85 && empty.Predict(30) == .85);
-    AccuracyCurve single({point(1, 7, .95)});
-    CHECK(close(single.Predict(6), .95) && close(single.Predict(8), .95));
-    CHECK(close(single.Predict(5), .956) && close(single.Predict(9), .938));
-    AccuracyCurve two({point(1, 5, .96), point(2, 9, .88)});
-    CHECK(close(two.Predict(7), .92));
-    CHECK(close(two.Predict(4), .96) && close(two.Predict(10), .88));
-    CHECK(close(two.Predict(3), .966) && close(two.Predict(11), .868));
-    CHECK(two.Predict(-100) == .999 && two.Predict(100) == .55);
-    AccuracyCurve perfect({point(1, 7, 1)}), minimum({point(1, 7, .55)});
-    CHECK(perfect.Predict(7) == .999 && minimum.Predict(9) == .55);
-
-    auto best = point(1, 6, .90), lesserDuplicate = point(1, 6, .99);
-    best.pp = 200;
-    AccuracyCurve deduplicated({best, lesserDuplicate});
-    CHECK(close(deduplicated.Predict(6), .90));
-    auto modified = point(1, 7, .90); modified.modifiedStars = 10;
-    AccuracyCurve effectiveStars({modified, point(2, 9, .95)});
-    CHECK(effectiveStars.MinStars() == 9 && effectiveStars.MaxStars() == 10);
-    CHECK(close(effectiveStars.Predict(9.5), .925));
-    std::vector<MapEntry> excluded;
-    auto nf = point(10, 5, .99); nf.noFail = true; excluded.push_back(nf);
-    auto unranked = point(11, 5, .99); unranked.ranked = false; excluded.push_back(unranked);
-    auto otherMode = point(12, 5, .99); otherMode.difficulties[0].characteristic = "OneSaber"; excluded.push_back(otherMode);
-    auto noHash = point(13, 5, .99); noHash.hash.clear(); excluded.push_back(noHash);
-    auto noPp = point(14, 5, .99); noPp.pp = 0; excluded.push_back(noPp);
-    excluded.push_back(point(15, 0, .99));
-    excluded.push_back(point(16, 5, .54));
-    excluded.push_back(point(17, 5, 1.01));
-    excluded.push_back(point(18, std::numeric_limits<double>::infinity(), .99));
-    excluded.push_back(point(19, 5, std::numeric_limits<double>::quiet_NaN()));
-    CHECK(!AccuracyCurve(excluded).HasObservations());
-
-    // Exercise noisy data, duplicate stars, recency, tails, clamps and input-order independence.
-    std::vector<MapEntry> noisy;
-    for (int i = 0; i < 40; ++i) {
-        auto score = point(100 + i, 3 + (i % 20) * .4, .55 + ((i * 17) % 45) / 100.0);
-        score.timepost = now - i * 90 * 86400.0;
-        noisy.push_back(score);
+    for (auto system : {RatingSystem::BeatLeader, RatingSystem::ScoreSaber, RatingSystem::AccSaber}) {
+        auto best = point(1, 6, .90), duplicate = point(1, 6, .99);
+        best.pp = 200;
+        AccuracyCurve deduplicated({best, duplicate}, system);
+        CHECK(deduplicated.Observations().size() == 1 && close(deduplicated.Predict(6), .90));
+        CHECK(close(deduplicated.Predict(3), .90) && close(deduplicated.Predict(12), .90));
+        auto modified = point(2, 7, .90); modified.modifiedStars = 10;
+        AccuracyCurve effectiveStars({modified, point(3, 9, .95)}, system);
+        CHECK(effectiveStars.MinStars() == 9 && effectiveStars.MaxStars() == 10);
+        std::vector<MapEntry> excluded;
+        auto nf = point(10, 5, .99); nf.noFail = true; excluded.push_back(nf);
+        auto unranked = point(11, 5, .99); unranked.ranked = false; excluded.push_back(unranked);
+        auto otherMode = point(12, 5, .99); otherMode.difficulties[0].characteristic = "OneSaber"; excluded.push_back(otherMode);
+        auto noHash = point(13, 5, .99); noHash.hash.clear(); excluded.push_back(noHash);
+        auto noPp = point(14, 5, .99); noPp.pp = 0; excluded.push_back(noPp);
+        excluded.push_back(point(15, -1, .99));
+        excluded.push_back(point(16, 5, .54));
+        excluded.push_back(point(17, 5, 1.01));
+        excluded.push_back(point(18, std::numeric_limits<double>::infinity(), .99));
+        excluded.push_back(point(19, 5, std::numeric_limits<double>::quiet_NaN()));
+        CHECK(!AccuracyCurve(excluded, system).HasObservations());
+        const auto zero = point(20, 0, .95);
+        CHECK(AccuracyCurve({zero}, system).HasObservations() == (system == RatingSystem::AccSaber));
+        CHECK(AccuracyCurve({}, system).Predict(7) == .85);
+        CHECK(AccuracyCurve({point(21, 7, 1)}, system).Predict(7) == .999);
+        CHECK(close(AccuracyCurve({point(22, 7, .55)}, system).Predict(9), .55));
     }
-    AccuracyCurve forward(noisy);
-    std::reverse(noisy.begin(), noisy.end());
-    AccuracyCurve backward(noisy);
-    double previous = forward.Predict(0);
-    for (int step = 1; step <= 200; ++step) {
-        const double stars = step * .1;
-        const double prediction = forward.Predict(stars);
-        CHECK(std::isfinite(prediction) && prediction >= .55 && prediction <= .999);
-        CHECK(prediction <= previous + 1e-12);
-        CHECK(close(prediction, backward.Predict(stars)));
-        previous = prediction;
-    }
-    // Both services and both recommendation modes use this same fitted accuracy.
+    // Personal selectors for both star-based services use the shared fit.
     const std::vector<MapEntry> profile{point(1, 5, .96), point(2, 6, .92), point(3, 7, .94)};
     for (auto system : {RatingSystem::BeatLeader, RatingSystem::ScoreSaber}) {
         for (auto kind : {ListKind::NotPlayed, ListKind::ToImprove}) {
             auto candidate = kind == ListKind::ToImprove ? profile[1] : point(4, 6, .60);
             candidate.pp = 1;
             candidate.difficulties[0].stars = 6;
-            auto result = SelectRecommendations({candidate}, kind, 10, 6, profile, system, 0.0);
+            const auto result = SelectRecommendations({candidate}, kind, 10, 6, profile, system, 0.0);
             CHECK(result.size() == 1);
-            CHECK(close(result[0].predictedAccuracy, .93));
+            CHECK(close(result[0].predictedAccuracy, AccuracyCurve(profile, system).Predict(6)));
         }
     }
-    std::cout << "PASS: monotonic accuracy, weighted pooling, ties, interpolation, sparse profiles, tails, exclusions and both providers/modes\n";
+    std::cout << "PASS: shared accuracy eligibility, deduplication, effective stars, zero complexity, sparse fits and both star-based selectors\n";
+}
+
+void SigmoidAccuracy() {
+    rapidjson::Document reference;
+    reference.Parse(ReadFile("tests/fixtures/beatleader-sigmoid30.json").c_str());
+    CHECK(!reference.HasParseError() && reference["cases"].IsArray());
+    const double now = reference["now"].GetDouble();
+    for (const auto system : {RatingSystem::BeatLeader, RatingSystem::ScoreSaber, RatingSystem::AccSaber})
+    for (const auto& sample : reference["cases"].GetArray()) {
+        std::vector<MapEntry> history;
+        for (const auto& row : sample["observations"].GetArray()) {
+            auto score = Score(10000 + static_cast<int>(history.size()));
+            score.stars = row["stars"].GetDouble();
+            score.accuracy = row["accuracy"].GetDouble();
+            score.timepost = row["time"].GetDouble();
+            history.push_back(score);
+        }
+        const AccuracyCurve fit(history, system, false, now);
+        CHECK(fit.HasObservations());
+        for (const auto& expected : sample["predictions"].GetArray()) {
+            CHECK(std::abs(fit.Predict(expected["stars"].GetDouble()) - expected["accuracy"].GetDouble()) < 1e-12);
+        }
+        std::reverse(history.begin(), history.end());
+        const AccuracyCurve reversed(history, system, false, now);
+        double previous = 1.0;
+        for (int i = 0; i <= 200; ++i) {
+            const double prediction = fit.Predict(i * .1);
+            CHECK(std::isfinite(prediction) && prediction >= .55 && prediction <= .999);
+            CHECK(prediction <= previous + 1e-12);
+            CHECK(std::abs(prediction - reversed.Predict(i * .1)) < 1e-12);
+            previous = prediction;
+        }
+    }
+    auto recent = Score(11000); recent.stars = 5; recent.accuracy = .96; recent.timepost = now;
+    auto old = Score(11001); old.stars = 8; old.accuracy = .88; old.timepost = now - 30 * 86400;
+    const std::vector<MapEntry> history{recent, old};
+    const AccuracyCurve current(history, RatingSystem::BeatLeader, false, now);
+    CHECK(current.Observations()[0].weight == 1.0);
+    CHECK(std::abs(current.Observations()[1].weight - std::exp(-1.0)) < 1e-12);
+    // Advancing time with no new scores preserves the fit, even if absolute
+    // weights underflow. Confidence/dot opacity still use absolute score ages.
+    const AccuracyCurve inactive(history, RatingSystem::BeatLeader, false, now + 1000.0 * 365 * 86400);
+    CHECK(inactive.HasObservations());
+    for (int i = 0; i <= 200; ++i) CHECK(std::abs(current.Predict(i * .1) - inactive.Predict(i * .1)) < 1e-10);
+    CHECK(std::abs(ObservationWeight(old, now) - std::exp(-30.0 / 365.0)) < 1e-12);
+
+    auto nf = old; nf.hash = Hash(11002); nf.noFail = true; nf.accuracy = .99;
+    auto lowerPb = recent; lowerPb.pp = 1; lowerPb.accuracy = .60;
+    const AccuracyCurve filtered({recent, old, nf, lowerPb}, RatingSystem::BeatLeader, false, now);
+    CHECK(filtered.Observations().size() == 2);
+    CHECK(std::abs(filtered.Predict(6) - current.Predict(6)) < 1e-12);
+    auto modified = old; modified.stars = 2; modified.modifiedStars = 8;
+    CHECK(std::abs(AccuracyCurve({recent, modified}, RatingSystem::BeatLeader, false, now).Predict(6) - current.Predict(6)) < 1e-12);
+    CHECK(AccuracyCurve({}).Predict(7) == .85);
+
+    for (const auto system : {RatingSystem::BeatLeader, RatingSystem::ScoreSaber, RatingSystem::AccSaber}) {
+        const auto chart = BuildAbilityChart(history, system == RatingSystem::AccSaber, system);
+        const AccuracyCurve expected(history, system);
+        for (const auto& p : chart.curve) CHECK(std::abs(p.accuracy - expected.Predict(p.stars)) < 1e-12);
+        const AccuracyCurve dated(history, system, false, now);
+        CHECK(std::abs(dated.Observations()[1].weight - std::exp(-1.0)) < 1e-12);
+        for (double stars : {0., 3., 6., 9., 12.}) CHECK(std::abs(dated.Predict(stars) - current.Predict(stars)) < 1e-12);
+    }
+    std::cout << "PASS: all three providers match frozen sigmoid research outputs, 30-day decay, bounds, sparse fits, long inactivity and charts\n";
 }
 
 void BeatLeaderV4Contract() {
-    rapidjson::Document reference;
-    reference.Parse(ReadFile("tests/fixtures/beatleader-ppv4.json").c_str());
-    CHECK(!reference.HasParseError() && reference["cases"].IsArray());
-    for (const auto& sample : reference["cases"].GetArray()) {
-        rapidjson::StringBuffer buffer;
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        sample["difficulty"].Accept(writer);
-        const std::string chart = std::string(R"({"hash":")") + Hash(400) +
-            R"(","name":"PPv4","difficulties":[)" + buffer.GetString() + "]}";
-        const auto entries = Parse(chart);
-        CHECK(entries.size() == 1);
-        const auto& d = entries[0].difficulties.front();
-        CHECK(d.noteSpan.has_value());
-        CHECK(d.predictedAcc == sample["difficulty"]["predictedAcc"].GetDouble());
-        CHECK(d.sliderPercentage == sample["difficulty"]["sliderPercentage"].GetDouble());
-        CHECK(d.notes == sample["difficulty"]["notes"].GetDouble());
-        for (const auto& score : sample["scores"].GetArray()) {
-            const double expected = score[1].GetDouble();
-            const double tolerance = sample.HasMember("live") ? 1e-5 : 1e-9;
-            CHECK(std::abs(BeatLeaderPp(score[0].GetDouble(),d)-expected) <= tolerance*std::max(1.0,expected));
+    Difficulty zeroRatings; zeroRatings.noteSpan = 120;
+    CHECK(BeatLeaderPp(.98, zeroRatings) == 0);
+    for (const char* fixture : {"tests/fixtures/beatleader-ppv4.json", "tests/fixtures/beatleader-ppv4.1-live.json"}) {
+        rapidjson::Document reference;
+        reference.Parse(ReadFile(fixture).c_str());
+        CHECK(!reference.HasParseError() && reference["cases"].IsArray());
+        for (const auto& sample : reference["cases"].GetArray()) {
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            sample["difficulty"].Accept(writer);
+            const std::string chart = std::string(R"({"hash":")") + Hash(400) +
+                R"(","name":"PPv4","difficulties":[)" + buffer.GetString() + "]}";
+            const auto entries = Parse(chart);
+            CHECK(entries.size() == 1);
+            const auto& d = entries[0].difficulties.front();
+            CHECK(d.noteSpan.has_value());
+            CHECK(d.predictedAcc == sample["difficulty"]["predictedAcc"].GetDouble());
+            CHECK(d.sliderPercentage == sample["difficulty"]["sliderPercentage"].GetDouble());
+            CHECK(d.notes == sample["difficulty"]["notes"].GetDouble());
+            for (const auto& score : sample["scores"].GetArray()) {
+                const double expected = score[1].GetDouble();
+                const double tolerance = sample.HasMember("live") ? 1e-5 : 1e-9;
+                CHECK(std::abs(BeatLeaderPp(score[0].GetDouble(),d)-expected) <= tolerance*std::max(1.0,expected));
+            }
+            // The score and hash-lookup response shapes must retain the same inputs.
+            const auto scored = Parse(std::string(R"({"baseScore":95,"accuracy":0.95,"pp":100,"leaderboard":{"song":{"hash":")") +
+                Hash(400) + R"(","name":"PPv4"},"difficulty":)" + buffer.GetString() + "}}");
+            CHECK(scored.size() == 1);
+            CHECK(BeatLeaderPp(.98,scored[0].difficulties[0]) == BeatLeaderPp(.98,d));
+            CHECK(BeatLeaderPp(0,d) == 0 && BeatLeaderPp(1.01,d) == 0);
         }
-        // The score and hash-lookup response shapes must retain the same inputs.
-        const auto scored = Parse(std::string(R"({"baseScore":95,"accuracy":0.95,"pp":100,"leaderboard":{"song":{"hash":")") +
-            Hash(400) + R"(","name":"PPv4"},"difficulty":)" + buffer.GetString() + "}}");
-        CHECK(scored.size() == 1);
-        CHECK(BeatLeaderPp(.98,scored[0].difficulties[0]) == BeatLeaderPp(.98,d));
-        CHECK(BeatLeaderPp(0,d) == 0 && BeatLeaderPp(1.01,d) == 0);
     }
     auto zeroSpan = Parse(Chart(401,7).insert(1,R"("noteSpan":0,"predictedAcc":0.98,)"));
     CHECK(zeroSpan.size() == 1 && zeroSpan[0].difficulties[0].noteSpan == 0);
@@ -274,7 +277,7 @@ void BeatLeaderV4Contract() {
     auto improvement = easyAcc; improvement.pp = 100;
     const auto improved = SelectRecommendations({improvement},ListKind::ToImprove,16,0,{training,improvement},RatingSystem::BeatLeader,0);
     CHECK(improved.size() == 1 && improved[0].predictedPp == BeatLeaderPp(improved[0].predictedAccuracy,improvement.difficulties[0]));
-    std::cout << "PASS: PPv4 upstream reference and live scores, per-map curves, mixed rollout, both recommendation modes\n";
+    std::cout << "PASS: PPv4.1 upstream reference and live scores, per-map curves, mixed rollout, both recommendation modes\n";
 }
 
 void ModifiersAndPp() {
@@ -481,7 +484,7 @@ void ClansAndSettings() {
     std::cout << "PASS: empty clan cleanup, invalid membership protection, selected chart, immutable worker settings\n";
 }
 
-void ClearRateAndSimpleMode() {
+void ClearRateAndCombinedPlaylists() {
     CHECK(NormalizeMinClearRatePercent(-10) == 0);
     CHECK(NormalizeMinClearRatePercent(100) == 95);
     CHECK(NormalizeMinClearRatePercent(52) == 50);
@@ -497,7 +500,7 @@ void ClearRateAndSimpleMode() {
     CHECK(RecommendationPriority(100, .60, .50, true) == 100);
     CHECK(RecommendationPriority(100, .49, .50, true) == 0);
     RefreshSettings defaults;
-    CHECK(defaults.minClearRate == .50 && !defaults.simpleMode);
+    CHECK(defaults.minClearRate == .50 && !defaults.separateNewAndRepeatTracks);
     auto training = Score(999);
     ClearabilityModel model({training});
     for (auto system : {RatingSystem::BeatLeader, RatingSystem::ScoreSaber}) {
@@ -799,7 +802,7 @@ void ActualAttemptSchemas() {
     // A failed run without a PB must not keep PPv3 stars indefinitely.
     localChart.stars = 99;
     localChart.ratingChecked = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
-    localChart.ratingEpoch = 0; // Even a recent PPv3 cache needs immediate migration.
+    localChart.ratingEpoch = 4; // Even a recent PPv4 cache needs immediate PPv4.1 migration.
     CHECK(SaveAttemptHistory("beatleader", "999994", {localChart}, disk, error));
     localOnly = {}; localOnly.importAttempts = false; lookups = 0;
     CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, chartLookup, false));
@@ -980,7 +983,7 @@ void AbilityChartContract() {
         knotSeen = knotSeen || p.stars == 10.5;
     }
     CHECK(knotSeen);
-    CHECK(chart.curve.front().accuracy > .60); // Lowest-star fluke is pooled, not a ceiling.
+    CHECK(chart.curve.front().accuracy > .60); // The global fit can smooth a low-star outlier.
     const auto bitmap = RenderAbilityChart(chart);
     CHECK(bitmap.pixels.size() == bitmap.width * bitmap.height * 4);
     bool cyan = false;
@@ -1204,6 +1207,7 @@ void DefaultRealmCompatibility() {
 
 #include "clan_recommendation_tests.hpp"
 #include "sync_playlist_tests.hpp"
+#include "accsaber_tests.hpp"
 #include "clan_api_audit.hpp"
 #include "clan_refresh_tests.hpp"
 #include "clan_search_tests.hpp"
@@ -1223,7 +1227,7 @@ int main(int argc, char** argv) {
         if (argc == 4 && std::string(argv[1]) == "--audit-clan-profile") return AuditClanProfile(argv[2], argv[3]);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-clan-profile") return AuditClanProfile(argv[2], argv[3], true);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-paced-clan-profile") return AuditClanProfile(argv[2], argv[3], true, true);
-        DatesAndParsing(); MonotonicAccuracy(); ModifiersAndPp(); BeatLeaderV4Contract(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); PersonalizedClanContract(); ClanSearchContract(); ClanRefreshPerformance(); ClanSearchLearning(); ConsecutiveClanRefreshes(); ConsecutiveClanRefreshes(true); LearnedSecondaryClans(); LegacyClanSelection(); LegacyClanRefresh(); LegacyClearRateCap(); ClearRateAndSimpleMode();
+        DatesAndParsing(); AccuracyTrainingContract(); SigmoidAccuracy(); ModifiersAndPp(); BeatLeaderV4Contract(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); PersonalizedClanContract(); ClanSearchContract(); ClanRefreshPerformance(); ClanSearchLearning(); ConsecutiveClanRefreshes(); ConsecutiveClanRefreshes(true); LearnedSecondaryClans(); LegacyClanSelection(); LegacyClanRefresh(); LegacyClearRateCap(); ClearRateAndCombinedPlaylists();
         AttemptEvidence(); AttemptImportAndStorage();
         ActualAttemptSchemas();
         AbilityChartContract();
@@ -1231,7 +1235,7 @@ int main(int argc, char** argv) {
         AccountLookupContract();
         ConcurrentRefreshContract();
         DefaultRealmCompatibility();
-        SyncPlaylistContract();
+        SyncPlaylistContract(); AccSaberContract(); ThreeServiceSyncContract();
         if (argc > 1 && std::string(argv[1]) == "--export-ability-chart") ExportAbilityPreview();
         std::cout << "All " << checks << " regression checks passed.\n";
     } catch (const std::exception& exception) {

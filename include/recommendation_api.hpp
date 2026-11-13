@@ -2,10 +2,12 @@
 
 #include "recommendation.hpp"
 #include "clan_recommendation.hpp"
+#include "accsaber.hpp"
 
 #include <string>
 #include <vector>
 #include <cstddef>
+#include <unordered_map>
 
 namespace rankedpractice {
 
@@ -61,7 +63,24 @@ struct ScoreHistory {
     bool syncComplete{false};
     std::vector<MapEntry> syncScores;
     std::string syncError;
+    bool attemptsLoaded{false};
+    bool accMetadataLoaded{false};
+    bool accCatalogLoaded{false};
+    std::unordered_map<std::string, std::string> accModifiers;
+    std::vector<MapEntry> accCatalog;
+    std::vector<AccSaberCategory> accCategories;
+    std::string linkedBeatLeaderId, linkedScoreSaberId;
 };
+
+struct SyncAccount {
+    std::string service, playerId;
+    ScoreHistory* history{nullptr};
+};
+bool FetchSyncPlaylist(const std::vector<SyncAccount>& accounts, int requiredScoreboards,
+                       std::vector<MapEntry>& entries, std::string& error);
+bool FetchAccSaberRecommendations(const std::string& playerId, const std::string& category,
+    ListKind kind, int limit, double minClearRate, ScoreHistory& history,
+    std::vector<MapEntry>& entries, std::string& error);
 
 bool FetchSyncPlaylist(const std::string& beatLeaderPlayerId, const std::string& scoreSaberPlayerId,
                        std::vector<MapEntry>& entries, std::string& error,

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Xml.Linq;
+using System.Text.RegularExpressions;
 using Mono.Cecil;
 using Newtonsoft.Json.Linq;
 using RankedTools.Pcvr.Core;
@@ -23,11 +24,21 @@ static class Program
         Check(RefreshStatusText.Summary("Updated.\r\nWarning")=="Updated.","CRLF refresh messages");
         Check(RefreshStatusText.Summary("")=="" && RefreshStatusText.Summary("Loading")=="Loading","empty and single-line refresh messages");
         var config=new PluginConfig(); var captured=config.CaptureRefresh();
+        Check(!captured.Value<bool>("enableAccSaber") && captured.Value<string>("accSaberCategory")=="overall" && captured.Value<int>("requiredSyncScoreboards")==2,"AccSaber and Sync defaults");
+        config.AccSaberPlayerId="76561198000000001"; config.EnableAccSaber=true; config.AccSaberCategory="tech_acc"; config.RequiredSyncScoreboards=3;
+        var accSnapshot=config.CaptureRefresh();
+        Check(accSnapshot.Value<string>("accSaberPlayerId")=="76561198000000001" && accSnapshot.Value<string>("accSaberCategory")=="tech_acc" && accSnapshot.Value<int>("requiredSyncScoreboards")==3,"AccSaber settings reach native engine");
+        config.AccSaberPlayerId="789"; config.AccSaberCategory="invalid"; config.RequiredSyncScoreboards=int.MaxValue;
+        Check(config.CaptureRefresh().Value<string>("accSaberCategory")=="overall" && config.CaptureRefresh().Value<int>("requiredSyncScoreboards")==PluginConfig.Scoreboards.Length,"category and scoreboard bounds");
+        Check(PluginConfig.NormalizeRequiredSyncScoreboards(int.MinValue)==2,"Sync lower bound");
+        Check(accSnapshot.Value<string>("accSaberPlayerId")=="76561198000000001","AccSaber snapshot stays frozen");
         Check(captured.Value<int>("limit")==16 && captured.Value<int>("minClearRate")==50,"defaults");
-        Check(captured.Value<bool>("importAttempts") && !captured.Value<bool>("legacyClanPlaylists"),"mode defaults");
+        Check(captured.Value<bool>("importAttempts") && !captured.Value<bool>("legacyClanPlaylists") && captured.Value<bool?>("separateNewAndRepeatTracks")==false,"mode defaults: combined playlists with separation off");
         Check(!captured.Value<bool>("enableSyncPlaylist"),"Sync is opt-in");
         config.EnableSyncPlaylist=true;
         Check(config.CaptureRefresh().Value<bool>("enableSyncPlaylist"),"Sync setting reaches native request");
+        config.SeparateNewAndRepeatTracks=true;
+        Check(config.CaptureRefresh().Value<bool?>("separateNewAndRepeatTracks")==true && captured.Value<bool?>("separateNewAndRepeatTracks")==false,"separation setting reaches native request with a frozen snapshot");
         config.BeatLeaderPlayerId="76561198000000001"; config.MaxTracksPerPlaylist=1000; config.MinClearRate=53;
         var snapshot=config.CaptureRefresh(); config.BeatLeaderPlayerId="456"; config.MaxTracksPerPlaylist=2;
         Check(snapshot.Value<string>("beatLeaderPlayerId")=="76561198000000001" && snapshot.Value<int>("limit")==100,"immutable settings and exact ID");
@@ -44,10 +55,12 @@ static class Program
         Parallel.For(0,32,_=> { if(gate.TryEnter())Interlocked.Increment(ref winners); });
         Check(winners==1 && gate.Busy,"overlapping refreshes"); gate.Exit(); Check(gate.TryEnter(),"refresh can run after completion"); gate.Exit();
         var profile=new RecordingProfile(config); config.BeatLeaderPlayerId="789";
+        config.AccSaberPlayerId="456";
         var level="custom_level_"+new string('a',40);
         JObject? Attempt(bool solo=true,bool invalid=false,bool replay=false,bool practice=false,string state="Cleared",string action="None") =>
             AttemptClassifier.Capture(profile,level,"Standard",4,solo,invalid,replay,practice,true,"",state,action,120);
         Check(Attempt()?.Value<string>("beatLeaderPlayerId")=="456","attempt profile frozen at start");
+        Check(Attempt()?.Value<string>("accSaberPlayerId")=="789","AccSaber attempt identity frozen at start");
         Check(Attempt()?.Value<int>("outcome")==1,"clear classification");
         Check(Attempt(state:"Failed")?.Value<int>("outcome")==2,"failure classification");
         Check(Attempt(state:"None",action:"Quit")?.Value<int>("outcome")==3,"quit classification");
@@ -63,6 +76,38 @@ static class Program
         FakeOldPlugin.ReplayState.IsPlaybackEnabled=true;
         Check(ReplayGuard.Read("ScoreSaber",name=>name=="ScoreSaber.Plugin"?typeof(FakeOldPlugin):null)==ReplayStatus.Replay,"verified ScoreSaber 3.3.17 replay guard");
         Check(ReplayGuard.Read("ScoreSaber",_=>null)==ReplayStatus.Unknown,"unknown replay integration fails closed");
+    }
+    // Validate current source without rebuilding either game plugin.
+    static void SourceBindings()
+    {
+        foreach(var game in new[]{"1.40.8","1.44.1"})
+        {
+            using var bsml=AssemblyDefinition.ReadAssembly(Path.Combine(".cache/pcvr/refs-"+game,"Plugins/BSML.dll"));
+            var tags=bsml.MainModule.Types.Where(t=>t.Namespace.StartsWith("BeatSaberMarkupLanguage.Tags",StringComparison.Ordinal))
+                .SelectMany(t=>t.Methods.Where(m=>m.Name=="get_Aliases" && m.HasBody))
+                .SelectMany(m=>m.Body.Instructions.Where(i=>i.OpCode.Code==Mono.Cecil.Cil.Code.Ldstr))
+                .Select(i=>(string)i.Operand).ToHashSet();
+            foreach(var name in new[]{"Settings","Recommendations"})
+            {
+                var source=File.ReadAllText("pcvr/RankedTools.Pcvr/UI/"+name+"Host.cs");
+                HashSet<string> Attributes(string kind) => Regex.Matches(source,"\\["+kind+"\\(\"([^\"]+)\"\\)\\]")
+                    .Select(m=>m.Groups[1].Value).ToHashSet();
+                var values=Attributes("UIValue"); var actions=Attributes("UIAction");
+                var xml=XDocument.Load("pcvr/RankedTools.Pcvr/Views/"+name+".bsml");
+                LayoutBounds(xml,name);
+                foreach(var element in xml.Descendants())
+                {
+                    Check(tags.Contains(element.Name.LocalName),game+" source BSML tag "+element.Name.LocalName);
+                    foreach(var attribute in element.Attributes())
+                    {
+                        var key=attribute.Name.LocalName; var value=attribute.Value;
+                        if(value.StartsWith('~'))Check(values.Contains(value.Substring(1)),name+" source value "+value);
+                        else if(key is "on-click" or "formatter")Check(actions.Contains(value),name+" source action "+value);
+                        else if(key is "value" or "choices")Check(values.Contains(value),name+" source setting "+value);
+                    }
+                }
+            }
+        }
     }
     static void Bindings(string plugin)
     {
@@ -82,6 +127,12 @@ static class Program
         foreach(var factory in new[]{("ScrollViewTag","BSMLScrollViewContent"),("TextTag","BSMLText")})
             Check(bsml.MainModule.Types.Single(t=>t.Name==factory.Item1).Methods.Single(m=>m.Name=="CreateObject").Body.Instructions
                 .Any(i=>i.OpCode.Code==Mono.Cecil.Cil.Code.Ldstr && (string)i.Operand==factory.Item2),"viewport layout adapter matches pinned "+factory.Item1);
+        var imageFactories=bsml.MainModule.Types.Where(t=>t.Name is "ImageTag" or "RawImageTag")
+            .ToDictionary(t=>t.Methods.Single(m=>m.Name=="get_Aliases").Body.Instructions
+                .Where(i=>i.OpCode.Code==Mono.Cecil.Cil.Code.Ldstr).Select(i=>(string)i.Operand).First(),
+                t=>t.Methods.Single(m=>m.Name=="CreateObject").Body.Instructions
+                    .Select(i=>i.Operand).OfType<GenericInstanceMethod>()
+                    .Where(m=>m.Name=="AddComponent").SelectMany(m=>m.GenericArguments).Select(t=>t.FullName).ToHashSet());
         foreach(var name in new[]{"Settings","Recommendations"})
         {
             var host=assembly.MainModule.Types.Single(t=>t.FullName=="RankedTools.Pcvr.UI."+name+"Host");
@@ -124,6 +175,12 @@ static class Program
                 }
             }
             foreach(var component in components)Check(xml.Descendants().Count(e=>e.Attribute("id")?.Value==component)==1,name+" missing component "+component);
+            foreach(var field in host.Fields.Where(f=>Binding(f.CustomAttributes,"UIComponent")!=null))
+            {
+                var element=xml.Descendants().Single(e=>(string?)e.Attribute("id")==Binding(field.CustomAttributes,"UIComponent"));
+                if(imageFactories.TryGetValue(element.Name.LocalName,out var createdTypes))
+                    Check(createdTypes.Contains(field.FieldType.FullName),name+" image binding "+field.Name+" must match the component created by the pinned BSML tag");
+            }
             if(name=="Settings")
             {
                 var query=xml.Descendants("string-setting").Single(e=>(string?)e.Attribute("value")=="search-input");
@@ -165,6 +222,13 @@ static class Program
                 if(buttons.Length>0)Check(buttons.Sum(b=>(double)b.Attribute("pref-width")!)+(buttons.Length-1)*(double)row.Attribute("spacing")!<=106,"navigation buttons fit the 110-unit panel with padding");
             }
             CheckRemaining(root,4,20);
+            var chart=xml.Descendants().Single(e=>(string?)e.Attribute("id")=="ability-image");
+            var frame=chart.Parent!;
+            var width=(double?)chart.Attribute("pref-width")??0;
+            var height=(double?)chart.Attribute("pref-height")??0;
+            Check(width is >0 and <=100 && height>0 && Math.Abs(width/height-16.0/9)<.001,"ability chart keeps the native bitmap's 16:9 aspect within the panel");
+            Check((double?)chart.Attribute("min-height")==height && (double?)frame.Attribute("min-height")==height,"ability chart keeps its height when the scroll content changes");
+            Check((bool?)frame.Attribute("child-expand-width")==false && (bool?)frame.Attribute("child-expand-height")==false,"ability chart frame must not stretch the bitmap");
         }
     }
     static void CheckRemaining(XElement group,double padding,double minimum)
@@ -216,7 +280,7 @@ static class Program
             if(args.Contains("--bad-ca"))Native(args[Array.IndexOf(args,"--native")+1],true,true);
             else
             {
-                Models();
+                Models(); SourceBindings();
                 for(var i=0;i<args.Length;i++)if(args[i]=="--plugin")Bindings(args[i+1]);
                 if(args.Contains("--native"))Native(args[Array.IndexOf(args,"--native")+1],args.Contains("--live"),false);
             }

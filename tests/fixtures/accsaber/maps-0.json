@@ -1,0 +1,67 @@
+{
+  "content": [
+    {
+      "id": "map-1",
+      "songHash": "0000000000000000000000000000000000000001",
+      "songName": "Acc song 1",
+      "songAuthor": "Author",
+      "mapAuthor": "Mapper",
+      "difficulties": [
+        {
+          "id": "chart-1",
+          "mapId": "map-1",
+          "difficulty": "EXPERT_PLUS",
+          "characteristic": "Standard",
+          "status": "RANKED",
+          "categoryId": "category-0",
+          "complexity": 7,
+          "maxScore": 100000
+        }
+      ]
+    },
+    {
+      "id": "map-2",
+      "songHash": "0000000000000000000000000000000000000002",
+      "songName": "Acc song 2",
+      "songAuthor": "Author",
+      "mapAuthor": "Mapper",
+      "difficulties": [
+        {
+          "id": "chart-2",
+          "mapId": "map-2",
+          "difficulty": "EXPERT_PLUS",
+          "characteristic": "Standard",
+          "status": "RANKED",
+          "categoryId": "category-0",
+          "complexity": 7,
+          "maxScore": 100000
+        }
+      ]
+    },
+    {
+      "id": "map-3",
+      "songHash": "0000000000000000000000000000000000000003",
+      "songName": "Acc song 3",
+      "songAuthor": "Author",
+      "mapAuthor": "Mapper",
+      "difficulties": [
+        {
+          "id": "chart-3",
+          "mapId": "map-3",
+          "difficulty": "EXPERT_PLUS",
+          "characteristic": "Standard",
+          "status": "RANKED",
+          "categoryId": "category-2",
+          "complexity": 10,
+          "maxScore": 100000
+        }
+      ]
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 3,
+    "totalElements": 5,
+    "totalPages": 2
+  }
+}

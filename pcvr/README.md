@@ -1,8 +1,10 @@
 # RankedTools PCVR preview
 
-RankedTools creates personalized BeatLeader and ScoreSaber playlists to help you gain PP, improve existing scores, and discover ranked maps suited to your ability. This is the Windows x64 PCVR port of the Quest mod.
+RankedTools creates personalized BeatLeader, ScoreSaber and AccSaber playlists to help you gain PP, improve existing scores, and discover ranked maps suited to your ability. This is the Windows x64 PCVR port of the Quest mod.
 
-**Preview version: 0.1.26-pcvr.4. Targets: Beat Saber 1.40.8 and 1.44.1. Full in-game validation remains pending.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine.
+**Preview version: 0.1.28-pcvr.1. Targets: Beat Saber 1.40.8 and 1.44.1. Full in-game validation remains pending.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine. This testing build adds AccSaber personal playlists and category ability views, three-service Sync with Required Sync Scoreboards, the new default combined layout, and supplied covers. It also includes the Ability Chart display fix and BeatLeader PPv4.1. Refresh playlists after installing. See TESTING-THIS-BUILD.md in the ZIP for the focused checklist.
+
+Download the matching PC ZIP from the [0.1.28 preview release](https://github.com/Kaiiak04/RankedTools/releases/tag/v0.1.28). The shared engine also includes the 30-day sigmoid on all services, HTTPS threading support and persistent refresh error details. The maintainer's Quest result does not establish PCVR behavior.
 
 ## Install
 
@@ -15,9 +17,10 @@ BeatLeader and ScoreSaber's in-game mods are optional. Recommendations use their
 
 ## Use
 
-Enable **Create Sync playlist** after selecting both accounts to fill missing scores between leaderboards. Sync matches exact hash, characteristic and difficulty, requires ranked status on both services, and includes all charts scored on exactly one. All characteristics and all matches are included, regardless of song count, Simple Mode, Min Clear Rate or personal playlist toggles. Posted No Fail scores count as filled; local attempts do not. Multiple qualifying charts are grouped under the song, with each missing leaderboard shown in the preview. Complete catalogs can take longer to fetch. A failed or incomplete fetch/save preserves the prior playlist; a successful empty result writes an empty playlist.
+Enable **Create Sync playlist** after selecting at least two accounts to fill missing scores between leaderboards. Sync matches exact hash, characteristic and difficulty, requires ranked status on at least **Required Sync Scoreboards** selected services (default 2, currently 2–3), and includes charts scored on at least one but missing on another. Selected accounts participate independently of personal-playlist toggles. Choosing 3 needs three accounts. All characteristics and all matches are included, regardless of song count, Separate New and Repeat Tracks, AccSaber Category, Min Clear Rate or personal playlist toggles. Posted No Fail scores count as filled; local attempts do not. Multiple qualifying charts are grouped under the song, with each missing leaderboard shown in the preview. Complete catalogs can take longer to fetch. A failed or incomplete fetch/save preserves the prior playlist; a successful empty result writes an empty playlist.
 
-- The normal layout creates **Not Played** and **To Improve** playlists for each enabled leaderboard. **Simple Mode** replaces those with one **PP Gain** playlist per leaderboard.
+- AccSaber playlists start off. Select its account and enable them, then choose Overall (default), True Acc, Standard Acc or Tech Acc. Its combined playlist uses **AP Gain**, with category-specific Complexity ability views. See [AccSaber details and validation](../docs/ACCSABER.md).
+- The default layout creates one combined **PP Gain** playlist for each enabled leaderboard. **Separate New and Repeat Tracks** is off by default; enable it for separate **Not Played** and **To Improve** playlists.
 - **Min Clear Rate** defaults to 50% and ranges from 0–95% in 5% steps. At 0%, the threshold and chance adjustment are disabled. Clearability is a heuristic, not a measured probability.
 - Clan playlists include personalized capture/progress suggestions, optional legacy ordering, main/all-clan selection, clan artwork, and capture targets. Only your primary clan receives actual contributions; secondary-clan results are labeled what-if estimates.
 - **Song details** has playlist and song navigation, predictions, weighted gains, confidence, and nearby attempt evidence. **Ability chart** shows the same fitted model used by recommendations, including its observed range and extrapolation. Navigation stays above the scrolling details; full refresh messages and warnings appear beneath the song/chart information.

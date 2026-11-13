@@ -104,36 +104,61 @@ bool ParseSyncPage(const std::string& body, RatingSystem system, bool scores,
     return true;
 }
 
-std::vector<MapEntry> SelectSyncPlaylist(const std::vector<MapEntry>& beatLeaderCatalog,
-    const std::vector<MapEntry>& scoreSaberCatalog, const std::vector<MapEntry>& beatLeaderScores,
-    const std::vector<MapEntry>& scoreSaberScores) {
-    std::unordered_set<std::string> ssRanked, blPlayed, ssPlayed, emitted;
-    for (const auto& chart : scoreSaberCatalog) if (chart.ranked) ssRanked.insert(EntryKey(chart));
-    for (const auto& score : beatLeaderScores) blPlayed.insert(EntryKey(score));
-    for (const auto& score : scoreSaberScores) ssPlayed.insert(EntryKey(score));
+struct SyncProviderData {
+    std::string service;
+    std::vector<MapEntry> catalog, scores;
+};
+
+std::vector<MapEntry> SelectSyncPlaylist(const std::vector<SyncProviderData>& providers, int required) {
+    struct Chart { MapEntry entry; std::unordered_set<size_t> ranked, scored; };
+    std::unordered_map<std::string, Chart> charts;
+    std::vector<std::string> encounterOrder;
+    for (size_t i = 0; i < providers.size(); ++i) {
+        for (const auto& entry : providers[i].catalog) if (entry.ranked) for (const auto& difficulty : entry.difficulties) {
+            auto normalized = entry; normalized.difficulties = {difficulty};
+            const auto key = EntryKey(normalized);
+            auto& chart = charts[key];
+            if (chart.ranked.empty()) { chart.entry = std::move(normalized); encounterOrder.push_back(key); }
+            chart.ranked.insert(i);
+        }
+    }
+    for (size_t i = 0; i < providers.size(); ++i) for (const auto& entry : providers[i].scores)
+        for (const auto& difficulty : entry.difficulties) {
+            auto normalized = entry; normalized.difficulties = {difficulty};
+            const auto found = charts.find(EntryKey(normalized));
+            if (found != charts.end() && found->second.ranked.contains(i)) found->second.scored.insert(i);
+        }
+    std::vector<std::string> keys;
+    for (const auto& key : encounterOrder) {
+        const auto& chart = charts.at(key);
+        if (chart.ranked.size() >= static_cast<size_t>(required) &&
+            !chart.scored.empty() && chart.scored.size() < chart.ranked.size()) keys.push_back(key);
+    }
     std::unordered_map<std::string, size_t> songIndices;
     std::vector<MapEntry> result;
-    for (const auto& chart : beatLeaderCatalog) {
-        if (!chart.ranked || chart.difficulties.empty()) continue;
-        const auto key = EntryKey(chart);
-        const bool bl = blPlayed.contains(key), ss = ssPlayed.contains(key);
-        if (!ssRanked.contains(key) || bl == ss || !emitted.insert(key).second) continue;
-        const auto hash = Lower(chart.hash);
+    for (const auto& key : keys) {
+        const auto& chart = charts.at(key);
+        const auto hash = Lower(chart.entry.hash);
         auto [it, inserted] = songIndices.emplace(hash, result.size());
         if (inserted) {
-            auto song = chart;
-            song.hash = hash;
+            auto song = chart.entry; song.hash = hash;
             song.difficulties.clear(); song.syncTargets.clear();
             result.push_back(std::move(song));
         }
         auto& song = result[it->second];
-        const auto& difficulty = chart.difficulties.front();
+        const auto& difficulty = chart.entry.difficulties.front();
         song.difficulties.push_back(difficulty);
-        song.syncTargets.push_back({difficulty.characteristic, difficulty.name, bl ? "ScoreSaber" : "BeatLeader"});
+        for (size_t i = 0; i < providers.size(); ++i) if (chart.ranked.contains(i) && !chart.scored.contains(i))
+            song.syncTargets.push_back({difficulty.characteristic, difficulty.name, providers[i].service});
     }
     std::sort(result.begin(), result.end(), [](const MapEntry& a, const MapEntry& b) {
         const auto an = Lower(a.songName), bn = Lower(b.songName);
         return an == bn ? a.hash < b.hash : an < bn;
     });
     return result;
+}
+
+std::vector<MapEntry> SelectSyncPlaylist(const std::vector<MapEntry>& blCatalog,
+    const std::vector<MapEntry>& ssCatalog, const std::vector<MapEntry>& blScores, const std::vector<MapEntry>& ssScores) {
+    return SelectSyncPlaylist({{"BeatLeader", blCatalog, blScores}, {"ScoreSaber", ssCatalog, ssScores}}, 2);
 }

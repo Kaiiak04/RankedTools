@@ -28,7 +28,7 @@ bool ValidAttemptIdentity(const Attempt& a) {
         std::isfinite(a.endTime) && a.endTime >= 0 && std::isfinite(a.stars) && a.stars >= 0;
 }
 std::filesystem::path AttemptPath(const std::string& service, const std::string& id) {
-    if ((service != "beatleader" && service != "scoresaber") || id.empty() ||
+    if ((service != "beatleader" && service != "scoresaber" && service != "accsaber") || id.empty() ||
         !std::all_of(id.begin(), id.end(), [](unsigned char c) { return std::isdigit(c); }))
         throw std::runtime_error("Invalid attempt-history player ID or service.");
     return RuntimePaths().attempts / (service + "_" + id + ".json");

@@ -1,0 +1,63 @@
+{
+  "content": [
+    {
+      "id": "score-1",
+      "userId": "76561198000000001",
+      "songHash": "0000000000000000000000000000000000000001",
+      "mapDifficultyId": "chart-1",
+      "songName": "Acc song 1",
+      "difficulty": "EXPERT_PLUS",
+      "characteristic": "Standard",
+      "score": 95000,
+      "scoreNoMods": 95000,
+      "accuracy": 0.95,
+      "ap": 762.5,
+      "active": true,
+      "partial": false,
+      "timeSet": "2026-11-01T12:00:00Z",
+      "modifierIds": []
+    },
+    {
+      "id": "score-4",
+      "userId": "76561198000000001",
+      "songHash": "0000000000000000000000000000000000000004",
+      "mapDifficultyId": "chart-4",
+      "songName": "Acc song 4",
+      "difficulty": "EXPERT_PLUS",
+      "characteristic": "Standard",
+      "score": 98000,
+      "scoreNoMods": 98000,
+      "accuracy": 0.98,
+      "ap": 1098,
+      "active": true,
+      "partial": false,
+      "timeSet": "2026-11-01T12:00:00Z",
+      "modifierIds": []
+    },
+    {
+      "id": "score-2",
+      "userId": "76561198000000001",
+      "songHash": "0000000000000000000000000000000000000002",
+      "mapDifficultyId": "chart-2",
+      "songName": "Acc song 2",
+      "difficulty": "EXPERT_PLUS",
+      "characteristic": "Standard",
+      "score": 47500,
+      "scoreNoMods": 95000,
+      "accuracy": 0.475,
+      "ap": 160.972222,
+      "active": true,
+      "partial": false,
+      "timeSet": "2026-11-01T12:00:00Z",
+      "modifierIds": [
+        "mod-nf"
+      ]
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 3,
+    "totalElements": 3,
+    "totalPages": 1
+  }
+}

@@ -23,7 +23,7 @@ void ClanRefreshPerformance() {
     { std::ofstream file(ClanScreenCache::Path("test")); file << "broken"; }
     ClanScreenCache damaged;
     CHECK(!damaged.Get("test",10,now+1,body));
-    { std::ofstream file(ClanScreenCache::Path("test")); file << "{\"version\":1,\"epoch\":0,\"savedAt\":" << std::setprecision(16) << now << ",\"body\":\"payload\"}"; }
+    { std::ofstream file(ClanScreenCache::Path("test")); file << "{\"version\":1,\"epoch\":4,\"savedAt\":" << std::setprecision(16) << now << ",\"body\":\"payload\"}"; }
     ClanScreenCache obsolete;
     CHECK(!obsolete.Get("test",10,now+1,body));
     std::filesystem::remove(ClanScreenCache::Path("test"));

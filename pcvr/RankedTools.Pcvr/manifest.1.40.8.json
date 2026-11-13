@@ -3,9 +3,9 @@
   "id": "RankedTools",
   "name": "RankedTools",
   "author": "Kaiiak04",
-  "version": "0.1.26-pcvr.4",
+  "version": "0.1.28-pcvr.1",
   "gameVersion": "1.40.8",
-  "description": "Personalized BeatLeader and ScoreSaber playlists, clan recommendations, and ability charts. PCVR preview; in-game validation pending.",
+  "description": "Personalized BeatLeader, ScoreSaber and AccSaber playlists, clan recommendations, and ability charts. PCVR preview; in-game validation pending.",
   "dependsOn": {
     "BSIPA": "^4.3.6",
     "BeatSaberMarkupLanguage": "^1.12.5",

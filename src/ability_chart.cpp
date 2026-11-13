@@ -25,6 +25,9 @@ std::array<uint8_t, 7> Glyph(char c) {
         case 'I': return {14,4,4,4,4,4,14}; case 'R': return {30,17,17,30,20,18,17};
         case 'S': return {15,16,16,14,1,1,30}; case 'T': return {31,4,4,4,4,4,4};
         case 'U': return {17,17,17,17,17,17,14}; case 'Y': return {17,17,10,4,4,4,4};
+        case 'O': return {14,17,17,17,17,17,14}; case 'M': return {17,27,21,21,17,17,17};
+        case 'P': return {30,17,17,30,16,16,16}; case 'L': return {16,16,16,16,16,16,31};
+        case 'X': return {17,17,10,4,10,17,17};
         default: return {};
     }
 }
@@ -98,7 +101,8 @@ ChartBitmap RenderAbilityChart(const AbilityChart& chart) {
         canvas.Text(px - label.size() * 9, bottom - 32, label);
     }
     canvas.Text(left, top + 25, "ACCURACY", 3);
-    canvas.Text((left + right) / 2 - 45, 15, "STARS", 3);
+    canvas.Text((left + right) / 2 - (chart.complexityAxis ? 90 : 45), 15,
+                chart.complexityAxis ? "COMPLEXITY" : "STARS", 3);
     for (const auto& point : chart.scores) {
         // Fade older scores to communicate their smaller fitting weight.
         const uint8_t shade = static_cast<uint8_t>(100 + 100 * std::clamp(point.weight, 0.0, 1.0));

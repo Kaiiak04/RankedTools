@@ -5,18 +5,23 @@
       <button text="Choose BeatLeader account" on-click="choose-beatleader" pref-width="90" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="90" min-height="7" flexible-width="0" flexible-height="0" />
       <text text="~scoresaber-account" font-size="3.2" rich-text="false" word-wrapping="true" />
       <button text="Choose ScoreSaber account" on-click="choose-scoresaber" pref-width="90" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="90" min-height="7" flexible-width="0" flexible-height="0" />
+      <text text="~accsaber-account" font-size="3.2" rich-text="false" word-wrapping="true" />
+      <button text="Choose AccSaber account" on-click="choose-accsaber" pref-width="90" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="90" min-height="7" flexible-width="0" flexible-height="0" />
       <button text="Show / hide IDs" on-click="toggle-ids" pref-width="90" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="90" min-height="7" flexible-width="0" flexible-height="0" />
       <increment-setting text="Tracks per playlist" value="track-limit" min="1" max="100" increment="1" integer-only="true" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <slider-setting text="Min Clear Rate" value="clear-rate" min="0" max="95" increment="5" integer-only="true" formatter="clear-rate-format" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <text text="Clear estimates are heuristic. 0% disables the threshold and chance adjustment; legacy clan mode also removes its maximum star cap." font-size="3.2" rich-text="false" word-wrapping="true" />
-      <toggle-setting text="Simple Mode" value="simple-mode" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Separate New and Repeat Tracks" value="separate-new-and-repeat-tracks" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Record local attempts" value="record-attempts" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <text text="Use your own player IDs when recording attempts. Turn recording off when inspecting someone else's profile." font-size="3.2" rich-text="false" word-wrapping="true" />
       <toggle-setting text="Import attempt history" value="import-attempts" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Create BeatLeader playlists" value="enable-beatleader" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Create ScoreSaber playlists" value="enable-scoresaber" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="Create AccSaber playlists" value="enable-accsaber" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <dropdown-list-setting text="AccSaber Category" value="accsaber-category" choices="accsaber-categories" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Create BeatLeader clan playlist" value="enable-clans" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Create Sync playlist" value="enable-sync" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <increment-setting text="Required Sync Scoreboards" value="required-sync-scoreboards" min="2" max="~sync-scoreboard-maximum" increment="1" integer-only="true" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Legacy Clan Playlists" value="legacy-clans" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Include all clans" value="all-clans" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <text text="Only your primary clan receives actual contributions. Secondary-clan playlists show what-if estimates. Refresh recommendations to apply settings." font-size="3.2" rich-text="false" word-wrapping="true" />

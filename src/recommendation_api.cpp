@@ -4,8 +4,12 @@
 #include "account.hpp"
 #include "clan_recommendation.hpp"
 #include "ability_chart.hpp"
+#include "leaderboards.hpp"
 
 #include "libcurl/shared/curl.h"
+#ifdef RANKEDTOOLS_MBEDTLS_THREADING
+#include "https_threading.hpp"
+#endif
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -93,7 +97,12 @@ size_t CurlWrite(char* data, size_t size, size_t count, void* userData) {
 bool HttpGetInternal(const std::string& url, std::string& body, std::string& error,
                      size_t limit, long timeout) {
     if (RuntimeCancelled().load()) { error = "Request cancelled during shutdown."; return false; }
-    static const bool curlReady = curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK;
+    static const bool curlReady = [] {
+#ifdef RANKEDTOOLS_MBEDTLS_THREADING
+        https::InitializeThreading();
+#endif
+        return curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK;
+    }();
     if (!curlReady) {
         error = "Could not initialize the HTTPS client.";
         return false;
@@ -107,8 +116,11 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
         return false;
     }
     body.clear();
+    error.clear();
     CurlResponse response{body, limit};
+    char errorBuffer[CURL_ERROR_SIZE]{};
     curl_easy_reset(curl);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -156,7 +168,14 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
     // Remove stack-owned callback pointers, while preserving the connection pool.
     curl_easy_reset(curl);
     if (result != CURLE_OK) {
-        error = std::string("Request failed: ") + curl_easy_strerror(result);
+        error = std::string("Request failed: ") + curl_easy_strerror(result) +
+            " (curl " + std::to_string(static_cast<int>(result)) + ")";
+        if (errorBuffer[0]) {
+            std::string detail(errorBuffer);
+            std::replace(detail.begin(), detail.end(), '\r', ' ');
+            std::replace(detail.begin(), detail.end(), '\n', ' ');
+            error += ": " + detail;
+        }
         return false;
     }
     if (responseCode < 200 || responseCode >= 300) {
@@ -1018,6 +1037,7 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
 }
 
 #include "clan_api_impl.hpp"
+#include "accsaber_api_impl.hpp"
 #include "sync_api_impl.hpp"
 
 } // namespace
@@ -1084,6 +1104,17 @@ bool FetchSyncPlaylist(const std::string& blId, const std::string& ssId, std::ve
     return FetchSyncPlaylistInternal(blId, ssId, entries, error, blHistory, ssHistory);
 }
 
+bool FetchSyncPlaylist(const std::vector<SyncAccount>& accounts, int requiredScoreboards,
+                       std::vector<MapEntry>& entries, std::string& error) {
+    return FetchSyncAccountsInternal(accounts, requiredScoreboards, entries, error);
+}
+
+bool FetchAccSaberRecommendations(const std::string& playerId, const std::string& category,
+    ListKind kind, int limit, double minClearRate, ScoreHistory& history,
+    std::vector<MapEntry>& entries, std::string& error) {
+    return FetchAccRecommendationsInternal(playerId, category, kind, limit, minClearRate, history, entries, error);
+}
+
 bool SaveClanExplorationCursor(const std::string& id, const std::string& tag, std::size_t cursor, std::string& error) {
     return PersistClanCursor(id, tag, cursor, error);
 }
@@ -1100,6 +1131,11 @@ bool FetchRecommendations(const std::string& service,
                           double minClearRate,
                           StarRange* beatLeaderNotPlayedRange,
                           ScoreHistory* history) {
+    if (Lower(service) == "accsaber") {
+        ScoreHistory local;
+        return FetchAccRecommendationsInternal(playerId, "overall", kind, limit, minClearRate, history ? *history : local, entries, error);
+    }
+    if (Lower(service) != "scoresaber" && Lower(service) != "beatleader") { error = "Unknown recommendation service."; return false; }
     const auto system = Lower(service) == "scoresaber" ? RatingSystem::ScoreSaber : RatingSystem::BeatLeader;
     return FetchServiceRecommendations(system, playerId, kind, limit, entries, error, minClearRate,
                                        beatLeaderNotPlayedRange, history);

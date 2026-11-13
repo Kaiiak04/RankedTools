@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using System.Collections;
 using BeatSaberMarkupLanguage.Attributes;
 using HMUI;
 using Legato.Presentation;
@@ -29,6 +30,16 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
 
     [UIValue("beatleader-account")] public string BeatLeaderAccount => AccountLabel("BeatLeader",Config.BeatLeaderPlayerId,Config.BeatLeaderPlayerName);
     [UIValue("scoresaber-account")] public string ScoreSaberAccount => AccountLabel("ScoreSaber",Config.ScoreSaberPlayerId,Config.ScoreSaberPlayerName);
+    [UIValue("accsaber-account")] public string AccSaberAccount => AccountLabel("AccSaber",Config.AccSaberPlayerId,Config.AccSaberPlayerName);
+    [UIValue("accsaber-categories")] public IList AccSaberCategories => PluginConfig.AccSaberCategoryLabels;
+    [UIValue("accsaber-category")] public string AccSaberCategory
+    {
+        get => PluginConfig.AccSaberCategoryLabels[Array.IndexOf(PluginConfig.AccSaberCategories,PluginConfig.NormalizeAccSaberCategory(Config.AccSaberCategory))];
+        set { var index=Array.IndexOf(PluginConfig.AccSaberCategoryLabels,value); Config.AccSaberCategory=PluginConfig.AccSaberCategories[Math.Max(0,index)]; }
+    }
+    [UIValue("required-sync-scoreboards")] public int RequiredSyncScoreboards { get=>PluginConfig.NormalizeRequiredSyncScoreboards(Config.RequiredSyncScoreboards); set=>Config.RequiredSyncScoreboards=PluginConfig.NormalizeRequiredSyncScoreboards(value); }
+    [UIValue("sync-scoreboard-maximum")] public int SyncScoreboardMaximum => PluginConfig.Scoreboards.Length;
+    [UIValue("enable-accsaber")] public bool EnableAccSaber { get=>Config.EnableAccSaber; set=>Config.EnableAccSaber=value; }
     private string AccountLabel(string name,string id,string selected) => name+": "+(id.Length==0?"Not selected":selected.Length==0?"Saved account":selected)+(showIds&&id.Length>0?"\nID: "+id:"");
     [UIValue("picker-open")] public bool PickerOpen => picker;
     [UIValue("show-settings")] public bool ShowSettings => !picker;
@@ -57,12 +68,12 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
     {
         var profile=Profile(index); if(profile==null)return "";
         var rank=profile.Value<long?>("rank")??0;
-        return profile.Value<string>("name")+"\n"+(profile.Value<string>("country")??"Country unknown")+" | "+(rank>0?"Rank #"+rank:"Unranked")+"\nID: "+profile.Value<string>("id");
+        return profile.Value<string>("name")+"\n"+(profile.Value<string>("country")??"Country unknown")+" | "+(rank>0?"Rank #"+rank:service=="AccSaber"?"Rank unavailable":"Unranked")+"\nID: "+profile.Value<string>("id");
     }
     [UIValue("track-limit")] public int TrackLimit { get=>Config.MaxTracksPerPlaylist; set=>Config.MaxTracksPerPlaylist=Math.Max(1,Math.Min(100,value)); }
     [UIValue("clear-rate")] public int ClearRate { get=>PluginConfig.NormalizeClearRate(Config.MinClearRate); set=>Config.MinClearRate=PluginConfig.NormalizeClearRate(value); }
     [UIAction("clear-rate-format")] private string FormatClearRate(int value) => PluginConfig.NormalizeClearRate(value)+"%";
-    [UIValue("simple-mode")] public bool SimpleMode { get=>Config.SimpleMode; set=>Config.SimpleMode=value; }
+    [UIValue("separate-new-and-repeat-tracks")] public bool SeparateNewAndRepeatTracks { get=>Config.SeparateNewAndRepeatTracks; set=>Config.SeparateNewAndRepeatTracks=value; }
     [UIValue("record-attempts")] public bool RecordAttempts { get=>Config.RecordLocalAttempts; set=>Config.RecordLocalAttempts=value; }
     [UIValue("import-attempts")] public bool ImportAttempts { get=>Config.ImportAttemptHistory; set=>Config.ImportAttemptHistory=value; }
     [UIValue("enable-beatleader")] public bool EnableBeatLeader { get=>Config.EnableBeatLeader; set=>Config.EnableBeatLeader=value; }
@@ -74,12 +85,14 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
 
     [UIAction("choose-beatleader")] private void ChooseBeatLeader() => Choose("BeatLeader");
     [UIAction("choose-scoresaber")] private void ChooseScoreSaber() => Choose("ScoreSaber");
+    [UIAction("choose-accsaber")] private void ChooseAccSaber() => Choose("AccSaber");
     private void Choose(string next) { service=next; picker=true; lookup.Invalidate(); input=""; message="Enter a display name, profile URL, or numeric ID."; ReleaseAvatars(); Notify(); }
     [UIAction("toggle-ids")] private void ToggleIds() { showIds=!showIds; Notify(); }
     [UIAction("cancel")] private void Cancel() { lookup.Invalidate(); picker=false; ReleaseAvatars(); Notify(); }
     [UIAction("clear-account")] private void ClearAccount()
     {
         if(service=="BeatLeader") { Config.BeatLeaderPlayerId=""; Config.BeatLeaderPlayerName=""; }
+        else if(service=="AccSaber") { Config.AccSaberPlayerId=""; Config.AccSaberPlayerName=""; }
         else { Config.ScoreSaberPlayerId=""; Config.ScoreSaberPlayerName=""; }
         Cancel();
     }
@@ -139,15 +152,16 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
         var profile=Profile(index); if(profile==null)return;
         var id=profile.Value<string>("id")??""; var name=profile.Value<string>("name")??"";
         if(service=="BeatLeader") { Config.BeatLeaderPlayerId=id; Config.BeatLeaderPlayerName=name; }
+        else if(service=="AccSaber") { Config.AccSaberPlayerId=id; Config.AccSaberPlayerName=name; }
         else { Config.ScoreSaberPlayerId=id; Config.ScoreSaberPlayerName=name; }
         Cancel();
     }
     [UIAction("#post-parse")] private async void Parsed()
     {
         MenuLayout.Configure(layoutRoot);
-        foreach(var provider in new[]{"BeatLeader","ScoreSaber"})
+        foreach(var provider in PluginConfig.Scoreboards)
         {
-            var id=provider=="BeatLeader"?Config.BeatLeaderPlayerId:Config.ScoreSaberPlayerId; if(id.Length==0)continue;
+            var id=provider=="AccSaber"?Config.AccSaberPlayerId:provider=="BeatLeader"?Config.BeatLeaderPlayerId:Config.ScoreSaberPlayerId; if(id.Length==0)continue;
             try
             {
                 var result=await session.Request(new JObject { ["command"]="accounts",["service"]=provider,["input"]=id,["page"]=1 });
@@ -156,6 +170,7 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
                 if(profile?.Value<string>("id")!=id)continue;
                 if(provider=="BeatLeader" && Config.BeatLeaderPlayerId==id)Config.BeatLeaderPlayerName=profile.Value<string>("name")??"";
                 if(provider=="ScoreSaber" && Config.ScoreSaberPlayerId==id)Config.ScoreSaberPlayerName=profile.Value<string>("name")??"";
+                if(provider=="AccSaber" && Config.AccSaberPlayerId==id)Config.AccSaberPlayerName=profile.Value<string>("name")??"";
                 Notify();
             }
             catch { /* Preserve the saved account and name on API failure. */ }

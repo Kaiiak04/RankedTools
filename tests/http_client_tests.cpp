@@ -1,6 +1,7 @@
 // Exercise the production HTTPS client with a fake libcurl boundary. No network.
 #include <atomic>
 #include <cstdarg>
+#include <cstdio>
 #include <iostream>
 #include <stdexcept>
 #include <thread>
@@ -22,6 +23,7 @@ struct Options {
     long timeout{0}, connectTimeout{0}, noSignal{0};
     curl_write_callback write{nullptr};
     void* data{nullptr};
+    char* errorBuffer{nullptr};
 };
 struct FakeHandle {
     Options options;
@@ -35,12 +37,18 @@ thread_local FakeHandle* current{nullptr};
 thread_local std::string responseBody{"ok"};
 thread_local long responseCode{200};
 thread_local CURLcode responseResult{CURLE_OK};
+thread_local std::string responseError;
 thread_local long expectedTimeout{18};
 int checks{0};
 #define CHECK(condition) do { ++checks; if (!(condition)) throw std::runtime_error(#condition); } while (false)
 }
 
-extern "C" CURLcode curl_global_init(long) { return CURLE_OK; }
+extern "C" CURLcode curl_global_init(long) {
+#ifdef RANKEDTOOLS_MBEDTLS_THREADING
+    if (mbedtls_mutex_lock != rankedpractice::https::MutexLock) invalidOptions = true;
+#endif
+    return CURLE_OK;
+}
 extern "C" CURL* curl_easy_init() {
     ++created;
     current = new FakeHandle;
@@ -70,6 +78,7 @@ CURLcode MockEasySetopt(CURL* curl, int option, ...) {
         case CURLOPT_FOLLOWLOCATION: case CURLOPT_MAXREDIRS: (void)va_arg(args, long); break;
         case CURLOPT_WRITEFUNCTION: options.write = va_arg(args, curl_write_callback); break;
         case CURLOPT_WRITEDATA: options.data = va_arg(args, void*); break;
+        case CURLOPT_ERRORBUFFER: options.errorBuffer = va_arg(args, char*); break;
         default: invalidOptions = true;
     }
     va_end(args);
@@ -80,12 +89,17 @@ extern "C" CURLcode curl_easy_perform(CURL* curl) {
     const auto& options = handle.options;
     if (handle.owner != std::this_thread::get_id() || options.protocols != "https" ||
         options.redirectProtocols != "https" || options.noSignal != 1 ||
-        !options.write || !options.data || options.timeout != expectedTimeout ||
+        !options.write || !options.data || !options.errorBuffer || options.errorBuffer[0] ||
+        options.timeout != expectedTimeout ||
         options.connectTimeout != std::min(10L, expectedTimeout))
         invalidOptions = true;
     handle.newConnections = handle.connected ? 0 : 1;
     handle.connected = true;
-    if (responseResult != CURLE_OK) return responseResult;
+    if (responseResult != CURLE_OK) {
+        if (options.errorBuffer)
+            std::snprintf(options.errorBuffer, CURL_ERROR_SIZE, "%s", responseError.c_str());
+        return responseResult;
+    }
     return options.write(responseBody.data(), 1, responseBody.size(), options.data) == responseBody.size()
         ? CURLE_OK : CURLE_WRITE_ERROR;
 }
@@ -112,7 +126,8 @@ int main() {
         std::string body, error;
         CHECK(HttpGetInternal("https://example.test/first", body, error, 100, 18));
         CHECK(body == "ok" && created == 1);
-        CHECK(current->options.data == nullptr && current->options.write == nullptr);
+        CHECK(current->options.data == nullptr && current->options.write == nullptr &&
+            current->options.errorBuffer == nullptr);
         responseBody = "12345";
         expectedTimeout = 8;
         CHECK(!HttpGetInternal("https://example.test/icon", body, error, 4, 8));
@@ -127,20 +142,35 @@ int main() {
         responseCode = 200;
         responseResult = CURLE_OPERATION_TIMEDOUT;
         CHECK(!HttpGetInternal("https://example.test/timeout", body, error, 100, 18));
+        CHECK(error == "Request failed: mock failure (curl 28)");
+        responseResult = CURLE_SSL_CONNECT_ERROR;
+        responseError = "mbedTLS: (-0x1234) TLS handshake failed\r\n";
+        CHECK(!HttpGetInternal("https://example.test/tls", body, error, 100, 18));
+        CHECK(error.find("(curl 35): mbedTLS: (-0x1234) TLS handshake failed") != std::string::npos);
+        CHECK(error.find('\n') == std::string::npos && error.find('\r') == std::string::npos);
+        CHECK(current->options.errorBuffer == nullptr);
+        responseError.clear();
+        CHECK(!HttpGetInternal("https://example.test/tls-no-detail", body, error, 100, 18));
+        CHECK(error == "Request failed: mock failure (curl 35)");
         responseResult = CURLE_OK;
         CHECK(HttpGetInternal("https://example.test/recovered", body, error, 100, 18));
+        CHECK(error.empty());
         const auto statistics = GetHttpStatistics();
-        CHECK(statistics.requests == 6 && statistics.connections == 1 && statistics.seconds == 1.5);
+        CHECK(statistics.requests == 8 && statistics.connections == 1 && statistics.seconds == 2.0);
         bool workerSucceeded = false;
         std::thread worker([&] {
             std::string bytes, message;
             expectedTimeout = 5;
-            workerSucceeded = HttpGetInternal("https://example.test/other", bytes, message, 100, 5) &&
-                GetHttpStatistics().requests == 1 && GetHttpStatistics().connections == 1;
+            responseResult = CURLE_SSL_CONNECT_ERROR;
+            responseError = "worker-specific TLS error";
+            workerSucceeded = !HttpGetInternal("https://example.test/other", bytes, message, 100, 5) &&
+                message.find(responseError) != std::string::npos &&
+                GetHttpStatistics().requests == 1 && GetHttpStatistics().connections == 1 &&
+                current->options.errorBuffer == nullptr;
         });
         worker.join();
         CHECK(workerSucceeded && created == 2 && destroyed == 1);
-        CHECK(GetHttpStatistics().requests == 6);
+        CHECK(GetHttpStatistics().requests == 8 && error.empty());
         CHECK(!invalidOptions);
         std::cout << "All " << checks << " HTTPS client checks passed.\n";
     } catch (const std::exception& exception) {

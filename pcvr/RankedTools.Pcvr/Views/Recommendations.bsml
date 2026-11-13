@@ -23,7 +23,9 @@
   <scroll-view min-height="0" pref-height="0" flexible-height="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="UpperCenter" id="recommendation-scroll">
     <vertical pref-width="0" spacing="1" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="true" child-align="UpperCenter" horizontal-fit="Unconstrained" vertical-fit="PreferredSize" flexible-width="1">
       <text text="~details" font-size="3.2" rich-text="false" word-wrapping="true" align="TopLeft" />
-      <image id="ability-image" active="~has-chart" preserve-aspect="true" pref-width="94" pref-height="52.875" />
+      <horizontal active="~has-chart" min-height="52.875" pref-height="52.875" flexible-height="0" spacing="0" child-control-height="true" child-control-width="true" child-expand-height="false" child-expand-width="false" child-align="MiddleCenter" horizontal-fit="Unconstrained" vertical-fit="Unconstrained">
+        <raw-image id="ability-image" min-width="94" pref-width="94" min-height="52.875" pref-height="52.875" flexible-width="0" flexible-height="0" />
+      </horizontal>
       <text text="~chart-notes" font-size="3.2" rich-text="false" word-wrapping="true" active="~has-chart" />
       <text text="~refresh-notes" font-size="3.2" rich-text="false" word-wrapping="true" active="~has-refresh-notes" />
     </vertical>

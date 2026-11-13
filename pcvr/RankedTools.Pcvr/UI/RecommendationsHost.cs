@@ -2,10 +2,10 @@ using System;
 using System.Globalization;
 using System.Text;
 using BeatSaberMarkupLanguage.Attributes;
-using HMUI;
 using Newtonsoft.Json.Linq;
 using RankedTools.Pcvr.Core;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace RankedTools.Pcvr.UI;
 
@@ -15,10 +15,9 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
     private int listIndex,songIndex,serviceIndex;
     private bool showAbility,disposed;
     private Texture2D? texture;
-    private Sprite? sprite;
     private string chartError="";
     internal Action? Close { get; set; }
-    [UIComponent("ability-image")] private ImageView image = null!;
+    [UIComponent("ability-image")] private RawImage image = null!;
     public RecommendationsHost(Session session) { this.session=session; session.Changed+=Changed; }
     private JArray Lists => session.Snapshot["playlists"] as JArray??new JArray();
     private JObject? List => Lists.Count==0?null:Lists[Math.Min(listIndex,Lists.Count-1)] as JObject;
@@ -30,9 +29,9 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
     [UIValue("can-refresh")] public bool CanRefresh => !session.Busy;
     [UIValue("show-details")] public bool ShowDetails => !showAbility;
     [UIValue("show-ability")] public bool ShowAbility => showAbility;
-    [UIValue("has-chart")] public bool HasChart => showAbility && sprite!=null;
+    [UIValue("has-chart")] public bool HasChart => showAbility && texture!=null;
     [UIValue("details")] public string Details => showAbility?AbilityDetails():SongDetails();
-    [UIValue("chart-notes")] public string ChartNotes => "Gray: eligible best scores (older scores are dimmer). Cyan: fitted accuracy. Shaded / dashed: outside observed stars.\nEstimates accuracy on a scored run, not clear probability or map-style-specific ability. No Fail and sub-55% scores are excluded.";
+    [UIValue("chart-notes")] public string ChartNotes => "Gray: eligible best scores (older scores are dimmer). Cyan: 30-day sigmoid accuracy fit. Shaded / dashed: outside the observed rating range.\nEstimates accuracy on a scored run, not clear probability or map-style-specific ability. No Fail and sub-55% scores are excluded.";
     public void Open() { Changed(); if(!session.Busy)Refresh(); }
     [UIAction("back")] private void Back() => Close?.Invoke();
     [UIAction("refresh")] private async void Refresh() { try { await session.Refresh(); } catch(Exception e) { if(!disposed)session.Report(e.Message); } }
@@ -42,33 +41,48 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
     [UIAction("next-list")] private void NextList() => ChangeList(1);
     [UIAction("previous-song")] private void PreviousSong() => ChangeSong(-1);
     [UIAction("next-song")] private void NextSong() => ChangeSong(1);
-    [UIAction("previous-service")] private void PreviousService() => ChangeService();
-    [UIAction("next-service")] private void NextService() => ChangeService();
+    [UIAction("previous-service")] private void PreviousService() => ChangeService(-1);
+    [UIAction("next-service")] private void NextService() => ChangeService(1);
     private void ChangeList(int direction) { if(Lists.Count==0)return; listIndex=(listIndex+direction+Lists.Count)%Lists.Count; songIndex=0; Notify(); }
     private void ChangeSong(int direction) { if(Entries.Count==0)return; songIndex=(songIndex+direction+Entries.Count)%Entries.Count; Notify(); }
-    private void ChangeService() { serviceIndex=1-serviceIndex; UploadChart(); Notify(); }
+    private int AbilityCount => 2+PluginConfig.AccSaberCategories.Length-1;
+    private bool AbilityEnabled(int slot)
+    {
+        if(slot<2)return session.Snapshot.Value<bool?>(slot==0?"enableBeatLeader":"enableScoreSaber") ?? (slot==0?session.Config.EnableBeatLeader:session.Config.EnableScoreSaber);
+        var enabled=session.Snapshot.Value<bool?>("enableAccSaber")??session.Config.EnableAccSaber;
+        var category=session.Snapshot.Value<string>("accSaberCategory")??PluginConfig.NormalizeAccSaberCategory(session.Config.AccSaberCategory);
+        return enabled && (category=="overall" || category==PluginConfig.AccSaberCategories[slot-1]);
+    }
+    private void ChangeService(int direction)
+    {
+        for(var i=0;i<AbilityCount;i++) { serviceIndex=(serviceIndex+direction+AbilityCount)%AbilityCount; if(AbilityEnabled(serviceIndex))break; }
+        UploadChart(); Notify();
+    }
     private void Changed()
     {
         if(disposed || session.Stopping)return;
+        if(!AbilityEnabled(serviceIndex))for(var i=0;i<AbilityCount;i++)if(AbilityEnabled(i)){serviceIndex=i;break;}
         if(showAbility && !session.Busy)UploadChart();
         Notify();
     }
     private string AbilityDetails()
     {
         if(chartError.Length>0)return "Could not display ability chart: "+chartError;
-        var service=serviceIndex==0?"BeatLeader":"ScoreSaber";
-        var enabled=session.Snapshot.Value<bool?>(serviceIndex==0?"enableBeatLeader":"enableScoreSaber") ?? (serviceIndex==0?session.Config.EnableBeatLeader:session.Config.EnableScoreSaber);
+        var service=serviceIndex<2?PluginConfig.Scoreboards[serviceIndex]:"AccSaber - "+PluginConfig.AccSaberCategoryLabels[serviceIndex-1];
+        var enabled=AbilityEnabled(serviceIndex);
         if(!enabled)return service+" ability estimate\nEnable this leaderboard's playlists, then refresh.";
-        var a=(session.Snapshot["abilities"] as JArray)?[serviceIndex];
+        var views=session.Snapshot["abilities"] as JArray;
+        var a=views!=null && serviceIndex<views.Count?views[serviceIndex]:null;
         if(a?.Value<bool?>("ready")!=true)return service+" ability estimate\nRefresh recommendations to load profile scores.";
         if(!string.IsNullOrEmpty(a.Value<string>("error")))return service+" ability estimate\n"+a.Value<string>("error");
         if((a.Value<int?>("scoreCount")??0)==0)return service+" ability estimate\nNo eligible ranked Standard scores to fit yet. No Fail and sub-55% scores are excluded.";
-        return service+" ability estimate\n"+a.Value<int>("scoreCount")+" eligible best scores. Played range: "+F(a.Value<double>("minStars"),2)+" to "+F(a.Value<double>("maxStars"),2)+" stars.";
+        return service+" ability estimate\n"+a.Value<int>("scoreCount")+" eligible best scores. Played range: "+F(a.Value<double>("minStars"),2)+" to "+F(a.Value<double>("maxStars"),2)+(serviceIndex>=2?" complexity.":" stars.");
     }
     private static string F(double value,int decimals=1) => value.ToString("F"+decimals,CultureInfo.InvariantCulture);
     private string SongDetails()
     {
         var list=List; if(list==null)return "Enable a leaderboard, clan or Sync playlist in Mod Settings, then refresh.";
+        var acc=list.Value<string>("service")=="AccSaber"; var unit=acc?"AP":"PP";
         var text=new StringBuilder(); text.AppendLine(list.Value<string>("title")); text.AppendLine(list.Value<string>("note"));
         var error=list.Value<string>("error"); if(!string.IsNullOrEmpty(error))return text+"Previous playlist preserved. "+error;
         if(list.Value<bool?>("ready")!=true)return text+"Waiting for recommendations...";
@@ -78,14 +92,15 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
         text.AppendLine(song.Value<string>("songName"));
         if(list.Value<int>("kind")==3)
         {
-            text.AppendLine("Ranked on both leaderboards. All matching charts; no song limit.");
+            text.AppendLine("Ranked on at least "+(session.Snapshot.Value<int?>("requiredSyncScoreboards")??PluginConfig.NormalizeRequiredSyncScoreboards(session.Config.RequiredSyncScoreboards))+" selected scoreboards. All matching charts; no song limit.");
             foreach(var target in (song["syncTargets"] as JArray) ?? new JArray())
                 text.AppendLine(target.Value<string>("characteristic")+" / "+target.Value<string>("difficulty")+": missing on "+target.Value<string>("missingService"));
             return text.ToString();
         }
-        text.AppendLine((difficulty?.Value<string>("name")??"")+" | "+F(difficulty?.Value<double?>("stars")??0,2)+" stars");
+        text.AppendLine((difficulty?.Value<string>("name")??"")+" | "+F(difficulty?.Value<double?>("stars")??0,2)+(acc?" complexity":" stars"));
+        if(acc) { var category=song.Value<string>("categoryCode")??"overall"; var index=Array.IndexOf(PluginConfig.AccSaberCategories,category); text.AppendLine("Category: "+PluginConfig.AccSaberCategoryLabels[Math.Max(0,index)]); }
         text.AppendLine("Predicted accuracy: "+F(song.Value<double>("predictedAccuracy")*100)+"%");
-        text.AppendLine("Predicted score: "+F(song.Value<double>("predictedPp"))+" PP");
+        text.AppendLine("Predicted score: "+F(song.Value<double>("predictedPp"))+" "+unit);
         var minClearRate=session.Snapshot.Value<int?>("minClearRate")??PluginConfig.NormalizeClearRate(session.Config.MinClearRate);
         if(list.Value<bool?>("clan")==true || list.Value<int>("kind")!=1)
             text.AppendLine("Min Clear Rate: "+minClearRate+"%");
@@ -93,7 +108,7 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
         if(list.Value<bool?>("clan")==true)
         {
             text.AppendLine(improvement?"Improve an existing score":"New contribution");
-            text.AppendLine("Current personal score: "+F(song.Value<double>("currentPp"))+" PP");
+            text.AppendLine("Current personal score: "+F(song.Value<double>("currentPp"))+" "+unit);
             text.AppendLine("Rough clear chance: "+F(song.Value<double>("clearChance")*100,0)+"%");
             if(clan!=null)
             {
@@ -113,12 +128,12 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
         }
         else
         {
-            if(improvement)text.AppendLine("Current score: "+F(song.Value<double>("currentPp"))+" PP");
+            if(improvement)text.AppendLine("Current score: "+F(song.Value<double>("currentPp"))+" "+unit);
             else text.AppendLine("Rough clear chance: "+F(song.Value<double>("clearChance")*100,0)+"%");
-            text.AppendLine("Weighted PP gain if "+(improvement?"improved":"cleared")+": +"+F(song.Value<double>("weightedPpGain"),2));
+            text.AppendLine("Weighted "+unit+" gain if "+(improvement?"improved":"cleared")+": +"+F(song.Value<double>("weightedPpGain"),2));
             if(list.Value<int>("kind")==0 && minClearRate>0)
                 text.AppendLine("Chance-adjusted gain: +"+F(song.Value<double>("weightedPpGain")*song.Value<double>("clearChance"),2));
-            if(list.Value<int>("kind")==2)text.AppendLine("Sorted by weighted PP gain");
+            if(list.Value<int>("kind")==2)text.AppendLine("Sorted by weighted "+unit+" gain");
         }
         var confidence=song.Value<double>("confidence");
         text.AppendLine("Confidence: "+(confidence>=.7?"High":confidence>=.5?"Medium":"Low"));
@@ -129,22 +144,26 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
     {
         ReleaseChart();
         chartError="";
-        if(disposed || !showAbility || session.Busy || image==null)return;
+        if(disposed || !showAbility || session.Busy)return;
         try
         {
+            if(image==null)throw new InvalidOperationException("The ability-chart image view is unavailable.");
             var pixels=session.Engine.Chart(serviceIndex,out var width,out var height); if(pixels==null)return;
             texture=new Texture2D(width,height,TextureFormat.RGBA32,false);
+            texture.wrapMode=TextureWrapMode.Clamp;
             texture.LoadRawTextureData(pixels); texture.Apply(false,true);
-            sprite=Sprite.Create(texture,new Rect(0,0,width,height),new Vector2(.5f,.5f),100);
-            image.sprite=sprite;
+            // The engine already supplies a complete rectangular RGBA image.
+            // Display it directly, without HMUI's sprite geometry/UV handling.
+            image.texture=texture;
+            image.raycastTarget=false;
         }
-        catch(Exception e) { chartError=e.Message; session.Warn("Could not display ability chart: "+e.Message); }
+        catch(Exception e) { ReleaseChart(); chartError=e.Message; session.Warn("Could not display ability chart: "+e.Message); }
     }
     private void ReleaseChart()
     {
-        if(image!=null)image.sprite=null;
-        if(sprite!=null)UnityEngine.Object.Destroy(sprite); if(texture!=null)UnityEngine.Object.Destroy(texture);
-        sprite=null; texture=null;
+        if(image!=null)image.texture=null;
+        if(texture!=null)UnityEngine.Object.Destroy(texture);
+        texture=null;
     }
     public void Dispose() { disposed=true; session.Changed-=Changed; ReleaseChart(); }
 }

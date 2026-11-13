@@ -1,9 +1,14 @@
 #include "refresh_engine.hpp"
 #include "playlist_writer.hpp"
 #include "refresh_tasks.hpp"
+#include "leaderboards.hpp"
+#include "platform.hpp"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <fstream>
 #include <iomanip>
+#include <mutex>
 #include <sstream>
 
 namespace rankedpractice {
@@ -11,7 +16,13 @@ namespace {
 class RefreshRun {
     const RefreshObserver &observer;
     std::atomic<bool> filesChanged{false};
+    std::mutex diagnosticsMutex;
+    std::vector<std::string> events, failures;
     void Log(const std::string &text) {
+        {
+            std::lock_guard lock(diagnosticsMutex);
+            events.push_back(text);
+        }
         if (observer.log)
             observer.log(text);
     }
@@ -19,6 +30,57 @@ class RefreshRun {
         if (observer.status)
             observer.status(text);
         Log(text);
+    }
+    bool Fail(const std::string &text) {
+        {
+            std::lock_guard lock(diagnosticsMutex);
+            if (std::find(failures.begin(), failures.end(), text) == failures.end()) failures.push_back(text);
+        }
+        SetStatus(text);
+        return false;
+    }
+    std::string FailureSummary() {
+        std::lock_guard lock(diagnosticsMutex);
+        std::string result = "Refresh finished with errors:";
+        if (failures.empty()) result += "\nA refresh task failed; see the mod log for details.";
+        for (size_t i = 0; i < std::min<size_t>(3, failures.size()); ++i) result += "\n" + failures[i];
+        if (failures.size() > 3) result += "\n" + std::to_string(failures.size() - 3) + " more error(s) in the saved report.";
+        return result;
+    }
+    bool SaveFailureReport(const RefreshSettings &settings, double elapsed, std::string &error) {
+        const auto directory = RuntimePaths().icons;
+        const auto destination = directory / "last-refresh-error.log";
+        const auto temporary = directory / "last-refresh-error.log.tmp";
+        std::error_code ec;
+        std::filesystem::create_directories(directory, ec);
+        if (ec) { error = ec.message(); return false; }
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (!output) { error = "Could not open the diagnostic file."; return false; }
+        const auto utc = UtcTime(std::time(nullptr));
+        output << "RankedTools last failed refresh\nUTC: " << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ")
+               << "\nDuration: " << elapsed << "s\n"
+               << "Accounts: BeatLeader=" << settings.beatLeaderPlayerId << "; ScoreSaber=" << settings.scoreSaberPlayerId
+               << "; AccSaber=" << settings.accSaberPlayerId << "\n"
+               << "Enabled: BeatLeader=" << settings.enableBeatLeader << "; ScoreSaber=" << settings.enableScoreSaber
+               << "; AccSaber=" << settings.enableAccSaber << "; clans=" << settings.enableClanPlaylist
+               << "; Sync=" << settings.enableSyncPlaylist << "\n"
+               << "Required Sync Scoreboards: " << settings.requiredSyncScoreboards
+               << "; AccSaber category: " << settings.accSaberCategory << "; separate tracks=" << settings.separateNewAndRepeatTracks
+               << "; import attempts=" << settings.importAttempts << "; limit=" << settings.limit
+               << "; minimum clear rate=" << settings.minClearRate << "\n\nRefresh events:\n";
+        {
+            std::lock_guard lock(diagnosticsMutex);
+            for (const auto &event : events) output << event << '\n';
+        }
+        output.close();
+        if (!output) error = "Could not finish writing the diagnostic file.";
+        else {
+            ReplaceFile(temporary, destination, ec);
+            if (!ec) return true;
+            error = ec.message();
+        }
+        std::filesystem::remove(temporary, ec);
+        return false;
     }
     void PublishRecommendationPreview(const std::string &service, ListKind kind, const std::vector<MapEntry> &entries) {
         if (observer.playlist)
@@ -36,31 +98,30 @@ class RefreshRun {
 
   public:
     explicit RefreshRun(const RefreshObserver &value) : observer(value) {}
-    std::vector<ListKind> PlaylistKinds(bool simpleMode) {
-        return simpleMode ? std::vector{ListKind::Combined} : std::vector{ListKind::NotPlayed, ListKind::ToImprove};
+    std::vector<ListKind> PlaylistKinds(bool separateNewAndRepeatTracks) {
+        return separateNewAndRepeatTracks ? std::vector{ListKind::NotPlayed, ListKind::ToImprove}
+                                          : std::vector{ListKind::Combined};
     }
 
-    bool PruneDisabledServiceLayout(const std::string &service, bool simpleMode) {
+    bool PruneDisabledServiceLayout(const std::string &service, bool separateNewAndRepeatTracks) {
         std::vector<std::string> allowed;
-        for (auto kind : PlaylistKinds(simpleMode))
+        for (auto kind : PlaylistKinds(separateNewAndRepeatTracks))
             allowed.push_back(PlaylistFileName(service, kind));
         std::string error;
         if (PruneLeaderboardPlaylists(service, allowed, error)) {
             filesChanged.store(true);
             return true;
         }
-        SetStatus(service + " obsolete playlist cleanup failed: " + error);
-        return false;
+        return Fail(service + " obsolete playlist cleanup failed: " + error);
     }
 
     bool RefreshPlaylist(const std::string &service, const std::string &playerId, int limit, double minClearRate,
-                         bool simpleMode, ScoreHistory &history, StarRange *beatLeaderNotPlayedRange = nullptr) {
+                         bool separateNewAndRepeatTracks, ScoreHistory &history, StarRange *beatLeaderNotPlayedRange = nullptr) {
         if (playerId.empty()) {
             PublishAbilityPreview(service, {}, "Enter a player ID in RankedTools settings.");
-            SetStatus(service + " is enabled, but its player ID is empty.");
-            return false;
+            return Fail(service + " is enabled, but its player ID is empty.");
         }
-        const auto kinds = PlaylistKinds(simpleMode);
+        const auto kinds = PlaylistKinds(separateNewAndRepeatTracks);
         std::vector<std::vector<MapEntry>> playlists(kinds.size());
         std::string error;
         // Finish fetching the replacement layout before writing or pruning files.
@@ -71,15 +132,13 @@ class RefreshRun {
                 PublishAbilityPreview(service, history.scores,
                                       history.loaded ? "" : "Profile could not be loaded: " + error);
             if (!fetched) {
-                SetStatus(PlaylistTitle(service, kinds[i]) + " failed: " + error);
-                return false;
+                return Fail(PlaylistTitle(service, kinds[i]) + " failed: " + error);
             }
         }
         std::vector<std::string> expected;
         for (size_t i = 0; i < kinds.size(); ++i) {
             if (!WritePlaylist(service, kinds[i], playlists[i], error)) {
-                SetStatus(service + " playlist could not be saved: " + error);
-                return false;
+                return Fail(service + " playlist could not be saved: " + error);
             }
             filesChanged.store(true);
             expected.push_back(PlaylistFileName(service, kinds[i]));
@@ -88,10 +147,43 @@ class RefreshRun {
                       " songs.");
         }
         if (!PruneLeaderboardPlaylists(service, expected, error)) {
-            SetStatus(service + " playlists were saved, but cleanup failed: " + error);
-            return false;
+            return Fail(service + " playlists were saved, but cleanup failed: " + error);
         }
         filesChanged.store(true);
+        return true;
+    }
+
+    bool RefreshAccSaber(const RefreshSettings& settings, ScoreHistory& history) {
+        const auto kinds = PlaylistKinds(settings.separateNewAndRepeatTracks);
+        std::vector<std::vector<MapEntry>> lists(kinds.size());
+        std::string error;
+        bool success = true;
+        for (size_t i = 0; i < kinds.size(); ++i) {
+            if (!FetchAccSaberRecommendations(settings.accSaberPlayerId, settings.accSaberCategory,
+                kinds[i], settings.limit, settings.minClearRate, history, lists[i], error)) { success = false; break; }
+        }
+        for (size_t i = 1; i < kAccSaberCategories.size(); ++i) {
+            const auto category = std::string(kAccSaberCategories[i]);
+            const auto message = !history.loaded ? error : HasAccSaberEvidence(history.scores, category) ? "" :
+                "Eligible scores in " + AccSaberCategoryName(category) + " are needed for a personal prediction.";
+            PublishAbilityPreview("AccSaber/" + category, history.scores, message);
+        }
+        if (!success) {
+            if (observer.playlistError) observer.playlistError("AccSaber", error);
+            return Fail("AccSaber failed; previous playlists preserved. " + error);
+        }
+        std::vector<std::string> expected;
+        for (size_t i = 0; i < kinds.size(); ++i) {
+            if (!WriteAccSaberPlaylist(kinds[i], lists[i], error, settings.accSaberCategory)) {
+                if (observer.playlistError) observer.playlistError("AccSaber", error);
+                return Fail("AccSaber playlist save failed. " + error);
+            }
+            filesChanged.store(true);
+            expected.push_back(PlaylistFileName("AccSaber", kinds[i]));
+            PublishRecommendationPreview("AccSaber", kinds[i], lists[i]);
+        }
+        if (!PruneLeaderboardPlaylists("AccSaber", expected, error)) return Fail("AccSaber playlist cleanup failed: " + error);
+        SetStatus("AccSaber updated (" + AccSaberCategoryName(settings.accSaberCategory) + ")." + history.attemptWarning);
         return true;
     }
 
@@ -100,8 +192,7 @@ class RefreshRun {
         const int limit = settings.limit;
         const auto minClearRate = settings.minClearRate;
         if (playerId.empty()) {
-            SetStatus("BeatLeader clan playlist is enabled, but the BeatLeader player ID is empty.");
-            return false;
+            return Fail("BeatLeader clan playlist is enabled, but the BeatLeader player ID is empty.");
         }
 
         std::vector<ClanPlaylistRecommendations> clanPlaylists;
@@ -112,8 +203,7 @@ class RefreshRun {
             ClanPlaylistRecommendations failed;
             failed.error = error;
             PublishClanPreviews({failed});
-            SetStatus("BeatLeader Maps to Conquer failed: " + error);
-            return false;
+            return Fail("BeatLeader Maps to Conquer failed: " + error);
         }
 
         std::vector<std::string> expectedFileNames;
@@ -123,7 +213,7 @@ class RefreshRun {
             const auto fileName = ClanPlaylistFileName(clanPlaylist.clanTag, allClans);
             expectedFileNames.push_back(fileName); // Preserve a failed current clan during cleanup.
             if (!clanPlaylist.error.empty()) {
-                SetStatus("Clan " + clanPlaylist.clanTag + " failed: " + clanPlaylist.error);
+                Fail("Clan " + clanPlaylist.clanTag + " failed: " + clanPlaylist.error);
                 succeeded = false;
                 continue;
             }
@@ -131,7 +221,7 @@ class RefreshRun {
                                    clanPlaylist.hypothetical, clanPlaylist.legacy)) {
                 clanPlaylist.error = error;
                 succeeded = false;
-                SetStatus("BeatLeader Maps to Conquer playlist for " + clanPlaylist.clanTag +
+                Fail("BeatLeader Maps to Conquer playlist for " + clanPlaylist.clanTag +
                           " could not be saved: " + error);
                 continue;
             }
@@ -151,10 +241,9 @@ class RefreshRun {
         // A layout/membership change can rename the prior output. Keep that prior
         // layout too when any clan failed, while still saving the successful clans.
         if (succeeded && !PruneClanPlaylists(expectedFileNames, error)) {
-            SetStatus(
+            return Fail(
                 "BeatLeader Maps to Conquer playlists were written, but obsolete files could not be cleaned up: " +
                 error);
-            return false;
         }
         if (succeeded)
             filesChanged.store(true);
@@ -171,22 +260,28 @@ class RefreshRun {
         bool attempted = false;
         bool allSucceeded = true;
         StarRange beatLeaderNotPlayedRange;
-        ScoreHistory beatLeaderHistory, scoreSaberHistory;
+        ScoreHistory beatLeaderHistory, scoreSaberHistory, accSaberHistory;
         std::string clanIconWarnings;
         beatLeaderHistory.importAttempts = scoreSaberHistory.importAttempts = settings.importAttempts;
+        accSaberHistory.importAttempts = settings.importAttempts;
+        if (!settings.enableAccSaber)
+            allSucceeded = PruneDisabledServiceLayout("AccSaber", settings.separateNewAndRepeatTracks) && allSucceeded;
         if (!settings.enableBeatLeader) {
             // Disabled services are not fetched. Remove only files from the other
-            // layout so Simple Mode cannot leave old split playlists visible.
-            allSucceeded = PruneDisabledServiceLayout("BeatLeader", settings.simpleMode) && allSucceeded;
+            // layout so changing the separation setting cannot leave obsolete playlists visible.
+            allSucceeded = PruneDisabledServiceLayout("BeatLeader", settings.separateNewAndRepeatTracks) && allSucceeded;
         }
         if (!settings.enableScoreSaber) {
-            allSucceeded = PruneDisabledServiceLayout("ScoreSaber", settings.simpleMode) && allSucceeded;
+            allSucceeded = PruneDisabledServiceLayout("ScoreSaber", settings.separateNewAndRepeatTracks) && allSucceeded;
         }
 
         const auto timed = [&](const char *name, const std::function<bool()> &task) {
             const auto before = GetHttpStatistics();
             const auto start = std::chrono::steady_clock::now();
-            const bool success = task();
+            bool success = false;
+            try { success = task(); }
+            catch (const std::exception &exception) { Fail(std::string(name) + " refresh stopped: " + exception.what()); }
+            catch (...) { Fail(std::string(name) + " refresh stopped due to an unknown error."); }
             const auto after = GetHttpStatistics();
             const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
             std::ostringstream message;
@@ -204,7 +299,7 @@ class RefreshRun {
                 if (settings.enableBeatLeader)
                     success = timed("BeatLeader", [&] {
                         return RefreshPlaylist("BeatLeader", settings.beatLeaderPlayerId, limit, minClearRate,
-                                               settings.simpleMode, beatLeaderHistory, &beatLeaderNotPlayedRange);
+                                               settings.separateNewAndRepeatTracks, beatLeaderHistory, &beatLeaderNotPlayedRange);
                     });
                 if (settings.enableClanPlaylist)
                     success =
@@ -219,7 +314,7 @@ class RefreshRun {
             scoreSaberTask = [&] {
                 return timed("ScoreSaber", [&] {
                     return RefreshPlaylist("ScoreSaber", settings.scoreSaberPlayerId, limit, minClearRate,
-                                           settings.simpleMode, scoreSaberHistory);
+                                           settings.separateNewAndRepeatTracks, scoreSaberHistory);
                 });
             };
         }
@@ -227,20 +322,24 @@ class RefreshRun {
         for (size_t i = 0; i < results.size(); ++i) {
             allSucceeded = results[i].succeeded && allSucceeded;
             if (!results[i].error.empty())
-                SetStatus(std::string(i == 0 ? "BeatLeader" : "ScoreSaber") + " refresh stopped: " + results[i].error);
+                Fail(std::string(i == 0 ? "BeatLeader" : "ScoreSaber") + " refresh stopped: " + results[i].error);
+        }
+        if (settings.enableAccSaber) {
+            attempted = true;
+            allSucceeded = timed("AccSaber", [&] { return RefreshAccSaber(settings, accSaberHistory); }) && allSucceeded;
         }
         if (settings.enableSyncPlaylist) {
             attempted = true;
             const bool syncOk = timed("Sync", [&] {
-                SetStatus("Sync: checking both ranked catalogs and posted-score histories...");
+                SetStatus("Sync: checking selected ranked catalogs and posted-score histories...");
                 std::vector<MapEntry> entries;
                 std::string error;
-                if (!FetchSyncPlaylist(settings.beatLeaderPlayerId, settings.scoreSaberPlayerId, entries, error,
-                                       &beatLeaderHistory, &scoreSaberHistory) ||
+                const std::vector<SyncAccount> accounts{{"BeatLeader", settings.beatLeaderPlayerId, &beatLeaderHistory},
+                    {"ScoreSaber", settings.scoreSaberPlayerId, &scoreSaberHistory}, {"AccSaber", settings.accSaberPlayerId, &accSaberHistory}};
+                if (!FetchSyncPlaylist(accounts, settings.requiredSyncScoreboards, entries, error) ||
                     !WritePlaylist("Sync", ListKind::Sync, entries, error)) {
                     if (observer.syncError) observer.syncError(error);
-                    SetStatus("Sync failed; previous playlist preserved. " + error);
-                    return false;
+                    return Fail("Sync failed; previous playlist preserved. " + error);
                 }
                 filesChanged.store(true);
                 PublishRecommendationPreview("Sync", ListKind::Sync, entries);
@@ -252,11 +351,11 @@ class RefreshRun {
         const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
         Log("Recommendation refresh finished in " + std::to_string(elapsed) +
             "s (success: " + (allSucceeded ? "true" : "false") + ").");
-        if (!attempted)
+        if (!attempted && allSucceeded)
             SetStatus("Enable at least one playlist type in Mod Settings before refreshing.");
         else if (allSucceeded) {
             std::string warning = clanIconWarnings;
-            for (const auto *history : {&beatLeaderHistory, &scoreSaberHistory}) {
+            for (const auto *history : {&beatLeaderHistory, &scoreSaberHistory, &accSaberHistory}) {
                 if (!history->attemptWarning.empty()) {
                     Log("Attempt history: " + history->attemptWarning);
                     warning += "\n" + history->attemptWarning;
@@ -265,8 +364,17 @@ class RefreshRun {
             std::ostringstream status;
             status << "Playlists updated in " << std::fixed << std::setprecision(1) << elapsed << "s." << warning;
             SetStatus(status.str());
-        } else
-            SetStatus("Refresh finished with errors. See the mod log for details.");
+        } else {
+            auto status = FailureSummary();
+            std::string diagnosticError;
+            if (SaveFailureReport(settings, elapsed, diagnosticError))
+                status += "\nDetails saved to last-refresh-error.log.";
+            else {
+                Log("Could not save last-refresh-error.log: " + diagnosticError);
+                status += "\nCould not save the error report: " + diagnosticError;
+            }
+            SetStatus(status);
+        }
         return {attempted && allSucceeded, filesChanged.load()};
     }
 };

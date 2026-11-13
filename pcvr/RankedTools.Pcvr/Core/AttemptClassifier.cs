@@ -6,8 +6,8 @@ namespace RankedTools.Pcvr.Core;
 
 internal sealed class RecordingProfile
 {
-    public readonly string BeatLeader, ScoreSaber;
-    public RecordingProfile(PluginConfig config) { BeatLeader = config.BeatLeaderPlayerId; ScoreSaber = config.ScoreSaberPlayerId; }
+    public readonly string BeatLeader, ScoreSaber, AccSaber;
+    public RecordingProfile(PluginConfig config) { BeatLeader = config.BeatLeaderPlayerId; ScoreSaber = config.ScoreSaberPlayerId; AccSaber = config.AccSaberPlayerId; }
 }
 internal static class AttemptClassifier
 {
@@ -21,7 +21,7 @@ internal static class AttemptClassifier
         var now = (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
         return new JObject
         {
-            ["command"] = "attempt", ["beatLeaderPlayerId"] = profile.BeatLeader, ["scoreSaberPlayerId"] = profile.ScoreSaber,
+            ["command"] = "attempt", ["beatLeaderPlayerId"] = profile.BeatLeader, ["scoreSaberPlayerId"] = profile.ScoreSaber, ["accSaberPlayerId"] = profile.AccSaber,
             ["id"] = Guid.NewGuid().ToString("N"), ["hash"] = levelId.Substring(13), ["characteristic"] = characteristic,
             ["difficulty"] = Difficulties[difficulty], ["timestamp"] = now, ["endTime"] = Math.Max(0, endTime),
             ["practice"] = practice, ["normal"] = normal, ["modifiers"] = modifiers, ["outcome"] = outcome,

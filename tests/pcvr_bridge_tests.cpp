@@ -62,7 +62,18 @@ RefreshResult RunRefresh(const RefreshSettings &settings, const RefreshObserver 
         scores.push_back(e);
     }
     observer.ability("BeatLeader", scores, "");
-    observer.playlist("BeatLeader", ListKind::Combined, {scores.front()});
+    if (settings.enableAccSaber) {
+        for (auto& score : scores) { score.categoryCode = "true_acc"; score.difficulties[0].complexity = score.stars; }
+        observer.ability("AccSaber/true_acc", scores, "");
+        observer.playlist("AccSaber", settings.separateNewAndRepeatTracks ? ListKind::NotPlayed : ListKind::Combined, {scores.front()});
+        if (settings.separateNewAndRepeatTracks) observer.playlist("AccSaber", ListKind::ToImprove, {scores.front()});
+    }
+    if (settings.separateNewAndRepeatTracks) {
+        observer.playlist("BeatLeader", ListKind::NotPlayed, {scores.front()});
+        observer.playlist("BeatLeader", ListKind::ToImprove, {scores.front()});
+    } else {
+        observer.playlist("BeatLeader", ListKind::Combined, {scores.front()});
+    }
     if (settings.enableSyncPlaylist) {
         scores.front().syncTargets = {{"OneSaber", "Expert", "ScoreSaber"}, {"Standard", "Hard", "BeatLeader"}};
         observer.playlist("Sync", ListKind::Sync, {scores.front()});
@@ -98,7 +109,7 @@ int main() {
         Call("{\"command\":\"unknown\"}", false);
         Call("{\"command\":\"refresh\",\"beatLeaderPlayerId\":123}", false);
         const std::string refresh =
-            R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"enableSyncPlaylist":true,"simpleMode":true})";
+            R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"enableSyncPlaylist":true})";
         std::string workerError;
         std::thread worker([&] {
             try {
@@ -145,11 +156,34 @@ int main() {
         rt_free(pixels);
         CHECK(rt_chart(-1, &pixels, &size, &width, &height) == 0 && pixels == nullptr && size == 0);
         CHECK(rt_chart(1, &pixels, &size, &width, &height) == 0 && pixels == nullptr);
+        Call(R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"separateNewAndRepeatTracks":true})");
+        snapshot = Call(R"({"command":"snapshot"})");
+        CHECK(snapshot["playlists"].Size() == 2);
+        CHECK(snapshot["playlists"][0]["kind"].GetDouble() == 0 && snapshot["playlists"][0]["ready"].GetBool());
+        CHECK(snapshot["playlists"][1]["kind"].GetDouble() == 1 && snapshot["playlists"][1]["ready"].GetBool());
+        Call(R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"separateNewAndRepeatTracks":false})");
+        snapshot = Call(R"({"command":"snapshot"})");
+        CHECK(snapshot["playlists"].Size() == 1);
+        CHECK(snapshot["playlists"][0]["kind"].GetDouble() == 2 && snapshot["playlists"][0]["ready"].GetBool());
+        Call(R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableBeatLeader":false,"enableScoreSaber":false,"enableClanPlaylist":false,"enableAccSaber":true,"accSaberPlayerId":"789","accSaberCategory":"true_acc","requiredSyncScoreboards":3})");
+        snapshot = Call(R"({"command":"snapshot"})");
+        CHECK(snapshot["enableAccSaber"].GetBool() && snapshot["requiredSyncScoreboards"].GetDouble() == 3);
+        CHECK(snapshot["playlists"].Size() == 1 && snapshot["abilities"].Size() == 5);
+        CHECK(std::string(snapshot["playlists"][0]["title"].GetString()) == "AccSaber - AP Gain (True Acc)");
+        CHECK(snapshot["abilities"][2]["ready"].GetBool() && snapshot["abilities"][2]["enabled"].GetBool());
+        CHECK(!snapshot["abilities"][3]["enabled"].GetBool());
+        CHECK(rt_chart(2, &pixels, &size, &width, &height) == 1 && size == size_t(width * height * 4));
+        rt_free(pixels);
+        Call(std::string(R"({"command":"attempt","accSaberPlayerId":"789","id":"acc-local","hash":")") + std::string(40, 'a') +
+            R"(","difficulty":"ExpertPlus","timestamp":1794000000,"outcome":1,"endTime":120})");
+        std::vector<Attempt> accAttempts; std::string attemptError;
+        CHECK(ReadAttemptHistory("accsaber", "789", accAttempts, attemptError) && accAttempts.size() == 1);
         Call(R"({"command":"attempt","hash":"bad"})", false);
         Call(R"({"command":"accounts","service":"unknown","input":"123"})", false);
         Call(R"({"command":"shutdown"})");
         std::filesystem::remove(root / "cacert.pem");
         std::filesystem::remove(root / "Playlists");
+        std::filesystem::remove(root / "attempts" / "accsaber_789.json");
         std::filesystem::remove(root / "attempts");
         std::filesystem::remove(root / "clan-search");
         std::filesystem::remove(root);

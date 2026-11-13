@@ -6,6 +6,7 @@
 #include "recommendation_view.hpp"
 #include "refresh_settings.hpp"
 #include "refresh_engine.hpp"
+#include "leaderboards.hpp"
 #include "account_view.hpp"
 
 #include <algorithm>
@@ -26,12 +27,16 @@ static RefreshSettings CaptureRefreshSettings() {
     RefreshSettings settings;
     settings.beatLeaderPlayerId = getModConfig().BeatLeaderPlayerId.GetValue();
     settings.scoreSaberPlayerId = getModConfig().ScoreSaberPlayerId.GetValue();
+    settings.accSaberPlayerId = getModConfig().AccSaberPlayerId.GetValue();
+    settings.accSaberCategory = NormalizeAccSaberCategory(getModConfig().AccSaberCategory.GetValue());
+    settings.requiredSyncScoreboards = NormalizeRequiredSyncScoreboards(getModConfig().RequiredSyncScoreboards.GetValue());
     settings.limit = std::clamp(getModConfig().MaxTracksPerPlaylist.GetValue(), 1, 100);
     settings.minClearRate = NormalizeMinClearRatePercent(getModConfig().MinClearRate.GetValue()) / 100.0;
-    settings.simpleMode = getModConfig().SimpleMode.GetValue();
+    settings.separateNewAndRepeatTracks = getModConfig().SeparateNewAndRepeatTracks.GetValue();
     settings.importAttempts = getModConfig().ImportAttemptHistory.GetValue();
     settings.enableBeatLeader = getModConfig().EnableBeatLeader.GetValue();
     settings.enableScoreSaber = getModConfig().EnableScoreSaber.GetValue();
+    settings.enableAccSaber = getModConfig().EnableAccSaber.GetValue();
     settings.enableClanPlaylist = getModConfig().EnableClanPlaylist.GetValue();
     settings.enableSyncPlaylist = getModConfig().EnableSyncPlaylist.GetValue();
     settings.legacyClanPlaylists = getModConfig().LegacyClanPlaylists.GetValue();
@@ -53,6 +58,7 @@ static void RefreshWorker(const RefreshSettings settings) noexcept {
         observer.clans = PublishClanPreviews;
         observer.ability = PublishAbilityPreview;
         observer.syncError = PublishSyncError;
+        observer.playlistError = PublishPlaylistError;
         RunRefresh(settings, observer);
         refreshInProgress.store(false);
     } catch (const std::exception& exception) {
@@ -72,9 +78,9 @@ void StartRefresh() {
     }
     try {
         auto settings = CaptureRefreshSettings();
-        ConfigureRecommendationPreviews(settings.minClearRate, settings.simpleMode,
+        ConfigureRecommendationPreviews(settings.minClearRate, settings.separateNewAndRepeatTracks,
                                          settings.enableBeatLeader, settings.enableScoreSaber, settings.enableClanPlaylist,
-                                         settings.enableSyncPlaylist);
+                                         settings.enableSyncPlaylist, settings.enableAccSaber, settings.accSaberCategory, settings.requiredSyncScoreboards);
         SetStatus("Fetching leaderboard data…");
         std::thread(RefreshWorker, std::move(settings)).detach();
     } catch (const std::exception& exception) {
@@ -115,13 +121,23 @@ static void SettingsDidActivate(HMUI::ViewController* self,
     slider->isInt = true;
     slider->formatter = [](float value) { return StringW(std::to_string(rankedpractice::NormalizeMinClearRatePercent(static_cast<int>(value))) + "%"); };
     slider->set_Value(static_cast<float>(clearRate.GetValue()));
-    AddConfigValueToggle(parent, getModConfig().SimpleMode);
+    AddConfigValueToggle(parent, getModConfig().SeparateNewAndRepeatTracks);
     AddConfigValueToggle(parent, getModConfig().RecordLocalAttempts);
     AddConfigValueToggle(parent, getModConfig().ImportAttemptHistory);
     AddConfigValueToggle(parent, getModConfig().EnableBeatLeader);
     AddConfigValueToggle(parent, getModConfig().EnableScoreSaber);
+    AddConfigValueToggle(parent, getModConfig().EnableAccSaber);
+    std::array<std::string_view, 4> categoryLabels{"Overall", "True Acc", "Standard Acc", "Tech Acc"};
+    BSML::Lite::CreateDropdown(parent, "AccSaber Category",
+        StringW(rankedpractice::AccSaberCategoryName(getModConfig().AccSaberCategory.GetValue())), categoryLabels,
+        [categoryLabels](StringW value) {
+            for (size_t i = 0; i < categoryLabels.size(); ++i)
+                if (value == categoryLabels[i]) getModConfig().AccSaberCategory.SetValue(std::string(rankedpractice::kAccSaberCategories[i]));
+        });
     AddConfigValueToggle(parent, getModConfig().EnableClanPlaylist);
     AddConfigValueToggle(parent, getModConfig().EnableSyncPlaylist);
+    getModConfig().RequiredSyncScoreboards.SetValue(rankedpractice::NormalizeRequiredSyncScoreboards(getModConfig().RequiredSyncScoreboards.GetValue()));
+    AddConfigValueIncrementInt(parent, getModConfig().RequiredSyncScoreboards, 1, 2, static_cast<int>(rankedpractice::kLeaderboardServices.size()));
     AddConfigValueToggle(parent, getModConfig().LegacyClanPlaylists);
     AddConfigValueToggle(parent, getModConfig().ClanPlaylistAllClans);
 }

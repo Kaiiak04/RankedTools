@@ -143,6 +143,27 @@ int main() {
         }
         std::filesystem::remove(directory / ClanPlaylistFileName("A", true));
         std::filesystem::remove(directory / ClanPlaylistFileName("B", true));
+        std::ifstream accCover("accsaber_ppgain.png", std::ios::binary);
+        const std::string accPng{std::istreambuf_iterator<char>(accCover), std::istreambuf_iterator<char>()}; accCover.close();
+        CHECK(!accPng.empty());
+        { std::ofstream cover(iconDirectory / "accsaber_ppgain.png", std::ios::binary); cover << accPng; }
+        CHECK(WriteAccSaberPlaylist(ListKind::Combined, {entry}, error, "tech_acc"));
+        const auto accPath = directory / PlaylistFileName("AccSaber", ListKind::Combined);
+        {
+            std::ifstream file(accPath); const std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+            rapidjson::Document doc; doc.Parse(text.c_str());
+            CHECK(std::string(doc["playlistTitle"].GetString()) == "AccSaber - AP Gain (Tech Acc)");
+            CHECK(std::string(doc["image"].GetString()) == EncodePlaylistImage(accPng, "image/png"));
+        }
+        CHECK(WriteAccSaberPlaylist(ListKind::Combined, {}, error, "standard_acc"));
+        {
+            std::ifstream file(accPath); const std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+            rapidjson::Document doc; doc.Parse(text.c_str());
+            CHECK(std::string(doc["playlistTitle"].GetString()) == "AccSaber - AP Gain (Standard Acc)" && doc["songs"].Empty());
+        }
+        CHECK(PruneLeaderboardPlaylists("AccSaber", {PlaylistFileName("AccSaber", ListKind::NotPlayed)}, error));
+        CHECK(!std::filesystem::exists(accPath) && std::filesystem::exists(directory / "MyPlaylist.bplist"));
+        std::filesystem::remove(iconDirectory / "accsaber_ppgain.png");
         std::filesystem::remove(fallbackIcon);
         std::filesystem::remove(iconDirectory);
         for (auto kind : {ListKind::NotPlayed, ListKind::ToImprove}) std::filesystem::remove(directory / PlaylistFileName("BeatLeader", kind));

@@ -18,6 +18,7 @@ struct Difficulty {
     double sliderPercentage{0.0};
     double notes{0.0};
     std::optional<double> noteSpan; // Presence selects PPv4, including an explicit zero.
+    std::optional<double> complexity; // AccSaber's independent scale; zero is a valid rating.
 };
 
 struct ClanImpact {
@@ -67,10 +68,13 @@ struct MapEntry {
         std::string missingService;
     };
     std::vector<SyncTarget> syncTargets;
+    std::string categoryId, categoryCode, categoryLabel;
+    std::string modifiers;
+    double maxScore{0.0}, scoreNoMods{0.0};
 };
 
 enum class ListKind { NotPlayed, ToImprove, Combined, Sync };
-enum class RatingSystem { ScoreSaber, BeatLeader };
+enum class RatingSystem { ScoreSaber, BeatLeader, AccSaber };
 // The settings UI uses whole percentages; recommendation code uses fractions.
 int NormalizeMinClearRatePercent(int percent);
 

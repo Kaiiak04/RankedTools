@@ -1,6 +1,8 @@
 #include "recommendation.hpp"
 #include "ability_chart.hpp"
 #include "beatleader_pp.hpp"
+#include "accsaber.hpp"
+#include "leaderboards.hpp"
 
 #include <algorithm>
 #include <array>
@@ -34,6 +36,7 @@ struct AccuracyObservation {
     double stars;
     double accuracy;
     double weight;
+    double logWeight{};
 };
 
 double ObservationWeight(const MapEntry& entry, double now) {
@@ -44,9 +47,12 @@ double ObservationWeight(const MapEntry& entry, double now) {
 
 class AccuracyCurve {
 public:
-    explicit AccuracyCurve(const std::vector<MapEntry>& scores) {
-        const double now = std::chrono::duration<double>(
+    explicit AccuracyCurve(const std::vector<MapEntry>& scores,
+                           RatingSystem system = RatingSystem::BeatLeader,
+                           bool allowZero = false, double now = 0.0) {
+        if (now <= 0.0) now = std::chrono::duration<double>(
             std::chrono::system_clock::now().time_since_epoch()).count();
+        const bool zeroComplexity = allowZero || system == RatingSystem::AccSaber;
         std::unordered_map<std::string, const MapEntry*> uniqueScores;
         for (const auto& entry : scores) {
             if (entry.noFail || !entry.ranked) continue;
@@ -61,11 +67,15 @@ public:
             const auto& entry = *score;
             const double profileStars = entry.modifiedStars > 0.0 ? entry.modifiedStars : entry.stars;
             if (!std::isfinite(profileStars) || !std::isfinite(entry.accuracy) || !std::isfinite(entry.pp) ||
-                profileStars <= 0.0 || entry.accuracy < kMinimumTrainingAccuracy ||
+                (zeroComplexity ? profileStars < 0.0 : profileStars <= 0.0) || entry.accuracy < kMinimumTrainingAccuracy ||
                 entry.accuracy > 1.0 || entry.pp <= 0.0) continue;
-            const double weight = ObservationWeight(entry, now);
-            if (!std::isfinite(weight) || weight <= 0.0) continue;
-            observations_.push_back({profileStars, entry.accuracy, weight});
+            // Accuracy decay is separate from the clearability model's weights.
+            const double logWeight = !std::isfinite(entry.timepost) || entry.timepost <= 0.0
+                ? std::log(0.65)
+                : -std::max(0.0, (now - entry.timepost) / 86400.0) / 30.0;
+            const double weight = std::exp(logWeight);
+            if (!std::isfinite(weight)) continue;
+            observations_.push_back({profileStars, entry.accuracy, weight, logWeight});
             minStars_ = std::min(minStars_, profileStars);
             maxStars_ = std::max(maxStars_, profileStars);
         }
@@ -76,66 +86,20 @@ public:
             if (a.accuracy != b.accuracy) return a.accuracy < b.accuracy;
             return a.weight < b.weight;
         });
-        // Equal star ratings must share one prediction, regardless of chart or input order.
-        for (const auto& observation : observations_) {
-            if (!knots_.empty() && knots_.back().stars == observation.stars) {
-                auto& knot = knots_.back();
-                const double weight = knot.weight + observation.weight;
-                knot.accuracy = (knot.weight * knot.accuracy + observation.weight * observation.accuracy) / weight;
-                knot.weight = weight;
-            } else {
-                knots_.push_back(observation);
-            }
-        }
-
-        struct Block {
-            size_t first, last;
-            double weight, weightedAccuracy;
-            double Mean() const { return weightedAccuracy / weight; }
-        };
-        std::vector<Block> blocks;
-        // Pool-adjacent-violators solves weighted least squares subject to accuracy
-        // being non-increasing with stars. Merging may expose earlier violations.
-        for (size_t i = 0; i < knots_.size(); ++i) {
-            blocks.push_back({i, i, knots_[i].weight, knots_[i].weight * knots_[i].accuracy});
-            while (blocks.size() >= 2 && blocks[blocks.size() - 2].Mean() < blocks.back().Mean()) {
-                const auto right = blocks.back();
-                blocks.pop_back();
-                auto& left = blocks.back();
-                left.last = right.last;
-                left.weight += right.weight;
-                left.weightedAccuracy += right.weightedAccuracy;
-            }
-        }
-        for (const auto& block : blocks) {
-            for (size_t i = block.first; i <= block.last; ++i) knots_[i].accuracy = block.Mean();
-        }
+        FitSigmoid();
     }
 
     double Predict(double stars) const {
-        if (knots_.empty()) return 0.85;
-        // Linear interpolation preserves the monotonic fit between observed stars.
-        // Hold endpoints for one extra star, then retain the cautious tail adjustments.
-        double predicted;
-        if (stars <= minStars_) predicted = knots_.front().accuracy;
-        else if (stars >= maxStars_) predicted = knots_.back().accuracy;
-        else {
-            const auto upper = std::upper_bound(knots_.begin(), knots_.end(), stars,
-                [](double value, const AccuracyObservation& knot) { return value < knot.stars; });
-            const auto& lower = *std::prev(upper);
-            const double fraction = (stars - lower.stars) / (upper->stars - lower.stars);
-            predicted = lower.accuracy + fraction * (upper->accuracy - lower.accuracy);
-        }
-        if (stars > maxStars_ + 1.0) predicted -= 0.012 * (stars - maxStars_ - 1.0);
-        if (stars < minStars_ - 1.0) predicted += 0.006 * (minStars_ - 1.0 - stars);
-        return std::clamp(predicted, 0.55, 0.999);
+        if (!HasObservations()) return 0.85;
+        // The tested curve continues smoothly outside the observed range.
+        const double logit = std::clamp(intercept_ + slope_ * (stars - meanStars_) / starScale_, -40.0, 40.0);
+        return std::clamp(1.0 / (1.0 + std::exp(-logit)), 0.55, 0.999);
     }
 
     bool HasObservations() const { return !observations_.empty(); }
     double MinStars() const { return minStars_; }
     double MaxStars() const { return maxStars_; }
     const auto& Observations() const { return observations_; }
-    const auto& Knots() const { return knots_; }
     double LocalSupport(double stars) const {
         double support = 0.0;
         for (const auto& observation : observations_) {
@@ -146,8 +110,41 @@ public:
     }
 
 private:
+    void FitSigmoid() {
+        double maxLogWeight = -std::numeric_limits<double>::infinity();
+        for (const auto& point : observations_) maxLogWeight = std::max(maxLogWeight, point.logWeight);
+        // Rescaling all weights also rescales the ridge penalty, preserving the
+        // research model even after a long inactive period or very old imports.
+        double total = 0.0;
+        for (const auto& point : observations_) {
+            const double weight = std::exp(point.logWeight - maxLogWeight);
+            const double accuracy = std::clamp(point.accuracy, 0.0001, 0.9999);
+            total += weight;
+            meanStars_ += weight * point.stars;
+            intercept_ += weight * std::log(accuracy / (1.0 - accuracy));
+        }
+        meanStars_ /= total;
+        intercept_ /= total;
+        double variance = 0.0, covariance = 0.0;
+        for (const auto& point : observations_) {
+            const double weight = std::exp(point.logWeight - maxLogWeight);
+            const double accuracy = std::clamp(point.accuracy, 0.0001, 0.9999);
+            const double dx = point.stars - meanStars_;
+            variance += weight * dx * dx;
+            covariance += weight * dx * (std::log(accuracy / (1.0 - accuracy)) - intercept_);
+        }
+        variance /= total;
+        covariance /= total;
+        starScale_ = std::max(1e-6, std::sqrt(variance));
+        // Fixed 0.05 ridge on standardized stars, with an unpenalized intercept.
+        // Positive slopes project to a flat fit rather than predicting that
+        // harder charts improve accuracy. One/equal-star observations are flat.
+        slope_ = std::min(0.0, (covariance / starScale_) /
+            (variance / (starScale_ * starScale_) + 0.05));
+    }
+
     std::vector<AccuracyObservation> observations_;
-    std::vector<AccuracyObservation> knots_;
+    double meanStars_{}, starScale_{1.0}, intercept_{}, slope_{};
     double minStars_{std::numeric_limits<double>::max()};
     double maxStars_{0.0};
 };
@@ -455,9 +452,10 @@ double CurrentProfilePp(const WeightedProfile& profile, const std::string& key) 
 
 } // namespace
 
-AbilityChart BuildAbilityChart(const std::vector<MapEntry>& scores) {
-    const AccuracyCurve fit(scores);
+AbilityChart BuildAbilityChart(const std::vector<MapEntry>& scores, bool complexityAxis, RatingSystem system) {
+    const AccuracyCurve fit(scores, system, complexityAxis);
     AbilityChart chart;
+    chart.complexityAxis = complexityAxis;
     if (!fit.HasObservations()) return chart;
     chart.minObservedStars = fit.MinStars();
     chart.maxObservedStars = fit.MaxStars();
@@ -466,10 +464,8 @@ AbilityChart BuildAbilityChart(const std::vector<MapEntry>& scores) {
         chart.scores.push_back({point.stars, point.accuracy, point.weight});
     }
     std::vector<double> positions{0.0, chart.maxStars};
-    // Include exact knots and tail boundaries, so narrow drops are not smoothed away.
-    for (const auto& knot : fit.Knots()) positions.push_back(knot.stars);
-    positions.push_back(std::max(0.0, fit.MinStars() - 1.0));
-    positions.push_back(fit.MaxStars() + 1.0);
+    // Include observed ratings alongside the smooth curve samples.
+    for (const auto& point : fit.Observations()) positions.push_back(point.stars);
     for (int i = 1; i < 256; ++i) positions.push_back(chart.maxStars * i / 256.0);
     std::sort(positions.begin(), positions.end());
     positions.erase(std::unique(positions.begin(), positions.end()), positions.end());
@@ -570,8 +566,10 @@ std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
                                             double minClearRate,
                                             bool rankByWeightedGain,
                                             const std::vector<Attempt>& attempts) {
+    // AccSaber needs category curves and uses its dedicated selector.
+    if (system == RatingSystem::AccSaber) return {};
     minClearRate = std::isfinite(minClearRate) ? std::clamp(minClearRate, 0.0, 0.95) : 0.50;
-    AccuracyCurve accuracyCurve(profileScores.empty() ? entries : profileScores);
+    AccuracyCurve accuracyCurve(profileScores.empty() ? entries : profileScores, system);
     auto resolvedAttempts = attempts;
     ResolveAttemptRatings(resolvedAttempts, profileScores);
     ResolveAttemptRatings(resolvedAttempts, entries);
@@ -655,7 +653,7 @@ double EstimateRecommendationTargetStars(const std::vector<MapEntry>& profileSco
                                          double minClearRate,
                                          const std::vector<Attempt>& attempts) {
     minClearRate = std::isfinite(minClearRate) ? std::clamp(minClearRate, 0.0, 0.95) : 0.50;
-    const AccuracyCurve accuracyCurve(profileScores);
+    const AccuracyCurve accuracyCurve(profileScores, system);
     auto resolvedAttempts = attempts;
     ResolveAttemptRatings(resolvedAttempts, profileScores);
     const ClearabilityModel clearability(profileScores, resolvedAttempts);
@@ -751,16 +749,16 @@ std::vector<MapEntry> MergeRecommendations(std::vector<MapEntry> notPlayed,
 
 std::string PlaylistFileName(const std::string& service, ListKind kind) {
     if (kind == ListKind::Sync) return "RankedPractice_Sync.bplist";
-    const auto provider = Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
+    const auto provider = Canonical(service) == "accsaber" ? "AccSaber" : Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
     return std::string("RankedPractice_") + provider +
-           (kind == ListKind::Combined ? "_PPGain.bplist" :
+           (kind == ListKind::Combined ? (Canonical(service) == "accsaber" ? "_APGain.bplist" : "_PPGain.bplist") :
             kind == ListKind::NotPlayed ? "_NotPlayed.bplist" : "_ToImprove.bplist");
 }
 
 std::string PlaylistTitle(const std::string& service, ListKind kind) {
     if (kind == ListKind::Sync) return "Sync";
-    const auto provider = Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
-    return std::string(provider) + (kind == ListKind::Combined ? " - PP Gain" :
+    const auto provider = Canonical(service) == "accsaber" ? "AccSaber" : Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
+    return std::string(provider) + (kind == ListKind::Combined ? (Canonical(service) == "accsaber" ? " - AP Gain" : " - PP Gain") :
                                   kind == ListKind::NotPlayed ? " - Not Played" : " - To Improve");
 }
 
@@ -782,5 +780,7 @@ std::string ClanPlaylistFileName(const std::string& clanTag, bool perClan) {
 std::string ClanPlaylistTitle(const std::string& clanScope) {
     return "BeatLeader - Maps to Conquer (" + clanScope + ")";
 }
+
+#include "accsaber_model_impl.hpp"
 
 } // namespace rankedpractice

@@ -3,8 +3,8 @@
 #include <vector>
 
 namespace rankedpractice {
-// Invalidate ratings cached before PPv4 even when their last check was recent.
-inline constexpr int kBeatLeaderAttemptRatingEpoch = 4;
+// Invalidate ratings cached before PPv4.1 even when their last check was recent.
+inline constexpr int kBeatLeaderAttemptRatingEpoch = 5;
 enum class AttemptOutcome { Unknown, Clear, Fail, Quit, Restart, Practice };
 struct Attempt {
     std::string id; // Provider record ID, or a locally generated event ID.

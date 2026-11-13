@@ -1,0 +1,125 @@
+[
+  {
+    "id": "category-0",
+    "code": "true_acc",
+    "countForOverall": true,
+    "scoreCurve": {
+      "id": "score-curve",
+      "type": "POINT_LOOKUP",
+      "scale": 61,
+      "shift": -18,
+      "points": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 0.9,
+          "y": 0.2
+        },
+        {
+          "x": 0.95,
+          "y": 0.5
+        },
+        {
+          "x": 0.98,
+          "y": 1
+        },
+        {
+          "x": 1,
+          "y": 2
+        }
+      ]
+    },
+    "weightCurve": {
+      "id": "weight-curve",
+      "type": "FORMULA",
+      "formula": "LOGISTIC_SIGMOID",
+      "xParameterValue": 0.4,
+      "yParameterValue": 0.1,
+      "zParameterValue": 15
+    }
+  },
+  {
+    "id": "category-1",
+    "code": "standard_acc",
+    "countForOverall": true,
+    "scoreCurve": {
+      "id": "score-curve",
+      "type": "POINT_LOOKUP",
+      "scale": 61,
+      "shift": -18,
+      "points": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 0.9,
+          "y": 0.2
+        },
+        {
+          "x": 0.95,
+          "y": 0.5
+        },
+        {
+          "x": 0.98,
+          "y": 1
+        },
+        {
+          "x": 1,
+          "y": 2
+        }
+      ]
+    },
+    "weightCurve": {
+      "id": "weight-curve",
+      "type": "FORMULA",
+      "formula": "LOGISTIC_SIGMOID",
+      "xParameterValue": 0.4,
+      "yParameterValue": 0.1,
+      "zParameterValue": 15
+    }
+  },
+  {
+    "id": "category-2",
+    "code": "tech_acc",
+    "countForOverall": true,
+    "scoreCurve": {
+      "id": "score-curve",
+      "type": "POINT_LOOKUP",
+      "scale": 61,
+      "shift": -18,
+      "points": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 0.9,
+          "y": 0.2
+        },
+        {
+          "x": 0.95,
+          "y": 0.5
+        },
+        {
+          "x": 0.98,
+          "y": 1
+        },
+        {
+          "x": 1,
+          "y": 2
+        }
+      ]
+    },
+    "weightCurve": {
+      "id": "weight-curve",
+      "type": "FORMULA",
+      "formula": "LOGISTIC_SIGMOID",
+      "xParameterValue": 0.4,
+      "yParameterValue": 0.1,
+      "zParameterValue": 15
+    }
+  }
+]

@@ -1,27 +1,39 @@
-# BeatLeader PPv4 compatibility
+# BeatLeader PPv4.1 compatibility
 
-Evaluated against the [PPv4 announcement](https://beatleader.wiki/en/ranking/update4), the public API on October 27, 2026, and the [website calculation at commit 606b7f9](https://github.com/BeatLeader/beatleader-website/blob/606b7f9d33fec7dcf2427cea1d1151b74a5ec006/src/utils/beatleader/rebalanced-pp.js).
+Evaluated on November 5, 2026 against BeatLeader's [PPv4.1 website change](https://github.com/BeatLeader/beatleader-website/commit/12415e959374f1813120fd67b9889ee3054e715e), its [pinned calculation](https://github.com/BeatLeader/beatleader-website/blob/12415e959374f1813120fd67b9889ee3054e715e/src/utils/beatleader/rebalanced-pp.js), the [RatingAPI formula](https://github.com/BeatLeader/RatingAPI/blob/48cc07c61dd57a99d872c20b3df9085ffe9ba494/Pp/PpFormula.cs), and three current public API scores.
 
-RankedTools needed changes: its PPv3 formula would evaluate new ratings using the wrong accuracy curve and PP scale. This affected predicted PP, weighted gains, recommendation order, and the automatic candidate star band. API-provided best-score PP already reflects BeatLeader's reweight and remains the profile baseline.
+RankedTools needed an update. It calculates prospective PP locally, so PPv4's previous formula would miscalculate predicted PP, weighted gains, recommendation order, and clan capture targets when given PPv4.1 ratings. Version 0.1.27 updates the shared Quest/PCVR engine. Best-score PP still comes directly from BeatLeader and supplies the existing-score baseline.
 
-## Calculation
+## Calculation changes
 
-`src/beatleader_pp.cpp` implements PPv4's standard and dynamic accuracy curves, curve sampling and interpolation, slider tilt, note-count and note-span penalties, revised pass/acc/tech terms, upper-rating compression, star-dependent curve powers, low-star bonus, and final PP multiplier. It calculates the stars needed by the formula from PP at 96%, as the website does, rather than importing PPv3's `PP / 52` relationship.
+`src/beatleader_pp.cpp` now implements:
 
-The API parser retains `predictedAcc`, `sliderPercentage`, `notes`, and `noteSpan` separately for each difficulty. The map's Acc AI prediction shapes the PP curve; the player's fitted accuracy remains the accuracy at which a recommendation is evaluated. Normal-speed ratings and note span are used for the unmodified play being recommended, even when the existing best score used speed modifiers. API PP and modifier-adjusted stars for existing scores remain authoritative.
+- The revised base accuracy table and per-map parameter rows, including the extrapolated table factor above the map's accuracy knee.
+- Linear accuracy PP (`curve * 34.519 * accRating`) and linear tech PP (`5.7887 * techRating`, compressed above 6.2754 at slope 0.7). Tech PP no longer depends on player accuracy.
+- Pass PP multiplied by `exp(6 * (accuracy - (2 * predictedAcc - 1)))`, clamped to 0.8–3. Missing map predictions use a multiplier of 1.
+- A bonus on accuracy PP only: up to 5%, with smooth transitions across 4.2508–10.5 stars and from predicted accuracy minus three percentage points to predicted accuracy.
+- A stronger sparse-note penalty (minimum 0.8031), revised star-dependent curve powers and low-star bonus, linear star scaling by 52, and the final PP multiplier of 1.0128.
 
-The [website's version selector](https://github.com/BeatLeader/beatleader-website/blob/606b7f9d33fec7dcf2427cea1d1151b74a5ec006/src/utils/beatleader/pp.js) selects PPv4 when `noteSpan` is present and non-null. RankedTools follows this per difficulty, including a zero span. Missing or null `noteSpan` retains the PPv3 formula. This supports the mixed ratings described in the announcement while the reweight rolls out, and avoids interpreting old fixtures or unmigrated charts as PPv4.
+Stars are derived from component PP at 96%, including the accuracy-dependent pass multiplier and implicit low-star bonus. The mid-star bonus and final PP multiplier are excluded from star calculation, matching upstream. Sampled curve interpolation, six-decimal knot rounding, slider tilt, and the note-span penalty are preserved.
 
-The 0.965 profile weighting is unchanged by PPv4. Clear-rate settings, accuracy fitting, No Fail handling, ScoreSaber's PP formula, and server-provided clan ordering keep their existing semantics. The rebuilt star scale can naturally change fitted accuracy and candidate bands when fresh history arrives; there is no fixed conversion from old stars.
+The parser already retains every required input: `predictedAcc`, `sliderPercentage`, `notes`, and `noteSpan` for each difficulty. The map's Acc AI prediction shapes the formula; the player's fitted accuracy is where a recommendation is evaluated. Recommendations use normal-speed ratings and span even when an existing PB used speed modifiers. API PP and modifier-adjusted stars remain authoritative for existing scores.
 
-## Cached attempts
+The [website selector](https://github.com/BeatLeader/beatleader-website/blob/12415e959374f1813120fd67b9889ee3054e715e/src/utils/beatleader/pp.js) still uses non-null `noteSpan` for rebalanced difficulties. RankedTools applies PPv4.1 when that field is present, including zero. Missing/null `noteSpan` retains PPv3. There is no separate API marker for original PPv4; current ratings must be paired with the current formula.
 
-Best-score history and candidates are fetched on every refresh. Previously, a positive star rating on a cached attempt without a PB was never checked again. BeatLeader attempt ratings now invalidate caches from before PPv4 immediately and refresh subsequent ratings after seven days, using fresh profile matches first and the existing bounded hash lookups otherwise. Failed or bounded lookups exclude outdated ratings from the current estimate and report a warning, while preserving the disk records for retry. No attempt outcomes are deleted or rewritten.
+Profile weighting remains 0.965. Clear-rate settings, personal accuracy fitting, No Fail handling, ScoreSaber calculation, and legacy server-provided clan ordering retain their existing semantics. New stars can change the fitted ability model and candidate band after refresh.
+
+## Cached ratings
+
+The BeatLeader rating epoch advances from 4 to 5. This invalidates cached attempt ratings, clan screening responses, and learned clan impact evidence from PPv4 immediately, including recently checked records. Fresh profile matches resolve attempts first; bounded hash lookups resolve the remainder. Subsequent ratings retain the existing seven-day refresh policy.
+
+Unavailable/out-of-budget lookups exclude stale stars from the current estimate and produce the existing warning, while preserving disk records for retry. Attempt outcomes are retained. Existing playlists are regenerated by the next refresh.
 
 ## Validation
 
-`tests/fixtures/beatleader-ppv4.json` contains 520 PP values generated by executing the pinned upstream JavaScript across 26 charts, plus three real API score values captured on October 27. Cases cover curve parameter knots and interpolation, fractional player accuracies, sliders, short maps, sparse notes, zero-component ratings, high pass/tech ratings, and low-star bonuses. The regression suite checks these through production API parsing and calculation, retains PPv3 and ScoreSaber reference checks, and verifies both recommendation modes and cached-attempt refresh behavior.
+`tests/fixtures/beatleader-ppv4.json` contains 4,518 reference PP values across 88 charts, generated by executing the pinned upstream JavaScript. `tests/generate_beatleader_pp_reference.mjs` verifies its Git blob hash and regenerates the fixture independently of C++. Run `node tests/generate_beatleader_pp_reference.mjs`, or supply a local copy of the pinned JavaScript for offline generation.
 
-The reference tests validate formula compatibility. They do not establish that the star-based personal accuracy model is calibrated for every map style under the new ratings. Headset UI and real gameplay still require Quest testing. Future BeatLeader formula tuning may require updating this implementation and its reference values together.
+Cases cover prediction boundaries and parameter interpolation, top-accuracy curves, fractional accuracies, slider limits, sparse-note/short-span boundaries, zero components, pass/tech compression knees, pass multiplier clamps, both sides of every star threshold, and the mid-star bonus ramp. The separate `beatleader-ppv4.1-live.json` retains three unmodified API scores captured November 5; the JavaScript calculation agrees within 0.00003% relative error.
 
-Completed validation: 2,972 recommendation/API checks, 40 playlist-writer checks, and 16 HTTPS-client checks passed in Docker Desktop WSL. The Quest arm64 mod build also succeeded. The normal test runner compiled the binaries; WSL execution required running them outside the filesystem sandbox.
+Tests use production parsing/calculation, retain PPv3/ScoreSaber references, exercise personal and clan recommendation paths (including inverse capture targets), and reject epoch-4 attempt/clan caches. Formula checks establish calculation compatibility; personal-model calibration and in-game Quest/PCVR behavior still need device testing.
+
+Completed locally: all six Windows native suites (8,637 checks), 1,290 managed/binding/interop checks including real HTTPS and invalid-CA rejection, and the Android-target regression/playlist/HTTP suites (8,506 checks) passed. The Quest arm64 mod and both PCVR targets built successfully. The QMOD manifest and packaged binary hash were verified; PCVR packaging verified the plugin/engine hashes against their successful validation reports. Packages are local previews and have not been published.
