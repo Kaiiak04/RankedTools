@@ -59,7 +59,11 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Restore pinned compile-only references and dependencies
         shell: pwsh
-        run: ./pcvr/restore.ps1 -GameVersion '${{ matrix.game }}'
+        # SourceBindings validates both pinned BSML tag registries, including
+        # when this matrix job compiles and packages only one game version.
+        run: |
+          ./pcvr/restore.ps1 -GameVersion '1.40.8'
+          ./pcvr/restore.ps1 -GameVersion '1.44.1'
       - uses: actions/download-artifact@v4
         with:
           name: pcvr-shared-engine
