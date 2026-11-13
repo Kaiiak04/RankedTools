@@ -1,10 +1,13 @@
+#include "platform.hpp"
 #include "playlist_writer.hpp"
+#include "leaderboards.hpp"
 #include "playlist_image.hpp"
 
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
 #include <cstdio>
+#include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
@@ -15,14 +18,6 @@
 namespace rankedpractice {
 namespace {
 
-#ifndef RANKEDTOOLS_PLAYLIST_DIRECTORY
-#define RANKEDTOOLS_PLAYLIST_DIRECTORY "/sdcard/ModData/com.beatgames.beatsaber/Mods/PlaylistManager/Playlists"
-#endif
-constexpr const char* kPlaylistDirectory = RANKEDTOOLS_PLAYLIST_DIRECTORY;
-#ifndef RANKEDTOOLS_ICON_DIRECTORY
-#define RANKEDTOOLS_ICON_DIRECTORY "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice"
-#endif
-constexpr const char* kIconDirectory = RANKEDTOOLS_ICON_DIRECTORY;
 constexpr const char* kClanPlaylistFilePrefix =
     "RankedPractice_BeatLeader_Clan_ToConquer";
 
@@ -34,7 +29,7 @@ void AddString(rapidjson::Writer<rapidjson::StringBuffer>& writer,
 }
 
 std::string PlaylistImage(const std::string& fileName) {
-    const std::filesystem::path path = std::filesystem::path(kIconDirectory) / fileName;
+    const std::filesystem::path path = RuntimePaths().icons / fileName;
     std::ifstream input(path, std::ios::binary);
     if (!input) return {};
     const std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
@@ -91,7 +86,7 @@ bool WritePlaylistFile(const std::string& title,
     writer.EndObject();
     writer.EndObject();
 
-    const std::filesystem::path directory(kPlaylistDirectory);
+    const auto& directory = RuntimePaths().playlists;
     if (!std::filesystem::exists(directory.parent_path())) {
         error = "PlaylistManager is not installed, or its playlist folder is unavailable.";
         return false;
@@ -114,12 +109,7 @@ bool WritePlaylistFile(const std::string& title,
         }
     }
     std::error_code ec;
-    std::filesystem::rename(tempPath, finalPath, ec);
-    if (ec) {
-        std::filesystem::remove(finalPath, ec);
-        ec.clear();
-        std::filesystem::rename(tempPath, finalPath, ec);
-    }
+    ReplaceFile(tempPath, finalPath, ec);
     if (ec) {
         error = "Playlist was written to a temporary file, but could not be installed: " + ec.message();
         return false;
@@ -134,7 +124,15 @@ bool WritePlaylist(const std::string& service,
                    const std::vector<MapEntry>& entries,
                    std::string& error) {
     try {
-        const auto icon = service == "ScoreSaber" ? "scoresaber_" : "beatleader_";
+        if (kind == ListKind::Sync) {
+            if (std::any_of(entries.begin(), entries.end(), [](const MapEntry& entry) {
+                return !IsValidSongHash(entry.hash) || entry.difficulties.empty();
+            })) { error = "Sync contains an invalid chart; previous playlist preserved."; return false; }
+            return WritePlaylistFile("Sync", PlaylistFileName(service, kind), PlaylistImage("sync.png"),
+                entries, error, "Charts ranked on at least the required number of selected scoreboards, with a posted score on at least one and missing on another. "
+                "Exact hash, characteristic and difficulty; includes No Fail scores. No song-count limit.");
+        }
+        const auto icon = service == "AccSaber" ? "accsaber_" : service == "ScoreSaber" ? "scoresaber_" : "beatleader_";
         const auto image = PlaylistImage(std::string(icon) +
             (kind == ListKind::Combined ? "ppgain.png" :
              kind == ListKind::NotPlayed ? "notplayed.png" : "toimprove.png"));
@@ -144,6 +142,18 @@ bool WritePlaylist(const std::string& service,
         error = exception.what();
         return false;
     }
+}
+
+bool WriteAccSaberPlaylist(ListKind kind, const std::vector<MapEntry>& entries,
+                          std::string& error, const std::string& category) {
+    try {
+        const auto title = PlaylistTitle("AccSaber", kind) +
+            (category == "overall" ? "" : " (" + AccSaberCategoryName(category) + ")");
+        const auto file = kind == ListKind::Combined ? "accsaber_ppgain.png" :
+                          kind == ListKind::NotPlayed ? "accsaber_notplayed.png" : "accsaber_toimprove.png";
+        return WritePlaylistFile(title, PlaylistFileName("AccSaber", kind), PlaylistImage(file), entries, error,
+            "Predicted weighted AP gain using AccSaber category curves. Category: " + AccSaberCategoryName(category) + ".");
+    } catch (const std::exception& exception) { error = exception.what(); return false; }
 }
 
 bool WriteClanPlaylist(const std::string& clanTag,
@@ -171,7 +181,7 @@ bool WriteClanPlaylist(const std::string& clanTag,
 bool PruneClanPlaylists(const std::vector<std::string>& expectedFileNames,
                         std::string& error) {
     try {
-        const std::filesystem::path directory(kPlaylistDirectory);
+        const auto& directory = RuntimePaths().playlists;
         if (!std::filesystem::exists(directory)) return true;
 
         const std::unordered_set<std::string> expected(expectedFileNames.begin(),
@@ -204,7 +214,7 @@ bool PruneLeaderboardPlaylists(const std::string& service,
         for (auto kind : {ListKind::NotPlayed, ListKind::ToImprove, ListKind::Combined}) {
             const auto name = PlaylistFileName(service, kind);
             if (expected.contains(name)) continue;
-            const auto path = std::filesystem::path(kPlaylistDirectory) / name;
+            const auto path = RuntimePaths().playlists / name;
             std::error_code ec;
             // remove() also succeeds if the file no longer exists.
             std::filesystem::remove(path, ec);

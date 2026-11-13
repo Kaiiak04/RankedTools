@@ -1,0 +1,16 @@
+{
+  "1.40.8": {
+    "status": "BeatMods verified for 1.40.8",
+    "url": "https://beatmods.com/cdn/mod/777baaf710606b7a194ba26c794cc755.zip",
+    "version": "1.7.3",
+    "sha256": "07f2b2ac524dd6e1e9e6ac120839fbaa11156a2ab714f24a5c0035b216ebac52",
+    "name": "PlaylistManager"
+  },
+  "1.44.1": {
+    "status": "Community 1.42-family build; in-game compatibility with 1.44.1 pending tester validation",
+    "url": "https://github.com/iza-ttv/PlaylistManager/releases/download/v1.7.4/PlaylistManager-1.7.4-bs1.42.0-5e4dc88.zip",
+    "version": "1.7.4",
+    "sha256": "56fc7ae92fbbab0b727e3e3425acf9e9e25e37591dd33525c13b4b2d7ba4c0e2",
+    "name": "PlaylistManager"
+  }
+}

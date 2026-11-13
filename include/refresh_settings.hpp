@@ -9,13 +9,18 @@ namespace rankedpractice {
 struct RefreshSettings {
     std::string beatLeaderPlayerId;
     std::string scoreSaberPlayerId;
+    std::string accSaberPlayerId;
+    std::string accSaberCategory{"overall"};
+    int requiredSyncScoreboards{2};
     int limit{16};
     double minClearRate{0.50};
-    bool simpleMode{false};
+    bool separateNewAndRepeatTracks{false};
     bool importAttempts{true};
     bool enableBeatLeader{true};
     bool enableScoreSaber{true};
+    bool enableAccSaber{false};
     bool enableClanPlaylist{true};
+    bool enableSyncPlaylist{false};
     bool legacyClanPlaylists{false};
     bool allClans{false};
 };

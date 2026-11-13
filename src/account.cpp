@@ -65,13 +65,15 @@ std::int64_t AccountInteger(const rapidjson::Value& object, const char* field) {
 
 bool ReadAccountProfile(AccountService service, const rapidjson::Value& value, AccountProfile& profile) {
     profile.id = AccountString(value, "id");
+    if (service == AccountService::AccSaber && profile.id.empty()) profile.id = AccountString(value, "userId");
     profile.name = AccountString(value, "name");
+    if (service == AccountService::AccSaber && profile.name.empty()) profile.name = AccountString(value, "userName");
     if (!IsCanonicalAccountId(profile.id) || profile.name.empty() || profile.name.size() > 256 ||
         AccountControls(profile.name)) return false;
     profile.country = AccountString(value, "country");
     if (profile.country.size() != 2 || !std::all_of(profile.country.begin(), profile.country.end(),
         [](unsigned char c) { return std::isalpha(c); })) profile.country.clear();
-    profile.avatar = AccountString(value, "avatar");
+    profile.avatar = AccountString(value, service == AccountService::AccSaber ? "avatarUrl" : "avatar");
     if (profile.avatar.size() > 2048 || !AccountLower(profile.avatar).starts_with("https://") ||
         AccountControls(profile.avatar)) profile.avatar.clear();
     if (service == AccountService::ScoreSaber && value.HasMember("stats"))
@@ -136,12 +138,12 @@ bool ParseAccountInput(AccountService service, const std::string& input,
     auto lower = AccountLower(value);
     bool url = value.find("://") != std::string::npos || lower.starts_with("www.") ||
         lower.starts_with("beatleader.com/") || lower.starts_with("beatleader.xyz/") ||
-        lower.starts_with("scoresaber.com/");
+        lower.starts_with("scoresaber.com/") || lower.starts_with("accsaber.com/");
     if (url) {
         auto scheme = lower.find("://");
         if (scheme != std::string::npos) {
             if (lower.substr(0, scheme) != "https" && lower.substr(0, scheme) != "http") {
-                error = "Use a BeatLeader or ScoreSaber profile link."; return false;
+                error = "Use a supported leaderboard profile link."; return false;
             }
             value.erase(0, scheme + 3);
         }
@@ -150,13 +152,15 @@ bool ParseAccountInput(AccountService service, const std::string& input,
         if (host.starts_with("www.")) host.erase(0, 4);
         bool bl = host == "beatleader.com" || host == "beatleader.xyz";
         bool ss = host == "scoresaber.com";
-        if (!(service == AccountService::BeatLeader ? bl : ss) || slash == std::string::npos) {
+        bool acc = host == "accsaber.com";
+        if (!(service == AccountService::BeatLeader ? bl : service == AccountService::AccSaber ? acc : ss) || slash == std::string::npos) {
             error = "Use a profile link for this leaderboard."; return false;
         }
         auto path = value.substr(slash);
-        if (!path.starts_with("/u/")) { error = "The profile link must contain /u/ followed by the account."; return false; }
-        auto end = path.find_first_of("/?#", 3);
-        if (!DecodeAccountComponent(path.substr(3, end == std::string::npos ? end : end - 3), value) || value.size() > 128) {
+        const std::string prefix = service == AccountService::AccSaber ? "/players/" : "/u/";
+        if (!path.starts_with(prefix)) { error = "The profile link must contain " + prefix + " followed by the account."; return false; }
+        auto end = path.find_first_of("/?#", prefix.size());
+        if (!DecodeAccountComponent(path.substr(prefix.size(), end == std::string::npos ? end : end - prefix.size()), value) || value.size() > 128) {
             error = "The profile link has an invalid account name or ID."; return false;
         }
         query = {IsCanonicalAccountId(value) ? AccountInputKind::NumericId : AccountInputKind::Profile, value};
@@ -176,6 +180,10 @@ bool ParseAccountInput(AccountService service, const std::string& input,
 
 std::string AccountRequestUrl(AccountService service, const AccountQuery& query, int page) {
     auto component = EncodeAccountComponent(query.value);
+    if (service == AccountService::AccSaber) {
+        if (query.kind != AccountInputKind::Search) return "https://api.accsaber.com/v1/users/" + component;
+        return "https://api.accsaber.com/v1/leaderboards/overall?search=" + component + "&size=5&page=" + std::to_string(std::max(1, page) - 1);
+    }
     if (service == AccountService::BeatLeader) {
         if (query.kind != AccountInputKind::Search) return "https://api.beatleader.com/player/" + component;
         return "https://api.beatleader.com/players?search=" + component + "&count=5&page=" + std::to_string(std::max(1, page));
@@ -199,7 +207,7 @@ bool ParseAccountPage(AccountService service, const AccountQuery& query, int pag
         if (query.kind == AccountInputKind::NumericId && profile.id != query.value) {
             // BeatLeader also accepts a linked Quest/Steam/Oculus ID and returns
             // the primary profile. Verify that relationship before saving it.
-            bool linked = false;
+            bool linked = service == AccountService::AccSaber; // This API explicitly resolves merged user IDs.
             if (service == AccountService::BeatLeader && json.HasMember("linkedIds") && json["linkedIds"].IsObject()) {
                 for (const char* key : {"questId", "steamId", "oculusPCId"})
                     linked = linked || AccountString(json["linkedIds"], key) == query.value;
@@ -207,6 +215,24 @@ bool ParseAccountPage(AccountService service, const AccountQuery& query, int pag
             if (!linked) { error = "The account could not be verified."; return false; }
         }
         result.profiles.push_back(std::move(profile)); return true;
+    }
+    if (service == AccountService::AccSaber) {
+        if (!json.HasMember("content") || !json["content"].IsArray() || json["content"].Size() > 5) { error = "Invalid AccSaber account page."; return false; }
+        const auto& metadata = json.HasMember("page") && json["page"].IsObject() ? json["page"] : json;
+        if (!metadata.HasMember("number") || !metadata["number"].IsInt() || metadata["number"].GetInt() != result.page - 1 ||
+            !metadata.HasMember("totalPages") || !metadata["totalPages"].IsInt() || metadata["totalPages"].GetInt() < 0) {
+            error = "Invalid AccSaber account pagination."; return false;
+        }
+        std::unordered_set<std::string> seen;
+        for (const auto& row : json["content"].GetArray()) {
+            AccountProfile profile;
+            const auto& user = row.IsObject() && row.HasMember("user") && row["user"].IsObject() ? row["user"] : row;
+            if (!ReadAccountProfile(service, user, profile) || !seen.insert(profile.id).second) { error = "Invalid AccSaber account result."; result.profiles.clear(); return false; }
+            if (!profile.rank) profile.rank = AccountInteger(row, "ranking");
+            result.profiles.push_back(std::move(profile));
+        }
+        result.hasNext = result.page < metadata["totalPages"].GetInt();
+        return true;
     }
     if (!json.HasMember("data") || !json["data"].IsArray() || json["data"].Size() > 5) {
         error = "The account search returned an invalid response."; return false;

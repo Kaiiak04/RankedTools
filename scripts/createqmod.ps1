@@ -38,6 +38,10 @@ if (-not (Test-Path $caBundle)) {
 $filelist += $caBundle
 
 foreach ($icon in @(
+    "sync.png",
+    "accsaber_notplayed.png",
+    "accsaber_toimprove.png",
+    "accsaber_ppgain.png",
     "beatleader_notplayed.png",
     "beatleader_toimprove.png",
     "beatleader_clan_toconquer.png",

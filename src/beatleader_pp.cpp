@@ -6,16 +6,16 @@
 
 namespace rankedpractice {
 namespace {
-// PPv4 reference: BeatLeader/beatleader-website, commit
-// 606b7f9d33fec7dcf2427cea1d1151b74a5ec006, src/utils/beatleader/rebalanced-pp.js.
+// PPv4.1 reference: BeatLeader/beatleader-website, commit
+// 12415e959374f1813120fd67b9889ee3054e715e, src/utils/beatleader/rebalanced-pp.js.
 // Keep the sampled curve (including six-decimal knot rounding) consistent with
 // upstream: evaluating the analytic curve directly changes interpolated PP.
 constexpr std::pair<double, double> v4Base[] = {
-    {0, 0},         {.6, .307},     {.65, .355},    {.7, .414},    {.75, .485},    {.8, .568},     {.825, .605},
-    {.85, .649},    {.875, .699},   {.9, .753},     {.91, .781},   {.92, .813},    {.93, .867},    {.94, .931},
+    {0, 0},         {.6, .297},     {.65, .343},    {.7, .4},      {.75, .469},    {.8, .549},     {.825, .584},
+    {.85, .627},    {.875, .675},   {.9, .727},     {.91, .76},    {.92, .804},    {.93, .861},    {.94, .926},
     {.95, 1},       {.955, 1.039},  {.96, 1.094},   {.965, 1.167}, {.97, 1.256},   {.9725, 1.315}, {.975, 1.392},
     {.9775, 1.490}, {.98, 1.618},   {.9825, 1.786}, {.985, 2.007}, {.9875, 2.303}, {.99, 2.7},     {.9925, 3.241},
-    {.995, 4.01},   {.9975, 5.158}, {.999, 6.241},  {1, 7.424}};
+    {.995, 4.01},   {.9975, 5.158}, {.999, 6.241},  {1, 7.2}};
 
 double V4BaseValue(double x, bool smooth) {
     constexpr size_t n = std::size(v4Base);
@@ -59,9 +59,9 @@ struct V4Parameters {
 constexpr V4Parameters v4Parameters[] = {
     {.955, 1, -5.3, 4.86, .6, 2.88, 2.46},    {.960, .99, -3, 4.3, .66, 4.8, 1.85},
     {.965, .988, -2.4, 4.5, .64, 4.5, 1.95},  {.970, .986, -2.2, 4.7, .62, 4.2, 2.05},
-    {.975, .985, -1.8, 4.86, .6, 3.8, 2.15},  {.980, .985, -1.4, 4.86, .6, 3.35, 2.3},
-    {.985, .985, -1.2, 4.86, .6, 2.88, 2.46}, {.990, .9915, -1.2, 4.86, .6, 2.88, 2.46},
-    {.995, .9915, -1.2, 4.86, .6, 2.88, 2.46}};
+    {.975, .983, 0, 4.86, .6, 3.8, 2.15},     {.980, .983, 0, 4.86, .6, 3.35, 2.3},
+    {.985, .985, -.6, 4.86, .6, 2.88, 2.46},  {.990, .990, 0, 4.86, .6, 2.88, 2.46},
+    {.995, .990, 0, 4.86, .6, 2.88, 2.46}};
 V4Parameters V4ParamsAt(double predictedAcc) {
     if (predictedAcc <= v4Parameters[0].predictedAcc)
         return v4Parameters[0];
@@ -115,7 +115,7 @@ class V4Curve {
         modified_ = active && !(params_.a >= .9995 && params_.k == 4.86 && params_.w == .6 && params_.k2 == 2.88 &&
                                 params_.p2 == 2.46);
         tilt_ = active ? .2 * d.sliderPercentage : 0;
-        nerf_ = V4Nerf(d.notes, 115, 20, .95) * V4Nerf(d.noteSpan.value_or(0), 75, 12, .9);
+        nerf_ = V4Nerf(d.notes, 115, 20, .8031) * V4Nerf(d.noteSpan.value_or(0), 75, 12, .9);
     }
 
     double Value(double x) const {
@@ -147,9 +147,19 @@ class V4Curve {
         double value = V4BaseValue(x, modified_);
         if (modified_) {
             const V4Parameters standard{0, 1, 1, 4.86, .6, 2.88, 2.46};
-            const double reference = V4ModifiableValue(x, standard);
-            if (reference > 0)
-                value = std::min(value, value * V4ModifiableValue(x, params_) / reference);
+            auto tableFactor = [&](double at) {
+                const double reference = V4ModifiableValue(at, standard);
+                return reference > 0 ? V4BaseValue(at, true) / reference : 0;
+            };
+            double factor = tableFactor(x);
+            if (params_.a < .9995 && x > params_.a) {
+                constexpr double h = 1e-5;
+                const double atA = tableFactor(params_.a);
+                const double slope = (atA - tableFactor(params_.a - h)) / h;
+                factor = atA + slope * (x - params_.a);
+            }
+            if (factor > 0)
+                value = std::min(value, V4ModifiableValue(x, params_) * factor);
         }
         return value * std::exp(tilt_ * std::clamp(x - prediction_, -.015, .015) * 100);
     }
@@ -159,14 +169,14 @@ class V4Curve {
 };
 
 double V4LowStarMultiplier(double stars) {
-    return stars >= 8.6454 ? 1 : 1 + .0063371 * std::pow(8.6454 - std::max(stars, 0.0), 1.36);
+    return stars >= 8.8584 ? 1 : 1 + .007593 * std::pow(8.8584 - std::max(stars, 0.0), 1.98);
 }
 double V4Stars(double ppAt96) {
-    auto fromPp = [](double pp) { return pp > 0 ? 1.1653 * std::pow(pp / 83.6925, 1.17507) : pp / 83.6925; };
+    auto fromPp = [](double pp) { return pp / 52; };
     const double stars = fromPp(ppAt96);
-    if (ppAt96 <= 0 || stars >= 8.6454)
+    if (ppAt96 <= 0 || stars >= 8.8584)
         return stars;
-    double lo = stars, hi = 8.6454;
+    double lo = stars, hi = 8.8584;
     while (hi - lo > 1e-6) {
         const double mid = (lo + hi) / 2;
         if (mid < fromPp(ppAt96 * V4LowStarMultiplier(mid)))
@@ -177,16 +187,37 @@ double V4Stars(double ppAt96) {
     return (lo + hi) / 2;
 }
 double V4CurvePower(double stars) {
-    if (stars < 4.803) {
-        if (stars <= 2.8818)
+    if (stars < 5.3718) {
+        if (stars <= 3.478)
             return 1.08;
-        return 1.08 + (1 - 1.08) * (stars - 2.8818) / (4.803 - 2.8818);
+        return 1.08 + (1 - 1.08) * (stars - 3.478) / (5.3718 - 3.478);
     }
-    if (stars >= 9.606)
+    if (stars >= 9.6894)
         return .9;
-    if (stars <= 6.7242)
+    if (stars <= 7.1529)
         return 1;
-    return 1 + (.9 - 1) * (stars - 6.7242) / (9.606 - 6.7242);
+    return 1 + (.9 - 1) * (stars - 7.1529) / (9.6894 - 7.1529);
+}
+
+double V4PassAccMultiplier(double accuracy, double predictedAcc) {
+    if (predictedAcc <= 0)
+        return 1;
+    return std::clamp(std::exp(6 * (accuracy - (predictedAcc - (1 - predictedAcc)))), .8, 3.0);
+}
+
+double V4MidStarMultiplier(double stars, double accuracy, double predictedAcc) {
+    if (predictedAcc <= 0 || accuracy <= predictedAcc - .03 || stars <= 4.2508 || stars >= 10.5)
+        return 1;
+    auto ease = [](double t) {
+        t = std::clamp(t, 0.0, 1.0);
+        return t * t * (3 - 2 * t);
+    };
+    double bump = 1;
+    if (stars < 6.3762)
+        bump = ease((stars - 4.2508) / (6.3762 - 4.2508));
+    else if (stars > 8)
+        bump = ease((10.5 - stars) / (10.5 - 8));
+    return 1 + .05 * bump * ease((accuracy - (predictedAcc - .03)) / .03);
 }
 } // namespace
 
@@ -199,16 +230,18 @@ double BeatLeaderPpv4(double accuracy, const Difficulty &d) {
     const V4Curve curve(d);
     const double pass = d.passRating > 13 ? 13 + (d.passRating - 13) * .5 : d.passRating;
     const double passPp = std::max(0.0, 12.3 * std::exp(.85966 * std::pow(pass, 1 / 2.62)) - 30);
-    const double tech = d.techRating > 12 ? 12 + (d.techRating - 12) * .33 : d.techRating;
-    const double techFactor = tech > 0 ? .1612 * std::pow(tech, 1.2477) : 0;
-    const double accFactor = d.accRating > 0 ? 21.584 * std::pow(d.accRating, 1.2163) : 0;
+    const double tech = d.techRating > 6.2754 ? 6.2754 + (d.techRating - 6.2754) * .7 : d.techRating;
+    const double techPp = 5.7887 * tech;
+    const double accFactor = 34.519 * d.accRating;
     const double at96 = curve.Value(.96);
-    const double stars = V4Stars(passPp + at96 * accFactor + std::exp(3.5 * .96) * techFactor);
+    const double stars = V4Stars(passPp * V4PassAccMultiplier(.96, d.predictedAcc) + at96 * accFactor + techPp);
     double value = curve.Value(accuracy);
     if (value > 0 && at96 > 0)
         value = at96 * std::pow(value / at96, V4CurvePower(stars));
     const double total =
-        1.023 * (passPp + value * accFactor + std::exp(3.5 * accuracy) * techFactor) * V4LowStarMultiplier(stars);
+        1.0128 * (passPp * V4PassAccMultiplier(accuracy, d.predictedAcc) +
+                  value * accFactor * V4MidStarMultiplier(stars, accuracy, d.predictedAcc) + techPp) *
+        V4LowStarMultiplier(stars);
     return std::isfinite(total) ? total : 0;
 }
 } // namespace rankedpractice

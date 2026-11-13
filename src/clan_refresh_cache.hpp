@@ -14,7 +14,7 @@ struct ClanScreenCache {
     static std::filesystem::path Path(const std::string& key) {
         if (key.empty() || !std::all_of(key.begin(), key.end(), [](unsigned char c) { return std::isalnum(c) || c == '_'; }))
             throw std::runtime_error("Invalid clan screening cache key.");
-        return std::filesystem::path(RANKEDTOOLS_CLAN_CURSOR_DIRECTORY) / ("screen_" + key + ".json");
+        return RuntimePaths().clanSearch / ("screen_" + key + ".json");
     }
     bool Get(const std::string& key, double ttl, double now, std::string& body) {
         std::lock_guard<std::mutex> lock(mutex);
@@ -51,8 +51,7 @@ struct ClanScreenCache {
             auto temp = path; temp += ".tmp";
             { std::ofstream file(temp,std::ios::binary | std::ios::trunc); file.write(buffer.GetString(),buffer.GetSize()); file.flush();
               if (!file) return false; }
-            std::error_code ec; std::filesystem::rename(temp,path,ec);
-            if (ec) { std::filesystem::remove(path,ec); ec.clear(); std::filesystem::rename(temp,path,ec); }
+            std::error_code ec; ReplaceFile(temp,path,ec);
             return !ec;
         } catch (const std::exception&) { return false; }
     }

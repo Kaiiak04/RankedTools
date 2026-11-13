@@ -1,5 +1,7 @@
 #include "recommendation_view.hpp"
 #include "ability_chart.hpp"
+#include "leaderboards.hpp"
+#include "accsaber.hpp"
 #include "recommendation_api.hpp"
 
 #include "bsml/shared/BSML.hpp"
@@ -41,21 +43,22 @@ struct PreviewList {
 std::mutex previewMutex;
 std::string refreshStatus{"Open this tab to refresh recommendations."};
 double previewMinClearRate{0.50};
-std::vector<PreviewList> previewLists(6);
-std::vector<int> activeLists{0, 1, 3, 4};
+int previewRequiredSyncScoreboards{2};
+std::vector<PreviewList> previewLists(10);
+std::vector<int> activeLists{2, 5};
 SafePtrUnity<HMUI::CurvedTextMeshPro> statusText;
 SafePtrUnity<HMUI::CurvedTextMeshPro> detailsText;
 SafePtrUnity<UnityEngine::RectTransform> contentRect;
 SafePtrUnity<BSML::ScrollViewContent> scrollContent;
-int selectedList = 0;
+int selectedList = 2;
 size_t selectedSong = 0;
 struct AbilityPreview {
     bool ready{false};
     std::shared_ptr<const AbilityChart> chart;
     std::string error;
 };
-std::array<AbilityPreview, 2> abilityPreviews;
-std::array<bool, 2> enabledServices{true, true};
+std::array<AbilityPreview, 5> abilityPreviews;
+std::array<bool, 5> enabledServices{true, true, false, false, false};
 bool showAbility = false;
 int selectedService = 0;
 SafePtrUnity<UnityEngine::GameObject> playlistNavigation, songNavigation, leaderboardNavigation;
@@ -89,13 +92,15 @@ void UploadChart(const std::shared_ptr<const AbilityChart>& chart) {
     renderedChart = chart;
 }
 
-constexpr std::array<const char*, 6> listNames{
+constexpr std::array<const char*, 10> listNames{
     "BeatLeader - Not Played", "BeatLeader - To Improve", "BeatLeader - PP Gain",
-    "ScoreSaber - Not Played", "ScoreSaber - To Improve", "ScoreSaber - PP Gain"
+    "ScoreSaber - Not Played", "ScoreSaber - To Improve", "ScoreSaber - PP Gain", "Sync",
+    "AccSaber - Not Played", "AccSaber - To Improve", "AccSaber - AP Gain"
 };
 
 int ListIndex(const std::string& service, ListKind kind) {
-    const int base = service == "ScoreSaber" ? 3 : 0;
+    if (kind == ListKind::Sync) return 6;
+    const int base = service == "AccSaber" ? 7 : service == "ScoreSaber" ? 3 : 0;
     return base + (kind == ListKind::Combined ? 2 : kind == ListKind::ToImprove ? 1 : 0);
 }
 
@@ -107,13 +112,16 @@ std::string ConfidenceLabel(double confidence) {
 
 std::string RenderDetails(const PreviewList& list, double minClearRate, bool hasLists) {
     std::ostringstream output;
-    if (!hasLists) return "Enable a leaderboard or clan playlist to see song recommendations here.";
-    output << (list.clan ? list.title : listNames[selectedList]) << "\n";
+    const bool acc = selectedList >= 7 && selectedList < 10;
+    const auto unit = acc ? "AP" : "PP";
+    const int layoutKind = acc ? selectedList - 7 : selectedList % 3;
+    if (!hasLists) return "Enable a leaderboard, clan or Sync playlist to see songs here.";
+    output << (!list.title.empty() ? list.title : listNames[selectedList]) << "\n";
     if (!list.note.empty()) output << list.note << "\n";
     if (!list.error.empty()) { output << "Previous playlist preserved. " << list.error; return output.str(); }
-    if (list.clan || selectedList % 3 != 1) output << "Min Clear Rate: " << std::fixed << std::setprecision(0)
+    if (selectedList != 6 && (list.clan || layoutKind != 1)) output << "Min Clear Rate: " << std::fixed << std::setprecision(0)
                                     << minClearRate * 100.0 << "%\n";
-    if (!list.clan && selectedList % 3 == 2) output << "Sorted by weighted PP gain\n";
+    if (!list.clan && layoutKind == 2) output << "Sorted by weighted " << unit << " gain\n";
     if (!list.ready) {
         output << "Waiting for recommendations...";
         return output.str();
@@ -124,24 +132,32 @@ std::string RenderDetails(const PreviewList& list, double minClearRate, bool has
     }
     selectedSong = std::min(selectedSong, list.entries.size() - 1);
     const auto& entry = list.entries[selectedSong];
+    if (selectedList == 6) {
+        output << "Song " << (selectedSong + 1) << " of " << list.entries.size() << "\n" << entry.songName << "\n"
+               << "Ranked on at least " << previewRequiredSyncScoreboards << " selected scoreboards. All matching charts; no song limit.\n";
+        for (const auto& target : entry.syncTargets)
+            output << target.characteristic << " / " << target.difficulty << ": missing on " << target.missingService << "\n";
+        return output.str();
+    }
     const auto& difficulty = entry.difficulties.front();
     output << "Song " << (selectedSong + 1) << " of " << list.entries.size() << "\n"
            << entry.songName << "\n"
            << difficulty.name << "  |  " << std::fixed << std::setprecision(2)
-           << difficulty.stars << " stars\n"
+           << difficulty.stars << (acc ? " complexity\n" : " stars\n")
            << "Predicted accuracy: " << std::setprecision(1)
            << entry.predictedAccuracy * 100.0 << "%\n"
-           << "Predicted score: " << std::setprecision(1) << entry.predictedPp << " PP\n";
+           << "Predicted score: " << std::setprecision(1) << entry.predictedPp << " " << unit << "\n";
+    if (acc) output << "Category: " << AccSaberCategoryName(entry.categoryCode) << "\n";
     if (list.legacy) {
         output << (entry.isImprovement ? "Improve an existing score" : "New contribution") << "\n"
-               << "Current personal score: " << std::setprecision(1) << entry.currentPp << " PP\n"
+               << "Current personal score: " << std::setprecision(1) << entry.currentPp << " " << unit << "\n"
                << "Rough clear chance: " << std::setprecision(0) << entry.clearChance*100 << "%\n"
                << "Current clan gap: " << std::setprecision(2) << std::max(0.0,-entry.priority) << " weighted PP\n"
                << "Sorted by the current clan gap; personal PP filters completed targets.\n";
     } else if (entry.clanImpact) {
         const auto& impact = *entry.clanImpact;
         output << (entry.isImprovement ? "Improve an existing score" : "New contribution") << "\n"
-               << "Current personal score: " << std::setprecision(1) << entry.currentPp << " PP\n"
+               << "Current personal score: " << std::setprecision(1) << entry.currentPp << " " << unit << "\n"
                << "Rough clear chance: " << std::setprecision(0) << entry.clearChance * 100 << "%\n"
                << "Remaining clan gap: " << std::setprecision(2) << impact.gap << " weighted PP\n"
                << "Projected clan gain: +" << impact.gain << " weighted PP\n"
@@ -154,14 +170,14 @@ std::string RenderDetails(const PreviewList& list, double minClearRate, bool has
     } else if (!entry.isImprovement) {
         output << "Rough clear chance: " << std::setprecision(0)
                << entry.clearChance * 100.0 << "%\n"
-               << "Weighted PP gain if cleared: +" << std::setprecision(2)
+               << "Weighted " << unit << " gain if cleared: +" << std::setprecision(2)
                << entry.weightedPpGain << "\n";
-        if (selectedList % 3 == 0 && minClearRate > 0.0) {
+        if (layoutKind == 0 && minClearRate > 0.0) {
             output << "Chance-adjusted gain: +" << entry.weightedPpGain * entry.clearChance << "\n";
         }
     } else {
-        output << "Current score: " << std::setprecision(1) << entry.currentPp << " PP\n"
-               << "Weighted PP gain if improved: +" << std::setprecision(2)
+        output << "Current score: " << std::setprecision(1) << entry.currentPp << " " << unit << "\n"
+               << "Weighted " << unit << " gain if improved: +" << std::setprecision(2)
                << entry.weightedPpGain << "\n";
     }
     output << "Confidence: " << ConfidenceLabel(entry.confidence) << "\n"
@@ -201,14 +217,14 @@ void UpdateView() {
         if (!showAbility) detailsText->set_text(StringW(RenderDetails(selected, minClearRate, hasLists)));
         else {
             std::ostringstream description;
-            description << (selectedService == 0 ? "BeatLeader" : "ScoreSaber") << " ability estimate\n";
+            description << AbilityName(selectedService) << " ability estimate\n";
             if (!enabled) description << "Enable this leaderboard's playlists in settings, then refresh.";
             else if (!ability.ready) description << "Loading profile scores...";
             else if (!ability.error.empty()) description << ability.error;
             else if (!hasChart) description << "No eligible ranked Standard scores to fit yet. No Fail runs and scores below 55% are excluded.";
             else description << ability.chart->scores.size() << " eligible best scores. Played range: "
                              << std::fixed << std::setprecision(2) << ability.chart->minObservedStars
-                             << " to " << ability.chart->maxObservedStars << " stars.";
+                             << " to " << ability.chart->maxObservedStars << (selectedService >= 2 ? " complexity." : " stars.");
             detailsText->set_text(StringW(description.str()));
         }
     }
@@ -332,8 +348,15 @@ void BuildRecommendationView(HMUI::ViewController* controller) {
     auto* leaderboards = BSML::Lite::CreateHorizontalLayoutGroup(parent);
     leaderboardNavigation = leaderboards->get_gameObject();
     PrepareNavigationRow(leaderboards);
-    CreateNavigationButton(leaderboards->get_transform(), "BeatLeader", [] { selectedService = 0; UpdateView(); });
-    CreateNavigationButton(leaderboards->get_transform(), "ScoreSaber", [] { selectedService = 1; UpdateView(); });
+    const auto changeAbility = [](int direction) {
+        for (size_t i = 0; i < enabledServices.size(); ++i) {
+            selectedService = (selectedService + direction + static_cast<int>(enabledServices.size())) % static_cast<int>(enabledServices.size());
+            if (enabledServices[selectedService]) break;
+        }
+        UpdateView();
+    };
+    CreateNavigationButton(leaderboards->get_transform(), "Previous chart", [changeAbility] { changeAbility(-1); });
+    CreateNavigationButton(leaderboards->get_transform(), "Next chart", [changeAbility] { changeAbility(1); });
     detailsText = BSML::Lite::CreateText(parent, "Waiting for recommendations...", TMPro::FontStyles::Normal, 3.0f);
     PrepareText(detailsText.ptr());
     chartImage = BSML::Lite::CreateImage(parent, nullptr);
@@ -347,8 +370,8 @@ void BuildRecommendationView(HMUI::ViewController* controller) {
     chartLayout->set_preferredHeight(60.0f);
     chartLayout->set_flexibleHeight(0.0f);
     chartNotes = BSML::Lite::CreateText(parent,
-        "Dots: best scores (older scores are dimmer). Cyan: recency-weighted monotonic fit. "
-        "Dashed / shaded: outside your played range. Stars use modifier-adjusted ratings where available.\n"
+        "Dots: best scores (older scores are dimmer). Cyan: 30-day sigmoid accuracy fit. "
+        "Dashed / shaded: outside your played range. AccSaber uses a separate complexity fit for each category.\n"
         "This predicts accuracy on a scored run, not your chance of clearing. Map style and sparse history can affect reliability.",
         TMPro::FontStyles::Normal, 2.6f);
     PrepareText(chartNotes.ptr());
@@ -367,24 +390,31 @@ void SetViewStatus(const std::string& status) {
     ScheduleUpdate();
 }
 
-void ConfigureRecommendationPreviews(double minClearRate, bool simpleMode,
-                                      bool enableBeatLeader, bool enableScoreSaber, bool enableClans) {
+void ConfigureRecommendationPreviews(double minClearRate, bool separateNewAndRepeatTracks,
+                                      bool enableBeatLeader, bool enableScoreSaber, bool enableClans, bool enableSync,
+                                      bool enableAccSaber, const std::string& accCategory, int requiredSyncScoreboards) {
     {
         std::lock_guard<std::mutex> lock(previewMutex);
-        previewLists.assign(6, {});
+        previewLists.assign(10, {});
         abilityPreviews = {};
-        enabledServices = {enableBeatLeader, enableScoreSaber};
-        selectedService = enableBeatLeader || !enableScoreSaber ? 0 : 1;
+        for (size_t i = 0; i < enabledServices.size(); ++i)
+            enabledServices[i] = AbilityEnabled(static_cast<int>(i), enableBeatLeader, enableScoreSaber, enableAccSaber, accCategory);
+        selectedService = 0;
+        for (size_t i = 0; i < enabledServices.size(); ++i) if (enabledServices[i]) { selectedService = static_cast<int>(i); break; }
         previewMinClearRate = minClearRate;
+        previewRequiredSyncScoreboards = requiredSyncScoreboards;
         activeLists.clear();
-        for (int base : {0, 3}) {
-            if (!(base == 0 ? enableBeatLeader : enableScoreSaber)) continue;
-            if (simpleMode) activeLists.push_back(base + 2);
+        for (int base : {0, 3, 7}) {
+            if (!(base == 0 ? enableBeatLeader : base == 3 ? enableScoreSaber : enableAccSaber)) continue;
+            if (!separateNewAndRepeatTracks) activeLists.push_back(base + 2);
             else { activeLists.push_back(base); activeLists.push_back(base + 1); }
         }
+        for (int i = 7; i < 10; ++i) previewLists[i].title = std::string(listNames[i]) +
+            (accCategory == "overall" ? "" : " (" + AccSaberCategoryName(accCategory) + ")");
+        if (enableSync) activeLists.push_back(6);
         if (enableClans) {
             PreviewList clan; clan.clan = true; clan.title = "BeatLeader - Maps to Conquer";
-            previewLists.push_back(std::move(clan)); activeLists.push_back(6);
+            previewLists.push_back(std::move(clan)); activeLists.push_back(10);
         }
         selectedList = activeLists.empty() ? 0 : activeLists.front();
         selectedSong = 0;
@@ -395,8 +425,8 @@ void ConfigureRecommendationPreviews(double minClearRate, bool simpleMode,
 void PublishClanPreviews(const std::vector<ClanPlaylistRecommendations>& playlists) {
     {
         std::lock_guard<std::mutex> lock(previewMutex);
-        previewLists.resize(6);
-        activeLists.erase(std::remove_if(activeLists.begin(), activeLists.end(), [](int i) { return i >= 6; }), activeLists.end());
+        previewLists.resize(10);
+        activeLists.erase(std::remove_if(activeLists.begin(), activeLists.end(), [](int i) { return i >= 10; }), activeLists.end());
         for (const auto& playlist : playlists) {
             PreviewList list; list.ready = true; list.clan = true; list.entries = playlist.entries;
             list.legacy=playlist.legacy;
@@ -433,10 +463,33 @@ void PublishClanPreviews(const std::vector<ClanPlaylistRecommendations>& playlis
 void PublishAbilityPreview(const std::string& service, const std::vector<MapEntry>& scores,
                            const std::string& error) {
     // Pure C++ model construction is safe on the refresh worker; Unity work stays in UpdateView.
-    auto chart = error.empty() ? std::make_shared<AbilityChart>(BuildAbilityChart(scores)) : nullptr;
+    const int slot = AbilitySlot(service);
+    if (slot < 0) return;
+    auto chart = error.empty() ? std::make_shared<AbilityChart>(slot < 2 ? BuildAbilityChart(scores, false,
+        slot == 0 ? RatingSystem::BeatLeader : RatingSystem::ScoreSaber) :
+        BuildAccSaberAbilityChart(scores, std::string(kAccSaberCategories[slot - 1]))) : nullptr;
     {
         std::lock_guard<std::mutex> lock(previewMutex);
-        abilityPreviews[service == "ScoreSaber" ? 1 : 0] = {true, std::move(chart), error};
+        abilityPreviews[slot] = {true, std::move(chart), error};
+    }
+    ScheduleUpdate();
+}
+
+void PublishPlaylistError(const std::string& service, const std::string& error) {
+    {
+        std::lock_guard<std::mutex> lock(previewMutex);
+        for (auto kind : {ListKind::NotPlayed, ListKind::ToImprove, ListKind::Combined}) {
+            auto& list = previewLists[ListIndex(service, kind)]; list.ready = true; list.error = error;
+        }
+    }
+    ScheduleUpdate();
+}
+
+void PublishSyncError(const std::string& error) {
+    {
+        std::lock_guard<std::mutex> lock(previewMutex);
+        previewLists[6].ready = true;
+        previewLists[6].error = error;
     }
     ScheduleUpdate();
 }

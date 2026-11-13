@@ -2,6 +2,6 @@
 #include "recommendation.hpp"
 
 namespace rankedpractice {
-// Used only for difficulties carrying BeatLeader's PPv4 noteSpan marker.
+// Current PPv4.1 formula, for difficulties carrying BeatLeader's noteSpan marker.
 double BeatLeaderPpv4(double accuracy, const Difficulty& difficulty);
 }

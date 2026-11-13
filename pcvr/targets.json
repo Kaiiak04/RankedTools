@@ -1,0 +1,14 @@
+{
+  "1.40.8": {
+    "referenceVersion": "1.40.8",
+    "referenceCommit": "1e0c733914698d3a7932b7a88f7f8bd5eb74903a",
+    "legatoProfile": "1.40.0",
+    "inGameValidation": "pending"
+  },
+  "1.44.1": {
+    "referenceVersion": "1.42.0",
+    "referenceCommit": "3a6bda3d7c9dcbdc35a20224ec3eaa4e7b4b0a97",
+    "legatoProfile": "1.42.0",
+    "inGameValidation": "pending"
+  }
+}

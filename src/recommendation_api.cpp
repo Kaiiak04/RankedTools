@@ -1,10 +1,15 @@
+#include "platform.hpp"
 #include "recommendation_api.hpp"
 #include "playlist_image.hpp"
 #include "account.hpp"
 #include "clan_recommendation.hpp"
 #include "ability_chart.hpp"
+#include "leaderboards.hpp"
 
 #include "libcurl/shared/curl.h"
+#ifdef RANKEDTOOLS_MBEDTLS_THREADING
+#include "https_threading.hpp"
+#endif
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -32,10 +37,6 @@
 namespace rankedpractice {
 namespace {
 
-#ifndef RANKEDTOOLS_CA_BUNDLE_PATH
-#define RANKEDTOOLS_CA_BUNDLE_PATH "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/cacert.pem"
-#endif
-constexpr const char* kCaBundlePath = RANKEDTOOLS_CA_BUNDLE_PATH;
 constexpr double kDefaultTargetStars = 7.0;
 constexpr double kTargetWindowStars = 1.50;
 
@@ -95,7 +96,13 @@ size_t CurlWrite(char* data, size_t size, size_t count, void* userData) {
 
 bool HttpGetInternal(const std::string& url, std::string& body, std::string& error,
                      size_t limit, long timeout) {
-    static const bool curlReady = curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK;
+    if (RuntimeCancelled().load()) { error = "Request cancelled during shutdown."; return false; }
+    static const bool curlReady = [] {
+#ifdef RANKEDTOOLS_MBEDTLS_THREADING
+        https::InitializeThreading();
+#endif
+        return curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK;
+    }();
     if (!curlReady) {
         error = "Could not initialize the HTTPS client.";
         return false;
@@ -109,8 +116,11 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
         return false;
     }
     body.clear();
+    error.clear();
     CurlResponse response{body, limit};
+    char errorBuffer[CURL_ERROR_SIZE]{};
     curl_easy_reset(curl);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -119,16 +129,30 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "https");
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "RankedPractice/0.1 (Beat Saber Quest mod)");
+#ifdef RANKEDTOOLS_PCVR
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION,
+        +[](void*, curl_off_t, curl_off_t, curl_off_t, curl_off_t) -> int {
+            return RuntimeCancelled().load() ? 1 : 0;
+        });
+#endif
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, RuntimePaths().userAgent.c_str());
     // The source-built HTTPS stack does not ship with a default
     // CA bundle. The QMOD copies cacert.pem to this path at install time.
-    if (std::filesystem::exists(kCaBundlePath)) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, kCaBundlePath);
+#ifdef RANKEDTOOLS_PCVR
+    const auto& certificates = RuntimePaths().caCertificates;
+    curl_blob caBlob{const_cast<char*>(certificates.data()), certificates.size(), CURL_BLOB_COPY};
+    curl_easy_setopt(curl, CURLOPT_CAINFO_BLOB, &caBlob);
+#else
+    const auto caBundle = PathUtf8(RuntimePaths().caBundle);
+    if (std::filesystem::exists(RuntimePaths().caBundle)) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, caBundle.c_str());
     } else {
         // Keep a useful fallback for devices whose system CA directory is
         // readable by the TLS backend.
         curl_easy_setopt(curl, CURLOPT_CAPATH, "/system/etc/security/cacerts");
     }
+#endif
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     const auto result = curl_easy_perform(curl);
@@ -144,7 +168,14 @@ bool HttpGetInternal(const std::string& url, std::string& body, std::string& err
     // Remove stack-owned callback pointers, while preserving the connection pool.
     curl_easy_reset(curl);
     if (result != CURLE_OK) {
-        error = std::string("Request failed: ") + curl_easy_strerror(result);
+        error = std::string("Request failed: ") + curl_easy_strerror(result) +
+            " (curl " + std::to_string(static_cast<int>(result)) + ")";
+        if (errorBuffer[0]) {
+            std::string detail(errorBuffer);
+            std::replace(detail.begin(), detail.end(), '\r', ' ');
+            std::replace(detail.begin(), detail.end(), '\n', ' ');
+            error += ": " + detail;
+        }
         return false;
     }
     if (responseCode < 200 || responseCode >= 300) {
@@ -332,9 +363,8 @@ std::string NormalizeDifficulty(std::string raw) {
 }
 
 std::string NormalizeCharacteristic(std::string raw) {
-    if (raw == "SoloStandard") return "Standard";
-    if (raw == "SoloOneSaber") return "OneSaber";
-    if (raw == "SoloNoArrows") return "NoArrows";
+    // ScoreSaber prefixes characteristics, including rotation/custom modes.
+    if (raw.starts_with("Solo")) return raw.substr(4);
     return raw;
 }
 
@@ -745,8 +775,7 @@ bool ParseAttemptPage(const std::string& body, std::vector<Attempt>& attempts,
 
 std::string AttemptUtcDate(double timestamp) {
     const auto seconds = static_cast<std::time_t>(timestamp);
-    std::tm date{};
-    gmtime_r(&seconds, &date);
+    const auto date = UtcTime(seconds);
     std::ostringstream text; text << std::put_time(&date, "%Y-%m-%dT%H:%M:%SZ");
     return text.str();
 }
@@ -878,6 +907,8 @@ double EstimateTargetStars(const std::vector<MapEntry>& scores, RatingSystem sys
     return target > 0.0 ? target : kDefaultTargetStars;
 }
 
+#include "sync_catalog_impl.hpp"
+
 bool LoadScoreHistory(const std::string& id, RatingSystem system, ScoreHistory& history,
                       std::string& error, const HttpGetter& get = HttpGet, bool pace = true, bool loadAttempts = true) {
     if (history.loaded && history.playerId == id && history.system == system) return true;
@@ -885,7 +916,10 @@ bool LoadScoreHistory(const std::string& id, RatingSystem system, ScoreHistory& 
     history = {};
     history.importAttempts = importAttempts;
     std::vector<MapEntry> scores;
-    if (!FetchAllPages([&id, system](int page) {
+    bool syncComplete = true;
+    std::vector<MapEntry> syncScores;
+    std::string syncError;
+    if (!FetchPages<MapEntry>([&id, system](int page) {
         std::ostringstream url;
         if (system == RatingSystem::BeatLeader) {
             url << "https://api.beatleader.com/player/" << id
@@ -895,11 +929,18 @@ bool LoadScoreHistory(const std::string& id, RatingSystem system, ScoreHistory& 
                 << "/scores?limit=100&sort=top&page=" << page;
         }
         return url.str();
-    }, scores, error, get, pace)) return false;
+    }, scores, error, [&](const std::string& body, std::vector<MapEntry>& rows, std::string& failure, PageInfo* info) {
+        if (!ParseEntries(body, rows, failure, info)) return false;
+        if (syncComplete && !ParseSyncPage(body, system, true, syncScores, syncError, nullptr)) syncComplete = false;
+        return true;
+    }, get, pace)) return false;
     history.playerId = id;
     history.system = system;
     history.scores = std::move(scores);
     history.loaded = true;
+    history.syncComplete = syncComplete;
+    history.syncScores = std::move(syncScores);
+    history.syncError = std::move(syncError);
     if (loadAttempts) LoadAttempts(id, system, history, get, pace);
     return true;
 }
@@ -996,10 +1037,21 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
 }
 
 #include "clan_api_impl.hpp"
+#include "accsaber_api_impl.hpp"
+#include "sync_api_impl.hpp"
 
 } // namespace
 
 HttpStatistics GetHttpStatistics() { return httpStatistics; }
+
+bool ProbeHttps(const std::string& url, std::string& error) {
+    std::string body;
+    return HttpGetInternal(url, body, error, 4 * 1024 * 1024, 8L);
+}
+std::string HttpsImplementation() {
+    const auto* version = curl_version_info(CURLVERSION_NOW);
+    return version && version->ssl_version ? version->ssl_version : "unavailable";
+}
 
 bool FindAccounts(AccountService service, const std::string& input, int page,
                   AccountPage& result, std::string& error) {
@@ -1047,6 +1099,22 @@ bool FetchClanToConquer(const std::string& playerId,
                                       limit, clanPlaylists, error, HttpGet, HttpGetIcon, minClearRate, history, true, &SharedClanScreenCache(), legacy);
 }
 
+bool FetchSyncPlaylist(const std::string& blId, const std::string& ssId, std::vector<MapEntry>& entries,
+                       std::string& error, ScoreHistory* blHistory, ScoreHistory* ssHistory) {
+    return FetchSyncPlaylistInternal(blId, ssId, entries, error, blHistory, ssHistory);
+}
+
+bool FetchSyncPlaylist(const std::vector<SyncAccount>& accounts, int requiredScoreboards,
+                       std::vector<MapEntry>& entries, std::string& error) {
+    return FetchSyncAccountsInternal(accounts, requiredScoreboards, entries, error);
+}
+
+bool FetchAccSaberRecommendations(const std::string& playerId, const std::string& category,
+    ListKind kind, int limit, double minClearRate, ScoreHistory& history,
+    std::vector<MapEntry>& entries, std::string& error) {
+    return FetchAccRecommendationsInternal(playerId, category, kind, limit, minClearRate, history, entries, error);
+}
+
 bool SaveClanExplorationCursor(const std::string& id, const std::string& tag, std::size_t cursor, std::string& error) {
     return PersistClanCursor(id, tag, cursor, error);
 }
@@ -1063,6 +1131,11 @@ bool FetchRecommendations(const std::string& service,
                           double minClearRate,
                           StarRange* beatLeaderNotPlayedRange,
                           ScoreHistory* history) {
+    if (Lower(service) == "accsaber") {
+        ScoreHistory local;
+        return FetchAccRecommendationsInternal(playerId, "overall", kind, limit, minClearRate, history ? *history : local, entries, error);
+    }
+    if (Lower(service) != "scoresaber" && Lower(service) != "beatleader") { error = "Unknown recommendation service."; return false; }
     const auto system = Lower(service) == "scoresaber" ? RatingSystem::ScoreSaber : RatingSystem::BeatLeader;
     return FetchServiceRecommendations(system, playerId, kind, limit, entries, error, minClearRate,
                                        beatLeaderNotPlayedRange, history);
