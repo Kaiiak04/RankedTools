@@ -2,9 +2,7 @@
 
 RankedTools creates personalized BeatLeader, ScoreSaber and AccSaber playlists to help you gain PP, improve existing scores, and discover ranked maps suited to your ability. This is the Windows x64 PCVR port of the Quest mod.
 
-**Preview version: 0.1.28-pcvr.1. Targets: Beat Saber 1.40.8 and 1.44.1. Full in-game validation remains pending.** Use the ZIP matching your game version. These packages include both the C# plugin and its native recommendation engine. This testing build adds AccSaber personal playlists and category ability views, three-service Sync with Required Sync Scoreboards, the new default combined layout, and supplied covers. It also includes the existing menu-layout improvements and BeatLeader PPv4.1. Refresh playlists after installing. See TESTING-THIS-BUILD.md in the ZIP for the focused checklist.
-
-Download the matching PC ZIP from the [0.1.28 preview release](https://github.com/Kaiiak04/RankedTools/releases/tag/v0.1.28). The shared engine also includes the 30-day sigmoid on all services, HTTPS threading support and persistent refresh error details. The maintainer's Quest result does not establish PCVR behavior.
+**Preview version 0.1.30-pcvr.1 targets Beat Saber 1.40.8 and 1.44.1.** Use the ZIP matching your game version. It includes the C# plugin and native recommendation engine. The **BeatLeader Modifiers** toggle supports personal playlists and both clan modes. Refresh playlists after changing the toggle. Follow the [PCVR tester checklist](TESTING.md) for in-game verification.
 
 ## Install
 

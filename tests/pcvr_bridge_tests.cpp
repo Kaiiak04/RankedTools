@@ -68,11 +68,16 @@ RefreshResult RunRefresh(const RefreshSettings &settings, const RefreshObserver 
         observer.playlist("AccSaber", settings.separateNewAndRepeatTracks ? ListKind::NotPlayed : ListKind::Combined, {scores.front()});
         if (settings.separateNewAndRepeatTracks) observer.playlist("AccSaber", ListKind::ToImprove, {scores.front()});
     }
+    auto beatLeaderEntry = scores.front();
+    if (settings.beatLeaderModifiers) {
+        beatLeaderEntry.recommendedModifier = "Faster Song (1.20×)";
+        beatLeaderEntry.stars = 4.25;
+    }
     if (settings.separateNewAndRepeatTracks) {
-        observer.playlist("BeatLeader", ListKind::NotPlayed, {scores.front()});
-        observer.playlist("BeatLeader", ListKind::ToImprove, {scores.front()});
+        observer.playlist("BeatLeader", ListKind::NotPlayed, {beatLeaderEntry});
+        observer.playlist("BeatLeader", ListKind::ToImprove, {beatLeaderEntry});
     } else {
-        observer.playlist("BeatLeader", ListKind::Combined, {scores.front()});
+        observer.playlist("BeatLeader", ListKind::Combined, {beatLeaderEntry});
     }
     if (settings.enableSyncPlaylist) {
         scores.front().syncTargets = {{"OneSaber", "Expert", "ScoreSaber"}, {"Standard", "Hard", "BeatLeader"}};
@@ -146,6 +151,7 @@ int main() {
         CHECK(std::string(targets[1]["missingService"].GetString()) == "BeatLeader");
         CHECK(snapshot["playlists"][0]["entries"][0]["predictedPp"].GetDouble() == 123.45);
         CHECK(std::string(snapshot["playlists"][0]["entries"][0]["songName"].GetString()) == "\xc3\x85 fixture");
+        CHECK(!snapshot["playlists"][0]["entries"][0].HasMember("recommendedModifier"));
         CHECK(snapshot["abilities"][0]["scoreCount"].GetDouble() == 24);
         void *pixels = nullptr;
         size_t size{};
@@ -156,11 +162,14 @@ int main() {
         rt_free(pixels);
         CHECK(rt_chart(-1, &pixels, &size, &width, &height) == 0 && pixels == nullptr && size == 0);
         CHECK(rt_chart(1, &pixels, &size, &width, &height) == 0 && pixels == nullptr);
-        Call(R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"separateNewAndRepeatTracks":true})");
+        Call(R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"separateNewAndRepeatTracks":true,"beatLeaderModifiers":true})");
         snapshot = Call(R"({"command":"snapshot"})");
         CHECK(snapshot["playlists"].Size() == 2);
         CHECK(snapshot["playlists"][0]["kind"].GetDouble() == 0 && snapshot["playlists"][0]["ready"].GetBool());
         CHECK(snapshot["playlists"][1]["kind"].GetDouble() == 1 && snapshot["playlists"][1]["ready"].GetBool());
+        const auto& modified = snapshot["playlists"][0]["entries"][0];
+        CHECK(std::string(modified["recommendedModifier"].GetString()) == "Faster Song (1.20×)");
+        CHECK(modified["effectiveStars"].GetDouble() == 4.25);
         Call(R"({"command":"refresh","beatLeaderPlayerId":"76561198000000001","enableScoreSaber":false,"enableClanPlaylist":false,"separateNewAndRepeatTracks":false})");
         snapshot = Call(R"({"command":"snapshot"})");
         CHECK(snapshot["playlists"].Size() == 1);

@@ -123,7 +123,8 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
                                int limit, std::vector<ClanPlaylistRecommendations>& playlists, std::string& error,
                                const HttpGetter& get = HttpGet, const HttpGetter& getIcon = HttpGetIcon,
                                double minClearRate = .5, ScoreHistory* cachedHistory = nullptr, bool pace = true,
-                               ClanScreenCache* screeningCache = nullptr, bool legacy = false) {
+                               ClanScreenCache* screeningCache = nullptr, bool legacy = false,
+                               bool beatLeaderModifiers = false) {
     playlists.clear(); error.clear();
     if (!IsDigits(playerId)) { error = "Enter a numeric BeatLeader player ID to load clan maps."; return false; }
     minClearRate = std::isfinite(minClearRate) ? std::clamp(minClearRate, 0.0, .95) : .5;
@@ -168,11 +169,11 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
     if (BuildAbilityChart(history.scores).scores.empty()) {
         error = "Clan recommendations need an eligible ranked Standard score (at least 55% accuracy, without No Fail)."; return false;
     }
-    if (legacy) return FetchLegacyClanPlaylists(clans,primaryId,limit,minClearRate,history,playlists,request,getIcon);
+    if (legacy) return FetchLegacyClanPlaylists(clans,primaryId,limit,minClearRate,history,playlists,request,getIcon,beatLeaderModifiers);
     std::vector<MapEntry> catalog;
     std::string cachedBody, cacheWarning, cacheError;
     PageInfo cacheInfo;
-    const bool cachedCatalog = screeningCache && screeningCache->Get("catalog",kClanCatalogCacheSeconds,ClanCacheNow(),cachedBody) &&
+    const bool cachedCatalog = screeningCache && screeningCache->Get(kClanCatalogCacheKey,kClanCatalogCacheSeconds,ClanCacheNow(),cachedBody) &&
         ParseEntries(cachedBody,catalog,cacheError,&cacheInfo);
     if (!cachedCatalog) {
         catalog.clear();
@@ -180,14 +181,17 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
             return "https://api.beatleader.com/maps?type=ranked&mode=Standard&count=" + std::to_string(kClanBulkPageSize) +
                 "&sortBy=stars&order=desc&page=" + std::to_string(page);
         }, catalog, error, ParseEntries, request, false)) return false;
-        if (screeningCache && !screeningCache->Put("catalog",CompactClanCatalog(catalog),ClanCacheNow()))
+        if (screeningCache && !screeningCache->Put(kClanCatalogCacheKey,CompactClanCatalog(catalog),ClanCacheNow()))
             cacheWarning = "Screening cache could not be saved; future refreshes may be slower.";
     }
-    auto evaluated = EvaluatePlayerPerformance(catalog, history.scores, history.attempts);
+    std::unordered_map<std::string, const MapEntry*> catalogById;
+    for (const auto& chart : catalog) catalogById.try_emplace(chart.leaderboardId, &chart);
+    auto evaluated = EvaluatePlayerPerformance(catalog, history.scores, history.attempts, beatLeaderModifiers);
     std::unordered_set<std::string> chartIds;
     evaluated.erase(std::remove_if(evaluated.begin(), evaluated.end(), [&](const auto& e) {
-        return e.leaderboardId.empty() || e.clearChance < minClearRate ||
-            e.predictedPp <= e.currentPp || !chartIds.insert(e.leaderboardId).second;
+        if (e.leaderboardId.empty() || e.clearChance < minClearRate || e.predictedPp <= e.currentPp) return true;
+        const bool first = chartIds.insert(e.leaderboardId).second;
+        return !beatLeaderModifiers && !first;
     }), evaluated.end());
     if (!request("https://api.beatleader.com/clans/globalmap", body, error)) return false;
     rapidjson::Document global; global.Parse(body.c_str());
@@ -254,6 +258,7 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
         for (const auto& e:search.evidence) previousEvidence.emplace(e.leaderboardId,&e);
         const std::unordered_set<std::string> previousRecommendations(search.recommendations.begin(),search.recommendations.end());
         std::unordered_map<std::string,std::pair<double,double>> screenedTotals;
+        std::unordered_map<std::string,std::size_t> candidateIndices;
         std::vector<ClanScreenCandidate> candidates;
         for (const auto& chart : evaluated) {
             const double ownPp = totals.contains(chart.leaderboardId) ? totals.at(chart.leaderboardId).pp : 0;
@@ -264,11 +269,26 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
                 totals.contains(chart.leaderboardId) && totals.at(chart.leaderboardId).rank == 1) continue;
             const auto found=previousEvidence.find(chart.leaderboardId);
             const auto* evidence=found==previousEvidence.end()?nullptr:found->second;
-            if (evidence && ClanEvidenceMatches(*evidence,chart,ownPp,rival)) ++playlist.learnedCharts;
             // Unknown ownership stays unknown until verified. Prior weighted
             // impact is a screening hint only; every selected chart is checked live.
-            candidates.push_back(ScreenClanCandidate(chart,ownPp,rival,minClearRate,evidence));
-            screenedTotals.emplace(chart.leaderboardId,std::pair{ownPp,rival});
+            auto candidate = ScreenClanCandidate(chart,ownPp,rival,minClearRate,evidence);
+            const auto [index, inserted] = candidateIndices.try_emplace(chart.leaderboardId,candidates.size());
+            if (inserted) {
+                candidates.push_back(std::move(candidate));
+                screenedTotals.emplace(chart.leaderboardId,std::pair{ownPp,rival});
+            } else {
+                auto& best = candidates[index->second];
+                if (std::tie(candidate.optimisticCapture,candidate.optimisticGapClosure,candidate.optimisticGain) >
+                    std::tie(best.optimisticCapture,best.optimisticGapClosure,best.optimisticGain))
+                    best = std::move(candidate);
+            }
+        }
+        for (const auto& candidate : candidates) {
+            const auto& chart = candidate.chart;
+            const auto [ownPp,rivalPp] = screenedTotals.at(chart.leaderboardId);
+            const auto found = previousEvidence.find(chart.leaderboardId);
+            if (found != previousEvidence.end() && ClanEvidenceMatches(*found->second,chart,ownPp,rivalPp))
+                ++playlist.learnedCharts;
         }
         playlist.eligibleCharts = candidates.size();
         std::size_t cursor=search.cursor;
@@ -309,7 +329,6 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
                         live.clans.push_back({static_cast<int>(id),pp});
                     }
                     if (!std::is_sorted(live.clans.begin(),live.clans.end(),[](const auto& x,const auto& y) { return x.second > y.second; })) return;
-                    live.chart = candidate.chart;
                     // A cached catalog is only a screening hint. Use the fresh
                     // leaderboard's ratings/status/hash for every final projection.
                     if (doc.HasMember("song") && doc.HasMember("difficulty")) {
@@ -320,7 +339,10 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
                         if (context.ranked) AddIfComplete(context,charts);
                         if (charts.size() != 1 || Lower(charts[0].hash) != Lower(candidate.chart.hash)) return;
                         live.chart = std::move(charts[0]);
-                    } else if (screeningCache) return;
+                    } else {
+                        if (screeningCache) return;
+                        live.chart = *catalogById.at(lb);
+                    }
                     { std::lock_guard<std::mutex> lock(responseCacheMutex); rankingCache[lb] = live; }
                 }
                 auto& input = checked.input;
@@ -354,9 +376,9 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
             if (!checked.valid) ++playlist.failedCharts;
             else freshCharts.push_back(checked.input.chart);
         }
-        auto freshPerformance = EvaluatePlayerPerformance(freshCharts,history.scores,history.attempts);
-        std::unordered_map<std::string,MapEntry> performanceById;
-        for (auto& entry : freshPerformance) performanceById.emplace(entry.leaderboardId,std::move(entry));
+        auto freshPerformance = EvaluatePlayerPerformance(freshCharts,history.scores,history.attempts,beatLeaderModifiers);
+        std::unordered_map<std::string,std::vector<MapEntry>> performanceById;
+        for (auto& entry : freshPerformance) performanceById[entry.leaderboardId].push_back(std::move(entry));
         std::vector<MapEntry> verified;
         std::vector<ClanSearchEvidence> learned;
         std::unordered_set<std::string> updated;
@@ -365,18 +387,23 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
             if (!checked.valid) continue;
             const auto found = performanceById.find(checked.input.chart.leaderboardId);
             if (found == performanceById.end()) continue;
-            checked.input.chart = found->second;
-            MapEntry entry;
-            std::optional<ClanImpact> projection;
-            const bool useful=EvaluateClanImpact(std::move(checked.input),playerId,minClearRate,entry,&projection);
-            if (projection) {
-                const auto& chart=shortlisted[i].chart;
-                const auto [ownPp,rivalPp]=screenedTotals.at(chart.leaderboardId);
-                learned.push_back({chart.leaderboardId,ownPp,rivalPp,chart.currentPp,chart.predictedPp,chart.predictedAccuracy,
-                    projection->currentClanPp,projection->rivalPp,projection->gain,useful});
-                updated.insert(chart.leaderboardId);
+            const auto& chart = shortlisted[i].chart;
+            MapEntry best;
+            for (auto& performance : found->second) {
+                checked.input.chart = std::move(performance);
+                MapEntry entry;
+                std::optional<ClanImpact> projection;
+                const bool useful = EvaluateClanImpact(checked.input,playerId,minClearRate,entry,&projection);
+                // Keep the screening hint tied to the variant it measured.
+                if (projection && checked.input.chart.recommendedModifier == chart.recommendedModifier) {
+                    const auto [ownPp,rivalPp] = screenedTotals.at(chart.leaderboardId);
+                    learned.push_back({chart.leaderboardId,ownPp,rivalPp,chart.currentPp,chart.predictedPp,chart.predictedAccuracy,
+                        projection->currentClanPp,projection->rivalPp,projection->gain,useful});
+                    updated.insert(chart.leaderboardId);
+                }
+                if (useful && (!best.clanImpact || ClanRecommendationBetter(entry,best))) best = std::move(entry);
             }
-            if (useful) verified.push_back(std::move(entry));
+            if (best.clanImpact) verified.push_back(std::move(best));
         }
         if (gate.limited.load()) {
             if (!playlist.warning.empty()) playlist.warning += " ";

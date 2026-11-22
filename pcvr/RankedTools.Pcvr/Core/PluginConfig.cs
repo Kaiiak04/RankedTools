@@ -25,6 +25,7 @@ public class PluginConfig
     public virtual bool RecordLocalAttempts { get; set; } = true;
     public virtual bool ImportAttemptHistory { get; set; } = true;
     public virtual bool EnableBeatLeader { get; set; } = true;
+    public virtual bool BeatLeaderModifiers { get; set; }
     public virtual bool EnableScoreSaber { get; set; } = true;
     public virtual bool EnableClanPlaylist { get; set; } = true;
     public virtual bool EnableSyncPlaylist { get; set; }
@@ -41,6 +42,7 @@ public class PluginConfig
         ["minClearRate"] = NormalizeClearRate(MinClearRate),
         ["separateNewAndRepeatTracks"] = SeparateNewAndRepeatTracks, ["importAttempts"] = ImportAttemptHistory,
         ["enableBeatLeader"] = EnableBeatLeader, ["enableScoreSaber"] = EnableScoreSaber,
+        ["beatLeaderModifiers"] = BeatLeaderModifiers,
         ["enableClanPlaylist"] = EnableClanPlaylist, ["legacyClanPlaylists"] = LegacyClanPlaylists,
         ["enableSyncPlaylist"] = EnableSyncPlaylist,
         ["allClans"] = ClanPlaylistAllClans,

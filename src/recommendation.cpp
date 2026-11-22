@@ -10,7 +10,10 @@
 #include <chrono>
 #include <cmath>
 #include <iterator>
+#include <iomanip>
 #include <limits>
+#include <locale>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 
@@ -363,8 +366,9 @@ double ScoreSaberPp(double stars, double accuracy) {
     return 42.1168 * stars * InterpolateCurve(accuracy, points, std::size(points));
 }
 
-double BeatLeaderPp(double accuracy, const Difficulty& difficulty) {
-    if (difficulty.noteSpan) return BeatLeaderPpv4(accuracy, difficulty);
+double BeatLeaderPp(double accuracy, const Difficulty& difficulty, double scoringMultiplier = 1.0) {
+    if (difficulty.noteSpan) return BeatLeaderPpv4(accuracy, difficulty, scoringMultiplier);
+    if (!std::isfinite(scoringMultiplier) || scoringMultiplier <= 0.0) return 0.0;
     if (difficulty.accRating <= 0.0 || difficulty.passRating <= 0.0 || difficulty.techRating < 0.0) return 0.0;
     static constexpr std::pair<double, double> points[] = {
         {0.00, 0.000}, {0.60, 0.256}, {0.65, 0.296}, {0.70, 0.345},
@@ -376,9 +380,9 @@ double BeatLeaderPp(double accuracy, const Difficulty& difficulty) {
         {0.985, 2.007}, {0.9875, 2.303}, {0.99, 2.700}, {0.9925, 3.241},
         {0.995, 4.010}, {0.9975, 5.158}, {0.999, 6.241}, {1.00, 7.424}
     };
-    const double passPp = std::max(0.0, 15.2 * std::exp(std::pow(difficulty.passRating, 1.0 / 2.62)) - 30.0);
-    const double accPp = InterpolateCurve(accuracy, points, std::size(points)) * difficulty.accRating * 34.0;
-    const double techPp = std::exp(1.9 * accuracy) * 1.08 * difficulty.techRating;
+    const double passPp = std::max(0.0, 15.2 * std::exp(std::pow(difficulty.passRating * scoringMultiplier, 1.0 / 2.62)) - 30.0);
+    const double accPp = InterpolateCurve(accuracy, points, std::size(points)) * difficulty.accRating * scoringMultiplier * 34.0;
+    const double techPp = std::exp(1.9 * accuracy) * 1.08 * difficulty.techRating * scoringMultiplier;
     const double raw = passPp + accPp + techPp;
     return std::isfinite(raw) && raw > 0.0 ? std::pow(raw / 650.0, 1.3) * 650.0 : 0.0;
 }
@@ -505,13 +509,65 @@ int NormalizeMinClearRatePercent(int percent) {
 }
 
 namespace {
+std::string BeatLeaderSpeedDescription(const BeatLeaderSpeedOption& option) {
+    std::ostringstream text;
+    text.imbue(std::locale::classic());
+    text << option.label << " (" << std::fixed << std::setprecision(2) << option.multiplier << "×)";
+    return text.str();
+}
+
+struct BeatLeaderScoringAdjustment {
+    double multiplier{1.0};
+    std::string description;
+    bool changesArrows{false};
+};
+
+std::vector<BeatLeaderScoringAdjustment> BeatLeaderScoringAdjustments(const Difficulty& difficulty) {
+    std::vector<BeatLeaderScoringAdjustment> combinations(1);
+    for (size_t i = 0; i < difficulty.modifierValues.size(); ++i) {
+        const double value = difficulty.modifierValues[i];
+        // A neutral modifier has the same PP and the same available forecast.
+        if (!std::isfinite(value) || value == 0.0) continue;
+        const auto& modifier = kBeatLeaderStandardModifiers[i];
+        const size_t count = combinations.size();
+        for (size_t j = 0; j < count; ++j) {
+            auto next = combinations[j];
+            if (next.changesArrows && modifier.changesArrows) continue;
+            next.changesArrows |= modifier.changesArrows;
+            next.multiplier += value;
+            if (!next.description.empty()) next.description += " + ";
+            next.description += modifier.label;
+            combinations.push_back(std::move(next));
+        }
+    }
+    combinations.erase(combinations.begin()); // The base variant is evaluated first.
+    return combinations;
+}
+
+template<class Evaluate>
+void EvaluateBeatLeaderSpeeds(const Difficulty& difficulty, bool compareModifiers, Evaluate evaluate) {
+    const auto adjustments = compareModifiers ? BeatLeaderScoringAdjustments(difficulty)
+        : std::vector<BeatLeaderScoringAdjustment>{};
+    evaluate(difficulty, std::string_view{}, 1.0, adjustments);
+    if (!compareModifiers) return;
+    for (size_t i = 1; i < kBeatLeaderSpeedOptions.size(); ++i) {
+        if (const auto rated = BeatLeaderDifficultyAtSpeed(difficulty, static_cast<BeatLeaderSpeed>(i))) {
+            const double legacyScale = !difficulty.hasSpeedRatings && !difficulty.noteSpan
+                ? 1.0 + difficulty.speedRatings[i - 1].legacyAdjustment : 1.0;
+            evaluate(*rated, BeatLeaderSpeedDescription(kBeatLeaderSpeedOptions[i]), legacyScale, adjustments);
+        }
+    }
+}
+
 void ApplyPerformance(MapEntry& entry, const Difficulty& difficulty, RatingSystem system,
                       const AccuracyCurve& accuracy, const ClearabilityModel& clearability,
-                      bool includeClearSupport) {
+                      bool includeClearSupport, bool speedModified = false) {
     entry.predictedAccuracy = accuracy.Predict(difficulty.stars);
     entry.predictedPp = system == RatingSystem::BeatLeader ? BeatLeaderPp(entry.predictedAccuracy, difficulty)
         : ScoreSaberPp(difficulty.stars, entry.predictedAccuracy);
-    entry.clearChance = clearability.Predict(difficulty.stars, ScoreKey(entry, difficulty));
+    // Existing chart-specific attempts do not identify the outcome at another speed.
+    entry.clearChance = speedModified ? clearability.Predict(difficulty.stars)
+        : clearability.Predict(difficulty.stars, ScoreKey(entry, difficulty));
     entry.confidence = std::clamp(accuracy.LocalSupport(difficulty.stars) / 3.0, 0.0, 1.0);
     if (includeClearSupport) entry.confidence = std::min(entry.confidence,
         std::clamp(clearability.LocalSupport(difficulty.stars) / 4.0, 0.0, 1.0));
@@ -519,8 +575,30 @@ void ApplyPerformance(MapEntry& entry, const Difficulty& difficulty, RatingSyste
     entry.nearbyClears = clears; entry.nearbyNoFail = noFail;
     entry.nearbyFailures = clearability.NearbyFailures(difficulty.stars);
 }
+
+void ApplyBeatLeaderScoringAdjustments(MapEntry& entry, const Difficulty& difficulty, std::string_view speedName,
+                                      double legacyScale, const std::vector<BeatLeaderScoringAdjustment>& adjustments) {
+    entry.recommendedModifier = speedName;
+    entry.beatLeaderScoringMultiplier = 1.0;
+    const BeatLeaderScoringAdjustment* best = nullptr;
+    for (const auto& adjustment : adjustments) {
+        // A legacy speed multiplier is already baked into the effective difficulty.
+        const double multiplier = 1.0 + (adjustment.multiplier - 1.0) / legacyScale;
+        const double pp = BeatLeaderPp(entry.predictedAccuracy, difficulty, multiplier);
+        if (pp <= entry.predictedPp) continue;
+        entry.predictedPp = pp;
+        entry.beatLeaderScoringMultiplier = multiplier;
+        best = &adjustment;
+    }
+    if (best) {
+        if (!speedName.empty()) entry.recommendedModifier += " + ";
+        entry.recommendedModifier += best->description;
+    }
 }
-double PredictBeatLeaderPp(double accuracy, const Difficulty& difficulty) { return BeatLeaderPp(accuracy, difficulty); }
+}
+double PredictBeatLeaderPp(double accuracy, const Difficulty& difficulty, double scoringMultiplier) {
+    return BeatLeaderPp(accuracy, difficulty, scoringMultiplier);
+}
 double EstimateClanMaxStars(const std::vector<MapEntry>& scores, double minClearRate,
                             const std::vector<Attempt>& attempts) {
     minClearRate=std::isfinite(minClearRate)?std::clamp(minClearRate,0.0,.95):.5;
@@ -530,7 +608,8 @@ double EstimateClanMaxStars(const std::vector<MapEntry>& scores, double minClear
 }
 std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& charts,
                                                const std::vector<MapEntry>& scores,
-                                               const std::vector<Attempt>& attempts) {
+                                               const std::vector<Attempt>& attempts,
+                                               bool beatLeaderModifiers) {
     const AccuracyCurve accuracy(scores);
     if (!accuracy.HasObservations()) return {};
     auto resolved = attempts;
@@ -545,13 +624,18 @@ std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& cha
         if (!chart.ranked || !IsValidSongHash(chart.hash) || chart.songName.empty()) continue;
         for (const auto& difficulty : chart.difficulties) {
             if (Canonical(difficulty.characteristic) != "standard" || !std::isfinite(difficulty.stars) || difficulty.stars <= 0) continue;
-            MapEntry entry = chart;
-            entry.difficulties = {difficulty}; entry.stars = difficulty.stars;
-            ApplyPerformance(entry, difficulty, RatingSystem::BeatLeader, accuracy, clearability, true);
-            const auto current = currentPp.find(ScoreKey(entry, difficulty));
-            entry.currentPp = current == currentPp.end() ? 0.0 : current->second;
-            entry.isImprovement = entry.currentPp > 0;
-            if (std::isfinite(entry.predictedPp) && entry.predictedPp > 0) result.push_back(std::move(entry));
+            const auto current = currentPp.find(ScoreKey(chart, difficulty));
+            EvaluateBeatLeaderSpeeds(difficulty, beatLeaderModifiers,
+                [&](const Difficulty& rated, std::string_view speedName, double legacyScale, const auto& adjustments) {
+                    MapEntry entry = chart;
+                    entry.difficulties = {rated};
+                    entry.stars = rated.stars;
+                    ApplyPerformance(entry, rated, RatingSystem::BeatLeader, accuracy, clearability, true, !speedName.empty());
+                    ApplyBeatLeaderScoringAdjustments(entry, rated, speedName, legacyScale, adjustments);
+                    entry.currentPp = current == currentPp.end() ? 0.0 : current->second;
+                    entry.isImprovement = entry.currentPp > 0;
+                    if (std::isfinite(entry.predictedPp) && entry.predictedPp > 0) result.push_back(std::move(entry));
+                });
         }
     }
     return result;
@@ -560,16 +644,20 @@ std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& cha
 std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
                                             ListKind kind,
                                             int limit,
-                                            double /*targetStars*/,
+                                            double targetStars,
                                             const std::vector<MapEntry>& profileScores,
                                             RatingSystem system,
                                             double minClearRate,
                                             bool rankByWeightedGain,
-                                            const std::vector<Attempt>& attempts) {
+                                            const std::vector<Attempt>& attempts,
+                                            bool beatLeaderModifiers) {
     // AccSaber needs category curves and uses its dedicated selector.
     if (system == RatingSystem::AccSaber) return {};
     minClearRate = std::isfinite(minClearRate) ? std::clamp(minClearRate, 0.0, 0.95) : 0.50;
     AccuracyCurve accuracyCurve(profileScores.empty() ? entries : profileScores, system);
+    const bool modifiersEnabled = system == RatingSystem::BeatLeader && beatLeaderModifiers;
+    const bool compareModifiers = modifiersEnabled && accuracyCurve.HasObservations();
+    const bool filterByStars = modifiersEnabled && kind == ListKind::NotPlayed && targetStars > 0.0;
     auto resolvedAttempts = attempts;
     ResolveAttemptRatings(resolvedAttempts, profileScores);
     ResolveAttemptRatings(resolvedAttempts, entries);
@@ -590,37 +678,37 @@ std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
         MapEntry selected = entry;
         double bestPriority = 0.0;
         for (const auto& difficulty : entry.difficulties) {
-            MapEntry performance = entry;
-            ApplyPerformance(performance, difficulty, system, accuracyCurve, clearability, kind == ListKind::NotPlayed);
-            const double predictedAccuracy = performance.predictedAccuracy;
-            const double predictedPp = performance.predictedPp;
-            const double clearChance = performance.clearChance;
-            if (predictedPp <= 0.0) continue;
-
             const auto scoreKey = ScoreKey(entry, difficulty);
-            const double weightedGain = WeightedProfileChange(
-                weightedProfile, scoreKey, predictedPp, kind == ListKind::NotPlayed);
-            const double priority = kind == ListKind::NotPlayed
-                ? RecommendationPriority(weightedGain, clearChance, minClearRate, rankByWeightedGain) : weightedGain;
-            if (priority <= 0.0) continue;
-            if (!hasRecommendation || priority > bestPriority) {
+            EvaluateBeatLeaderSpeeds(difficulty, compareModifiers,
+             [&](const Difficulty& rated, std::string_view speedName, double legacyScale, const auto& adjustments) {
+                if (filterByStars && (rated.stars < std::max(1.0, targetStars - kTargetWindowStars) ||
+                    rated.stars > targetStars + kTargetWindowStars)) return;
+
+                const bool harderReplay = kind == ListKind::ToImprove && rated.stars > difficulty.stars;
+                MapEntry performance = entry;
+                ApplyPerformance(performance, rated, system, accuracyCurve, clearability,
+                                 kind == ListKind::NotPlayed || harderReplay, !speedName.empty());
+                // A PB on the chart does not establish a clear at higher stars.
+                if (harderReplay && performance.clearChance < minClearRate) return;
+                ApplyBeatLeaderScoringAdjustments(performance, rated, speedName, legacyScale, adjustments);
+                if (performance.predictedPp <= 0.0) return;
+                const double weightedGain = WeightedProfileChange(
+                    weightedProfile, scoreKey, performance.predictedPp, kind == ListKind::NotPlayed);
+                const double priority = kind == ListKind::NotPlayed
+                    ? RecommendationPriority(weightedGain, performance.clearChance, minClearRate, rankByWeightedGain)
+                    : weightedGain;
+                if (priority <= bestPriority) return;
+
                 hasRecommendation = true;
                 bestPriority = priority;
-                selected = entry;
+                selected = std::move(performance);
                 selected.difficulties = {difficulty};
-                selected.stars = difficulty.stars;
+                selected.stars = rated.stars;
                 selected.priority = priority;
-                selected.predictedAccuracy = predictedAccuracy;
-                selected.predictedPp = predictedPp;
                 selected.currentPp = CurrentProfilePp(weightedProfile, scoreKey);
                 selected.isImprovement = kind == ListKind::ToImprove;
                 selected.weightedPpGain = weightedGain;
-                selected.clearChance = clearChance;
-                selected.confidence = performance.confidence;
-                selected.nearbyClears = performance.nearbyClears;
-                selected.nearbyNoFail = performance.nearbyNoFail;
-                selected.nearbyFailures = performance.nearbyFailures;
-            }
+            });
         }
         if (!hasRecommendation) continue;
 

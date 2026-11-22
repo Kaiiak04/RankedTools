@@ -219,22 +219,70 @@ double V4MidStarMultiplier(double stars, double accuracy, double predictedAcc) {
         bump = ease((10.5 - stars) / (10.5 - 8));
     return 1 + .05 * bump * ease((accuracy - (predictedAcc - .03)) / .03);
 }
+
+double V4PassPp(double rating) {
+    const double pass = rating > 13 ? 13 + (rating - 13) * .5 : rating;
+    return std::max(0.0, 12.3 * std::exp(.85966 * std::pow(pass, 1 / 2.62)) - 30);
+}
+
+double V4TechPp(double rating) {
+    const double tech = rating > 6.2754 ? 6.2754 + (rating - 6.2754) * .7 : rating;
+    return 5.7887 * tech;
+}
 } // namespace
 
-double BeatLeaderPpv4(double accuracy, const Difficulty &d) {
+std::optional<Difficulty> BeatLeaderDifficultyAtSpeed(const Difficulty& difficulty, BeatLeaderSpeed speed) {
+    const auto index = static_cast<size_t>(speed);
+    if (index == 0 || index >= kBeatLeaderSpeedOptions.size()) return std::nullopt;
+    const auto& rating = difficulty.speedRatings[index - 1];
+    auto rated = difficulty;
+    if (!difficulty.hasSpeedRatings && !difficulty.noteSpan && rating.legacyAdjustment != 0.0) {
+        const double multiplier = 1.0 + rating.legacyAdjustment;
+        if (!std::isfinite(multiplier) || multiplier <= 0) return std::nullopt;
+        rated.stars *= multiplier;
+        rated.accRating *= multiplier;
+        rated.passRating *= multiplier;
+        rated.techRating *= multiplier;
+        return rated;
+    }
+    if (!std::isfinite(rating.stars) || rating.stars <= 0 || !std::isfinite(rating.accRating) ||
+        rating.accRating < 0 || !std::isfinite(rating.passRating) || rating.passRating < 0 ||
+        !std::isfinite(rating.techRating) || rating.techRating < 0) return std::nullopt;
+
+    rated.stars = rating.stars;
+    rated.accRating = rating.accRating;
+    rated.passRating = rating.passRating;
+    rated.techRating = rating.techRating;
+    if (rated.noteSpan) {
+        if (!std::isfinite(rating.predictedAcc) || rating.predictedAcc < 0 || rating.predictedAcc > 1 ||
+            !std::isfinite(*rated.noteSpan) || *rated.noteSpan < 0) return std::nullopt;
+        rated.predictedAcc = rating.predictedAcc;
+        rated.sliderPercentage = rating.sliderPercentage.value_or(difficulty.sliderPercentage);
+        *rated.noteSpan /= kBeatLeaderSpeedOptions[index].multiplier;
+    }
+    return rated;
+}
+
+double BeatLeaderPpv4(double accuracy, const Difficulty &d, double scoringMultiplier) {
     if (!std::isfinite(accuracy) || accuracy <= 0 || accuracy > 1 || !std::isfinite(d.accRating) ||
         !std::isfinite(d.passRating) || !std::isfinite(d.techRating) || !std::isfinite(d.predictedAcc) ||
         !std::isfinite(d.sliderPercentage) || !std::isfinite(d.notes) || !d.noteSpan || !std::isfinite(*d.noteSpan) ||
-        *d.noteSpan < 0 || d.accRating < 0 || d.passRating < 0 || d.techRating < 0)
+        *d.noteSpan < 0 || d.accRating < 0 || d.passRating < 0 || d.techRating < 0 ||
+        !std::isfinite(scoringMultiplier) || scoringMultiplier <= 0)
         return 0;
     const V4Curve curve(d);
-    const double pass = d.passRating > 13 ? 13 + (d.passRating - 13) * .5 : d.passRating;
-    const double passPp = std::max(0.0, 12.3 * std::exp(.85966 * std::pow(pass, 1 / 2.62)) - 30);
-    const double tech = d.techRating > 6.2754 ? 6.2754 + (d.techRating - 6.2754) * .7 : d.techRating;
-    const double techPp = 5.7887 * tech;
-    const double accFactor = 34.519 * d.accRating;
+    double passPp = V4PassPp(d.passRating);
+    double techPp = V4TechPp(d.techRating);
+    double accFactor = 34.519 * d.accRating;
     const double at96 = curve.Value(.96);
+    // Ranked PP uses the chosen speed's stars for the curve and bonuses.
+    // Other modifiers adjust the components without changing those stars.
     const double stars = V4Stars(passPp * V4PassAccMultiplier(.96, d.predictedAcc) + at96 * accFactor + techPp);
+    if (scoringMultiplier != 1.0) {
+        passPp = V4PassPp(d.passRating * scoringMultiplier);
+        techPp = V4TechPp(d.techRating * scoringMultiplier);
+        accFactor *= scoringMultiplier;
+    }
     double value = curve.Value(accuracy);
     if (value > 0 && at96 > 0)
         value = at96 * std::pow(value / at96, V4CurvePower(stars));

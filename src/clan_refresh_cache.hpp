@@ -2,6 +2,7 @@
 constexpr int kClanBulkPageSize = 500;
 constexpr double kClanCatalogCacheSeconds = 600;
 constexpr double kClanTotalsCacheSeconds = 60;
+constexpr char kClanCatalogCacheKey[] = "catalog_v2";
 double ClanCacheNow() {
     return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
@@ -75,6 +76,35 @@ std::string CompactClanCatalog(const std::vector<MapEntry>& charts) {
             num("stars",d.stars); num("accRating",d.accRating); num("passRating",d.passRating); num("techRating",d.techRating);
             num("predictedAcc",d.predictedAcc); num("sliderPercentage",d.sliderPercentage); num("notes",d.notes);
             if (d.noteSpan) num("noteSpan",*d.noteSpan);
+            if (d.hasSpeedRatings) {
+                w.Key("modifiersRating"); w.StartObject();
+                for (std::size_t i = 0; i < d.speedRatings.size(); ++i) {
+                    const auto& rating = d.speedRatings[i];
+                    const std::string code(kBeatLeaderSpeedOptions[i + 1].code);
+                    const auto ratingField = [&](const char* name, double value) {
+                        if (std::isfinite(value)) num((code + name).c_str(), value);
+                    };
+                    if (rating.stars > 0.0) {
+                        ratingField("Stars", rating.stars);
+                        ratingField("AccRating", rating.accRating);
+                        ratingField("PassRating", rating.passRating);
+                        ratingField("TechRating", rating.techRating);
+                        ratingField("PredictedAcc", rating.predictedAcc);
+                        if (rating.sliderPercentage) ratingField("SliderPercentage", *rating.sliderPercentage);
+                    }
+                }
+                w.EndObject();
+            }
+            w.Key("modifierValues"); w.StartObject();
+            for (std::size_t i = 0; i < d.speedRatings.size(); ++i) {
+                const double value = d.speedRatings[i].legacyAdjustment;
+                if (std::isfinite(value) && value != 0.0) num(kBeatLeaderSpeedOptions[i + 1].code.data(), value);
+            }
+            for (std::size_t i = 0; i < d.modifierValues.size(); ++i) {
+                const double value = d.modifierValues[i];
+                if (std::isfinite(value) && value != 0.0) num(kBeatLeaderStandardModifiers[i].code, value);
+            }
+            w.EndObject();
             w.EndObject();
         }
         w.EndArray(); w.EndObject();

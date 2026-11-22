@@ -47,7 +47,7 @@ struct ClanSearchState {
 };
 double WeightedClanPp(std::vector<ClanScore> scores);
 bool ClanRecommendationBetter(const MapEntry& left, const MapEntry& right);
-bool EvaluateClanImpact(ClanMapInput input, const std::string& playerId,
+bool EvaluateClanImpact(const ClanMapInput& input, const std::string& playerId,
                         double minClearRate, MapEntry& result,
                         std::optional<ClanImpact>* projection = nullptr);
 ClanScreenCandidate ScreenClanCandidate(const MapEntry& chart, double clanPp, double rivalPp,

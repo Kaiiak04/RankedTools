@@ -10,12 +10,13 @@
       <button text="Show / hide IDs" on-click="toggle-ids" pref-width="90" pref-height="7" horizontal-fit="Unconstrained" vertical-fit="Unconstrained" font-size="3" min-width="90" min-height="7" flexible-width="0" flexible-height="0" />
       <increment-setting text="Tracks per playlist" value="track-limit" min="1" max="100" increment="1" integer-only="true" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <slider-setting text="Min Clear Rate" value="clear-rate" min="0" max="95" increment="5" integer-only="true" formatter="clear-rate-format" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
-      <text text="Clear estimates are heuristic. 0% disables the threshold and chance adjustment; legacy clan mode also removes its maximum star cap." font-size="3.2" rich-text="false" word-wrapping="true" />
+      <text text="Min Clear Rate applies to unplayed charts, BeatLeader modifier replays that raise stars, and personalized clan picks. At 0%, clear-rate filtering and chance adjustment are disabled, and legacy clans remove their star cap." font-size="3.2" rich-text="false" word-wrapping="true" />
       <toggle-setting text="Separate New and Repeat Tracks" value="separate-new-and-repeat-tracks" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Record local attempts" value="record-attempts" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <text text="Use your own player IDs when recording attempts. Turn recording off when inspecting someone else's profile." font-size="3.2" rich-text="false" word-wrapping="true" />
       <toggle-setting text="Import attempt history" value="import-attempts" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Create BeatLeader playlists" value="enable-beatleader" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
+      <toggle-setting text="BeatLeader Modifiers" value="beatleader-modifiers" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Create ScoreSaber playlists" value="enable-scoresaber" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <toggle-setting text="Create AccSaber playlists" value="enable-accsaber" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />
       <dropdown-list-setting text="AccSaber Category" value="accsaber-category" choices="accsaber-categories" pref-width="90" pref-height="7" font-size="3.2" min-height="7" flexible-height="0" />

@@ -32,6 +32,7 @@ internal sealed class SettingsHost : ObservableHost, IDisposable
     [UIValue("scoresaber-account")] public string ScoreSaberAccount => AccountLabel("ScoreSaber",Config.ScoreSaberPlayerId,Config.ScoreSaberPlayerName);
     [UIValue("accsaber-account")] public string AccSaberAccount => AccountLabel("AccSaber",Config.AccSaberPlayerId,Config.AccSaberPlayerName);
     [UIValue("accsaber-categories")] public IList AccSaberCategories => PluginConfig.AccSaberCategoryLabels;
+    [UIValue("beatleader-modifiers")] public bool BeatLeaderModifiers { get=>Config.BeatLeaderModifiers; set=>Config.BeatLeaderModifiers=value; }
     [UIValue("accsaber-category")] public string AccSaberCategory
     {
         get => PluginConfig.AccSaberCategoryLabels[Array.IndexOf(PluginConfig.AccSaberCategories,PluginConfig.NormalizeAccSaberCategory(Config.AccSaberCategory))];

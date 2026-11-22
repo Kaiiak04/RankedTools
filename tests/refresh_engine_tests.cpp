@@ -14,6 +14,7 @@ std::vector<std::string> writes, prunes;
 bool failFetch{}, failWrite{}, failClan{}, failMember{}, emptyMembership{};
 bool failSyncOnce{}, throwSync{};
 int checks{}, fetches{};
+bool capturedBeatLeaderModifiers{}, capturedClanModifiers{};
 #define CHECK(x)                                                                                                       \
     do {                                                                                                               \
         ++checks;                                                                                                      \
@@ -26,6 +27,8 @@ void Reset() {
     failFetch = failWrite = failClan = failMember = emptyMembership = false;
     failSyncOnce = throwSync = false;
     fetches = 0;
+    capturedBeatLeaderModifiers = false;
+    capturedClanModifiers = false;
 }
 } // namespace
 namespace rankedpractice {
@@ -35,10 +38,11 @@ std::string PlaylistFileName(const std::string &service, ListKind kind) {
 }
 std::string PlaylistTitle(const std::string &service, ListKind kind) { return PlaylistFileName(service, kind); }
 std::string ClanPlaylistFileName(const std::string &clan, bool all) { return clan + (all ? "_all" : "_main"); }
-bool FetchRecommendations(const std::string &, const std::string &, ListKind kind, int, std::vector<MapEntry> &entries,
-                          std::string &error, double, StarRange *, ScoreHistory *history) {
+bool FetchRecommendations(const std::string &service, const std::string &, ListKind kind, int, std::vector<MapEntry> &entries,
+                          std::string &error, double, StarRange *, ScoreHistory *history, bool modifiers) {
     std::lock_guard lock(mutex);
     ++fetches;
+    if (service == "BeatLeader") capturedBeatLeaderModifiers = modifiers;
     history->loaded = true;
     if (failFetch && kind == ListKind::ToImprove) {
         error = "incomplete pages";
@@ -62,7 +66,8 @@ bool PruneLeaderboardPlaylists(const std::string &service, const std::vector<std
     return true;
 }
 bool FetchClanToConquer(const std::string &, bool, int, std::vector<ClanPlaylistRecommendations> &result,
-                        std::string &error, double, ScoreHistory *, bool legacy) {
+                        std::string &error, double, ScoreHistory *, bool legacy, bool modifiers) {
+    capturedClanModifiers = modifiers;
     if (failMember) {
         error = "membership unavailable";
         return false;
@@ -146,13 +151,16 @@ int main() {
         CHECK(result.succeeded && result.filesChanged);
         CHECK(writes == std::vector<std::string>{"BeatLeader2"});
         CHECK(fetches == 1);
+        CHECK(!capturedBeatLeaderModifiers);
         CHECK(!std::filesystem::exists(diagnosticFile)); // Successful refreshes do not manufacture error reports.
         Reset();
         s.separateNewAndRepeatTracks = true;
+        s.beatLeaderModifiers = true;
         result = RunRefresh(s, observer);
         CHECK(result.succeeded);
         CHECK((writes == std::vector<std::string>{"BeatLeader0", "BeatLeader1"}));
         CHECK(fetches == 2);
+        CHECK(capturedBeatLeaderModifiers);
         Reset();
         failFetch = true;
         result = RunRefresh(s, observer);
@@ -177,6 +185,7 @@ int main() {
         CHECK(result.succeeded);
         CHECK(writes.size() == 2);
         CHECK(prunes.back() == "clans");
+        CHECK(capturedClanModifiers);
         Reset();
         failClan = true;
         result = RunRefresh(s, observer);

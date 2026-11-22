@@ -97,7 +97,11 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
                 text.AppendLine(target.Value<string>("characteristic")+" / "+target.Value<string>("difficulty")+": missing on "+target.Value<string>("missingService"));
             return text.ToString();
         }
-        text.AppendLine((difficulty?.Value<string>("name")??"")+" | "+F(difficulty?.Value<double?>("stars")??0,2)+(acc?" complexity":" stars"));
+        var modifier=song.Value<string>("recommendedModifier");
+        var hasModifier=!string.IsNullOrEmpty(modifier);
+        var stars=song.Value<double?>("effectiveStars")??difficulty?.Value<double?>("stars")??0;
+        text.AppendLine((difficulty?.Value<string>("name")??"")+" | "+F(stars,2)+(acc?" complexity":hasModifier?" effective stars":" stars"));
+        if(hasModifier)text.AppendLine("Recommended modifier: "+modifier);
         if(acc) { var category=song.Value<string>("categoryCode")??"overall"; var index=Array.IndexOf(PluginConfig.AccSaberCategories,category); text.AppendLine("Category: "+PluginConfig.AccSaberCategoryLabels[Math.Max(0,index)]); }
         text.AppendLine("Predicted accuracy: "+F(song.Value<double>("predictedAccuracy")*100)+"%");
         text.AppendLine("Predicted score: "+F(song.Value<double>("predictedPp"))+" "+unit);
@@ -116,8 +120,8 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
                 text.AppendLine("Projected clan gain: +"+F(clan.Value<double>("gain"),2)+" weighted PP");
                 text.AppendLine(clan.Value<bool>("captures")?"Capture at predicted score":"Useful progress toward capture");
                 if(clan["requiredPp"]!=null && clan["requiredAccuracy"]!=null)
-                    text.AppendLine("Capture target: "+F(Math.Ceiling(clan.Value<double>("requiredPp")*100)/100,2)+" personal PP / "+F(Math.Ceiling(clan.Value<double>("requiredAccuracy")*10000)/100,2)+"% accuracy (unmodified)");
-                else text.AppendLine("Capture exceeds the theoretical unmodified maximum.");
+                    text.AppendLine("Capture target: "+F(Math.Ceiling(clan.Value<double>("requiredPp")*100)/100,2)+" personal PP / "+F(Math.Ceiling(clan.Value<double>("requiredAccuracy")*10000)/100,2)+"% accuracy"+(hasModifier?" with the recommended modifier":" (unmodified)"));
+                else text.AppendLine(hasModifier?"Capture exceeds the maximum with the recommended modifier.":"Capture exceeds the theoretical unmodified maximum.");
                 text.AppendLine("Capture is an estimate, not a calibrated probability.");
             }
             else
@@ -129,7 +133,7 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
         else
         {
             if(improvement)text.AppendLine("Current score: "+F(song.Value<double>("currentPp"))+" "+unit);
-            else text.AppendLine("Rough clear chance: "+F(song.Value<double>("clearChance")*100,0)+"%");
+            if(!improvement || hasModifier)text.AppendLine("Rough clear chance: "+F(song.Value<double>("clearChance")*100,0)+"%");
             text.AppendLine("Weighted "+unit+" gain if "+(improvement?"improved":"cleared")+": +"+F(song.Value<double>("weightedPpGain"),2));
             if(list.Value<int>("kind")==0 && minClearRate>0)
                 text.AppendLine("Chance-adjusted gain: +"+F(song.Value<double>("weightedPpGain")*song.Value<double>("clearChance"),2));

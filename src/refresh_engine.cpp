@@ -116,7 +116,8 @@ class RefreshRun {
     }
 
     bool RefreshPlaylist(const std::string &service, const std::string &playerId, int limit, double minClearRate,
-                         bool separateNewAndRepeatTracks, ScoreHistory &history, StarRange *beatLeaderNotPlayedRange = nullptr) {
+                         bool separateNewAndRepeatTracks, ScoreHistory &history, StarRange *beatLeaderNotPlayedRange = nullptr,
+                         bool beatLeaderModifiers = false) {
         if (playerId.empty()) {
             PublishAbilityPreview(service, {}, "Enter a player ID in RankedTools settings.");
             return Fail(service + " is enabled, but its player ID is empty.");
@@ -127,7 +128,7 @@ class RefreshRun {
         // Finish fetching the replacement layout before writing or pruning files.
         for (size_t i = 0; i < kinds.size(); ++i) {
             const bool fetched = FetchRecommendations(service, playerId, kinds[i], limit, playlists[i], error,
-                                                      minClearRate, beatLeaderNotPlayedRange, &history);
+                                                      minClearRate, beatLeaderNotPlayedRange, &history, beatLeaderModifiers);
             if (i == 0)
                 PublishAbilityPreview(service, history.scores,
                                       history.loaded ? "" : "Profile could not be loaded: " + error);
@@ -199,7 +200,7 @@ class RefreshRun {
         std::string error;
         const auto allClans = settings.allClans;
         if (!FetchClanToConquer(playerId, allClans, limit, clanPlaylists, error, minClearRate, &history,
-                                settings.legacyClanPlaylists)) {
+                                settings.legacyClanPlaylists, settings.beatLeaderModifiers)) {
             ClanPlaylistRecommendations failed;
             failed.error = error;
             PublishClanPreviews({failed});
@@ -299,7 +300,8 @@ class RefreshRun {
                 if (settings.enableBeatLeader)
                     success = timed("BeatLeader", [&] {
                         return RefreshPlaylist("BeatLeader", settings.beatLeaderPlayerId, limit, minClearRate,
-                                               settings.separateNewAndRepeatTracks, beatLeaderHistory, &beatLeaderNotPlayedRange);
+                                               settings.separateNewAndRepeatTracks, beatLeaderHistory, &beatLeaderNotPlayedRange,
+                                               settings.beatLeaderModifiers);
                     });
                 if (settings.enableClanPlaylist)
                     success =

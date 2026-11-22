@@ -23,6 +23,7 @@ struct RefreshSettings {
     bool enableSyncPlaylist{false};
     bool legacyClanPlaylists{false};
     bool allClans{false};
+    bool beatLeaderModifiers{false};
 };
 
 } // namespace rankedpractice

@@ -35,7 +35,6 @@ $commit=& git -C $root rev-parse HEAD
 $buildInfo | Add-Member -NotePropertyName sourceCommit -NotePropertyValue $commit
 $buildInfo | Add-Member -NotePropertyName sourceDirty -NotePropertyValue ([bool](& git -C $root status --porcelain))
 $buildInfo | Add-Member -NotePropertyName gameVersion -NotePropertyValue $GameVersion
-Copy-Item -LiteralPath (Join-Path $root 'TESTING-0.1.28.md') -Destination (Join-Path $stage 'TESTING-THIS-BUILD.md')
 New-Item -ItemType Directory -Path (Join-Path $stage 'docs') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $root 'docs/ACCSABER.md') -Destination (Join-Path $stage 'docs/ACCSABER.md')
 $packagedReadme=Join-Path $stage 'README.md'
@@ -43,7 +42,7 @@ $packagedReadme=Join-Path $stage 'README.md'
 $buildInfo | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'build-info.json') -Encoding utf8
 Copy-Item -LiteralPath $reportPath -Destination (Join-Path $stage 'validation.json')
 $dist=Join-Path $PSScriptRoot 'dist'; New-Item -ItemType Directory -Path $dist -Force | Out-Null
-$zip=Join-Path $dist "RankedTools-PCVR-0.1.28-preview.1-bs$GameVersion.zip"
+$zip=Join-Path $dist "RankedTools-PCVR-0.1.30-preview.1-bs$GameVersion.zip"
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 $archive=[IO.Compression.ZipFile]::OpenRead($zip)
 try {

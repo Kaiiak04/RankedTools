@@ -322,6 +322,98 @@ void ModifiersAndPp() {
     std::cout << "PASS: modifier-adjusted stars, NF exclusion, full profile weighting, public PP formulas\n";
 }
 
+void BeatLeaderSpeedRecommendations() {
+    // Live PPv4.1 chart 2b3db71 and Faster Song score 14191264.
+    const auto charts = Parse(R"({
+        "hash":"1000000000000000000000000000000000000001","name":"Spoiled little brat",
+        "difficultyName":"Expert","modeName":"Standard","stars":8.942231,
+        "accRating":10.417408,"passRating":6.6918406,"techRating":5.0402036,
+        "predictedAcc":0.9754327,"sliderPercentage":0.014176632,"notes":957,"noteSpan":156.27632,
+        "modifierValues":{"fs":0.4},
+        "modifiersRating":{
+            "fsStars":10.234646,"fsAccRating":11.707053,"fsPassRating":8.335658,
+            "fsTechRating":5.5636997,"fsPredictedAcc":0.970846,"fsSliderPercentage":0.014176715,
+            "bsfStars":11,"bsfAccRating":20,"bsfPassRating":15,"bsfTechRating":8,"bsfPredictedAcc":0.970846
+        }
+    })");
+    const auto faster = BeatLeaderSpeed::FasterSong;
+    CHECK(charts.size() == 1);
+    const auto& chart = charts.front().difficulties.front();
+    const auto rated = BeatLeaderDifficultyAtSpeed(chart, faster);
+    CHECK(rated && rated->stars == 10.234646 && rated->sliderPercentage == 0.014176715);
+    CHECK(rated->noteSpan && std::abs(*rated->noteSpan - 156.27632 / 1.2) < 1e-10);
+    CHECK(std::abs(PredictBeatLeaderPp(0.94026875, *rated) - 472.02783) < .001);
+    // Posted No Arrows score 30119894 uses HE4VEN's normal-speed curve.
+    const Difficulty noArrows{"Standard", "Expert", 9.865554, 11.5205555, 7.965426, 4.2994018,
+                              0.97548926, 0.006586201, 1081.0, 119.53125};
+    CHECK(std::abs(BeatLeaderPpv4(0.75360864, noArrows, .7) - 190.66856) < .001);
+    CHECK(!BeatLeaderDifficultyAtSpeed(chart, BeatLeaderSpeed::SuperFastSong));
+    auto incomplete = chart;
+    incomplete.speedRatings[1].techRating = -1;
+    CHECK(!BeatLeaderDifficultyAtSpeed(incomplete, faster));
+
+    auto player = Score(10);
+    player.accuracy = 0.94026875;
+    player.stars = player.difficulties.front().stars = 9;
+    auto previous = charts.front();
+    previous.pp = 440;
+    previous.accuracy = player.accuracy;
+    const std::vector profile{player, previous};
+    auto normal = SelectRecommendations(charts, ListKind::ToImprove, 16, 0, profile, RatingSystem::BeatLeader, 0);
+    CHECK(normal.empty());
+    const auto improvement = SelectRecommendations(charts, ListKind::ToImprove, 16, 0, profile,
+        RatingSystem::BeatLeader, 0, false, {}, true);
+    CHECK(improvement.size() == 1);
+    CHECK(improvement[0].recommendedModifier == "Faster Song (1.20×)" && improvement[0].currentPp == 440);
+    CHECK(improvement[0].stars == rated->stars && improvement[0].difficulties.front().stars == chart.stars);
+    CHECK(std::abs(improvement[0].weightedPpGain - (improvement[0].predictedPp - 440)) < 1e-8);
+    CHECK(improvement[0].clearChance < .50);
+    CHECK(SelectRecommendations(charts, ListKind::ToImprove, 16, 0, profile,
+        RatingSystem::BeatLeader, .50, false, {}, true).empty());
+    const auto easierThreshold = SelectRecommendations(charts, ListKind::ToImprove, 16, 0, profile,
+        RatingSystem::BeatLeader, improvement[0].clearChance / 2, false, {}, true);
+    CHECK(easierThreshold.size() == 1 && easierThreshold[0].recommendedModifier == "Faster Song (1.20×)");
+
+    auto beatable = previous;
+    beatable.pp = 400;
+    const auto fallback = SelectRecommendations(charts, ListKind::ToImprove, 16, 0, {player, beatable},
+        RatingSystem::BeatLeader, .50, false, {}, true);
+    CHECK(fallback.size() == 1 && fallback[0].recommendedModifier.empty() && fallback[0].currentPp == 400);
+
+    auto competing = charts;
+    auto& options = competing.front().difficulties.front();
+    options.speedRatings[0] = {9.0, 13.0, 9.0, 5.0, .97, std::nullopt};
+    options.speedRatings[2] = {10.2, 11.0, 10.0, 5.0, .965, std::nullopt};
+    options.modifierValues[0] = .04;
+    options.modifierValues[1] = .02;
+    options.modifierValues[3] = -.2;
+    const auto best = SelectRecommendations(competing, ListKind::ToImprove, 16, 0, profile,
+        RatingSystem::BeatLeader, 0, false, {}, true);
+    CHECK(best.size() == 1);
+    CHECK(best[0].recommendedModifier == "Slower Song (0.85×) + Disappearing Arrows");
+
+    auto catalogPlayer = player;
+    catalogPlayer.pp = 600;
+    ScoreHistory history{true, "123", RatingSystem::BeatLeader, {catalogPlayer}};
+    auto incoming = Chart(24, 7);
+    incoming.pop_back();
+    incoming += R"(,"modifiersRating":{"fsStars":9,"fsAccRating":12,"fsPassRating":9,"fsTechRating":6}})";
+    int pages = 0;
+    auto catalog = [&](const std::string& url, std::string& body, std::string&) {
+        CHECK(url.find("stars_from=") == std::string::npos);
+        ++pages;
+        body = Page(pages, 2, {pages == 1 ? Chart(25, 12) : incoming});
+        return true;
+    };
+    std::string error;
+    std::vector<MapEntry> result;
+    CHECK(FetchServiceRecommendations(RatingSystem::BeatLeader, "123", ListKind::Combined, 16,
+        result, error, 0, nullptr, &history, catalog, false, false, true));
+    CHECK(pages == 2 && result.size() == 1 && result[0].hash == Hash(24));
+    CHECK(result[0].recommendedModifier == "Faster Song (1.20×)" && result[0].stars == 9);
+    std::cout << "PASS: live speed-modifier PP parity, effective stars, and minimum clear rate on harder replays\n";
+}
+
 void PaginationAndCache() {
     for (auto system : {RatingSystem::BeatLeader, RatingSystem::ScoreSaber}) {
         ScoreHistory cache;
@@ -630,6 +722,68 @@ void AttemptEvidence() {
     std::vector<Attempt> newest; MergeAttempts(newest, bounded);
     CHECK(newest.size() == 20000 && newest.front().id == "20000" && newest.back().id == "1");
     std::cout << "PASS: real failures, repeated clears, exclusions, recency, per-chart influence, independent PP/accuracy, deduplication\n";
+}
+void BeatLeaderAttemptReconciliation() {
+    auto local = Run(1, AttemptOutcome::Fail);
+    local.timestamp = 1700000000.25;
+    auto remote = local;
+    remote.source = "beatleader";
+    remote.id = "10";
+    remote.timestamp = 1700000001;
+    remote.endTime += 1.685;
+    std::vector<Attempt> merged{local};
+    MergeAttempts(merged, {remote});
+    CHECK(merged.size() == 1 && merged[0].source == "beatleader" && merged[0].localId == local.id);
+    auto retry = local;
+    retry.id = "2";
+    retry.timestamp += 2;
+    MergeAttempts(merged, {retry});
+    CHECK(merged.size() == 2); // An existing link cannot consume a different local run.
+    ReconcileSavedBeatLeaderAttempts(merged);
+    CHECK(merged.size() == 2);
+
+    for (const char* custom : {"DNC", "BFS", "BSF"}) {
+        auto modified = remote;
+        modified.normal = false;
+        modified.modifiers = custom;
+        modified.ratingChecked = local.timestamp;
+        modified.stars = 0;
+        std::vector<Attempt> saved{modified, local};
+        ReconcileSavedBeatLeaderAttempts(saved);
+        CHECK(saved.size() == 1 && saved[0].modifiers == custom && saved[0].stars == 0 && !IsTrainingAttempt(saved[0]));
+    }
+    auto different = remote;
+    different.modifiers = "DA";
+    different.normal = false;
+    auto delayedFailure = remote;
+    delayedFailure.timestamp += 5;
+    auto scoresaber = remote;
+    scoresaber.source = "scoresaber";
+    for (const auto* nonmatch : {&different, &delayedFailure, &scoresaber}) {
+        std::vector<Attempt> saved{local};
+        MergeAttempts(saved, {*nonmatch});
+        CHECK(saved.size() == 2);
+    }
+
+    const std::string player = "999984";
+    const auto file = "tests/attempt-sandbox/beatleader_" + player + ".json";
+    const std::string chart = Hash(1);
+    const auto oldCache = "{\"version\":1,\"attempts\":["
+        "{\"source\":\"local\",\"id\":\"1\",\"hash\":\"" + chart +
+        "\",\"difficulty\":\"ExpertPlus\",\"timestamp\":1700000000.25,\"endTime\":30,\"stars\":7,\"outcome\":2},"
+        "{\"source\":\"beatleader\",\"id\":\"10\",\"hash\":\"" + chart +
+        "\",\"difficulty\":\"ExpertPlus\",\"timestamp\":1700000001,\"endTime\":31.685,\"stars\":7,\"outcome\":2}]}";
+    std::filesystem::create_directories(std::filesystem::path(file).parent_path());
+    std::ofstream(file) << oldCache;
+    std::string error;
+    CHECK(ReadAttemptHistory("beatleader", player, merged, error));
+    CHECK(merged.size() == 1 && merged[0].localId == local.id);
+    CHECK(ClearabilityModel({}, merged).NearbyFailures(7) == 1);
+    CHECK(ReadFile(file) == oldCache);
+    CHECK(SaveAttemptHistory("beatleader", player, {remote}, merged, error) && merged.size() == 1);
+    CHECK(ReadAttemptHistory("beatleader", player, merged, error) && merged.size() == 1 && merged[0].localId == local.id);
+    std::filesystem::remove(file);
+    std::cout << "PASS: BeatLeader local/API failure timing, custom modifiers, distinct retries, and old-cache repair\n";
 }
 void AttemptImportAndStorage() {
     const std::string player = "999991";
@@ -1227,8 +1381,8 @@ int main(int argc, char** argv) {
         if (argc == 4 && std::string(argv[1]) == "--audit-clan-profile") return AuditClanProfile(argv[2], argv[3]);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-clan-profile") return AuditClanProfile(argv[2], argv[3], true);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-paced-clan-profile") return AuditClanProfile(argv[2], argv[3], true, true);
-        DatesAndParsing(); AccuracyTrainingContract(); SigmoidAccuracy(); ModifiersAndPp(); BeatLeaderV4Contract(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); PersonalizedClanContract(); ClanSearchContract(); ClanRefreshPerformance(); ClanSearchLearning(); ConsecutiveClanRefreshes(); ConsecutiveClanRefreshes(true); LearnedSecondaryClans(); LegacyClanSelection(); LegacyClanRefresh(); LegacyClearRateCap(); ClearRateAndCombinedPlaylists();
-        AttemptEvidence(); AttemptImportAndStorage();
+        DatesAndParsing(); AccuracyTrainingContract(); SigmoidAccuracy(); ModifiersAndPp(); BeatLeaderSpeedRecommendations(); BeatLeaderV4Contract(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); PersonalizedClanContract(); ClanSearchContract(); ClanRefreshPerformance(); ClanModifierRefresh(); ClanSearchLearning(); ConsecutiveClanRefreshes(); ConsecutiveClanRefreshes(true); LearnedSecondaryClans(); LegacyClanSelection(); LegacyClanRefresh(); LegacyClearRateCap(); ClearRateAndCombinedPlaylists();
+        AttemptEvidence(); BeatLeaderAttemptReconciliation(); AttemptImportAndStorage();
         ActualAttemptSchemas();
         AbilityChartContract();
         ClanIcons();

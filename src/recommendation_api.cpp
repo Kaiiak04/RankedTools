@@ -31,6 +31,7 @@
 #include <string_view>
 #include <sstream>
 #include <thread>
+#include <tuple>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -38,7 +39,6 @@ namespace rankedpractice {
 namespace {
 
 constexpr double kDefaultTargetStars = 7.0;
-constexpr double kTargetWindowStars = 1.50;
 
 struct Context {
     std::string hash;
@@ -58,6 +58,9 @@ struct Context {
     double sliderPercentage{0.0};
     double notes{0.0};
     std::optional<double> noteSpan;
+    decltype(Difficulty::speedRatings) speedRatings{};
+    decltype(Difficulty::modifierValues) modifierValues{};
+    bool hasSpeedRatings{false};
     double pp{0.0};
     double accuracy{0.0};
     double timepost{0.0};
@@ -425,6 +428,30 @@ void UpdateContext(const rapidjson::Value& object, Context& context) {
         if (ReadNumber(object, "noteSpan", span)) context.noteSpan = span;
         else context.noteSpan.reset();
     }
+    if (object.HasMember("modifiersRating") && object["modifiersRating"].IsObject()) {
+        context.hasSpeedRatings = true;
+        const auto& modifiers = object["modifiersRating"];
+        for (size_t i = 0; i < context.speedRatings.size(); ++i) {
+            const std::string prefix(kBeatLeaderSpeedOptions[i + 1].code);
+            auto& rating = context.speedRatings[i];
+            rating = {};
+            ReadNumber(modifiers, (prefix + "Stars").c_str(), rating.stars);
+            ReadNumber(modifiers, (prefix + "AccRating").c_str(), rating.accRating);
+            ReadNumber(modifiers, (prefix + "PassRating").c_str(), rating.passRating);
+            ReadNumber(modifiers, (prefix + "TechRating").c_str(), rating.techRating);
+            ReadNumber(modifiers, (prefix + "PredictedAcc").c_str(), rating.predictedAcc);
+            double slider = std::numeric_limits<double>::quiet_NaN();
+            if (ReadNumber(modifiers, (prefix + "SliderPercentage").c_str(), slider) && std::isfinite(slider))
+                rating.sliderPercentage = slider;
+        }
+    }
+    if (object.HasMember("modifierValues") && object["modifierValues"].IsObject()) {
+        const auto& modifiers = object["modifierValues"];
+        for (size_t i = 0; i < context.speedRatings.size(); ++i)
+            ReadNumber(modifiers, kBeatLeaderSpeedOptions[i + 1].code.data(), context.speedRatings[i].legacyAdjustment);
+        for (size_t i = 0; i < context.modifierValues.size(); ++i)
+            ReadNumber(modifiers, kBeatLeaderStandardModifiers[i].code, context.modifierValues[i]);
+    }
     ReadNumber(object, "pp", context.pp);
     ReadNumber(object, "accuracy", context.accuracy);
     ReadNumber(object, "acc", context.accuracy);
@@ -471,7 +498,8 @@ void AddIfComplete(const Context& context, std::vector<MapEntry>& entries, bool 
     entry.difficulties.push_back({context.characteristic.empty() ? "Standard" : context.characteristic,
                                   context.difficulty, context.stars, context.accRating,
                                   context.passRating, context.techRating, context.predictedAcc,
-                                  context.sliderPercentage, context.notes, context.noteSpan});
+                                  context.sliderPercentage, context.notes, context.noteSpan, std::nullopt,
+                                  context.speedRatings, context.modifierValues, context.hasSpeedRatings});
     entries.push_back(std::move(entry));
 }
 
@@ -971,8 +999,10 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
                                   std::string& error, double minClearRate,
                                   StarRange* notPlayedRange, ScoreHistory* cachedHistory,
                                   const HttpGetter& get = HttpGet, bool pace = true,
-                                  bool rankByWeightedGain = false) {
+                                  bool rankByWeightedGain = false,
+                                  bool beatLeaderModifiers = false) {
     const bool beatLeader = system == RatingSystem::BeatLeader;
+    const bool modifiersEnabled = beatLeader && beatLeaderModifiers;
     if (!IsDigits(id)) {
         error = std::string("Enter a numeric ") + (beatLeader ? "BeatLeader" : "ScoreSaber") +
                 " player ID in Mod Settings.";
@@ -986,15 +1016,15 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
         // Rank and deduplicate each source by raw gain before merging. Trimming
         // chance-adjusted lists first can discard the best combined candidate.
         if (!FetchServiceRecommendations(system, id, ListKind::NotPlayed, -1, notPlayed, error,
-              minClearRate, notPlayedRange, &history, get, pace, true) ||
+              minClearRate, notPlayedRange, &history, get, pace, true, beatLeaderModifiers) ||
             !FetchServiceRecommendations(system, id, ListKind::ToImprove, -1, toImprove, error,
-              minClearRate, nullptr, &history, get, pace, true)) return false;
+              minClearRate, nullptr, &history, get, pace, true, beatLeaderModifiers)) return false;
         result = MergeRecommendations(std::move(notPlayed), std::move(toImprove), limit);
         return true;
     }
     if (kind == ListKind::ToImprove) {
         result = SelectRecommendations(history.scores, kind, limit, 0.0, history.scores, system,
-                                       minClearRate, rankByWeightedGain, history.attempts);
+                                       minClearRate, rankByWeightedGain, history.attempts, beatLeaderModifiers);
         return true;
     }
 
@@ -1011,13 +1041,15 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
     // Compare the entire star band. A raw row count cannot tell us whether
     // enough distinct, clearable songs exist or whether later pages are better.
     const auto candidateGet = beatLeader ? get : DefaultRealmCompatibleGet(get);
-    if (!FetchPages<MapEntry>([beatLeader, range](int page) {
+    if (!FetchPages<MapEntry>([beatLeader, range, modifiersEnabled](int page) {
         std::ostringstream url;
         url.precision(12);
         if (beatLeader) {
-            url << "https://api.beatleader.com/maps?type=ranked&mode=Standard&count=100"
-                << "&stars_from=" << range.minStars << "&stars_to=" << range.maxStars
-                << "&sortBy=stars&order=desc&page=" << page;
+            url << "https://api.beatleader.com/maps?type=ranked&mode=Standard&count=100";
+            // The API filters normal stars. At another speed, charts can move
+            // in from either side of the band by a map-specific amount.
+            if (!modifiersEnabled) url << "&stars_from=" << range.minStars << "&stars_to=" << range.maxStars;
+            url << "&sortBy=stars&order=desc&page=" << page;
         } else {
             url << "https://scoresaber.com/api/v2/leaderboards?status=RANKED&realmId=1&limit=100"
                 << "&minStars=" << range.minStars << "&maxStars=" << range.maxStars
@@ -1028,11 +1060,11 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
         return beatLeader ? ParseEntries(body, entries, error, info) : ParseScoreSaberEntries(body, entries, error, info);
     }, candidateGet, pace)) return false;
 
-    FilterToTargetWindow(candidates, targetStars);
+    if (!modifiersEnabled) FilterToTargetWindow(candidates, targetStars);
     candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
         [&playedKeys](const MapEntry& entry) { return playedKeys.contains(EntryKey(entry)); }), candidates.end());
     result = SelectRecommendations(std::move(candidates), kind, limit, targetStars,
-                                   history.scores, system, minClearRate, rankByWeightedGain, history.attempts);
+                                   history.scores, system, minClearRate, rankByWeightedGain, history.attempts, beatLeaderModifiers);
     return true;
 }
 
@@ -1094,9 +1126,11 @@ bool FetchClanToConquer(const std::string& playerId,
                         bool allClans,
                         int limit,
                         std::vector<ClanPlaylistRecommendations>& clanPlaylists,
-                        std::string& error, double minClearRate, ScoreHistory* history, bool legacy) {
+                        std::string& error, double minClearRate, ScoreHistory* history, bool legacy,
+                        bool beatLeaderModifiers) {
     return FetchClanToConquerInternal(playerId, allClans,
-                                      limit, clanPlaylists, error, HttpGet, HttpGetIcon, minClearRate, history, true, &SharedClanScreenCache(), legacy);
+                                      limit, clanPlaylists, error, HttpGet, HttpGetIcon, minClearRate, history, true,
+                                      &SharedClanScreenCache(), legacy, beatLeaderModifiers);
 }
 
 bool FetchSyncPlaylist(const std::string& blId, const std::string& ssId, std::vector<MapEntry>& entries,
@@ -1130,7 +1164,8 @@ bool FetchRecommendations(const std::string& service,
                           std::string& error,
                           double minClearRate,
                           StarRange* beatLeaderNotPlayedRange,
-                          ScoreHistory* history) {
+                          ScoreHistory* history,
+                          bool beatLeaderModifiers) {
     if (Lower(service) == "accsaber") {
         ScoreHistory local;
         return FetchAccRecommendationsInternal(playerId, "overall", kind, limit, minClearRate, history ? *history : local, entries, error);
@@ -1138,7 +1173,7 @@ bool FetchRecommendations(const std::string& service,
     if (Lower(service) != "scoresaber" && Lower(service) != "beatleader") { error = "Unknown recommendation service."; return false; }
     const auto system = Lower(service) == "scoresaber" ? RatingSystem::ScoreSaber : RatingSystem::BeatLeader;
     return FetchServiceRecommendations(system, playerId, kind, limit, entries, error, minClearRate,
-                                       beatLeaderNotPlayedRange, history);
+                                       beatLeaderNotPlayedRange, history, HttpGet, true, false, beatLeaderModifiers);
 }
 
 } // namespace rankedpractice

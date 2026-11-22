@@ -140,11 +140,14 @@ std::string RenderDetails(const PreviewList& list, double minClearRate, bool has
         return output.str();
     }
     const auto& difficulty = entry.difficulties.front();
+    const auto& modifier = entry.recommendedModifier;
     output << "Song " << (selectedSong + 1) << " of " << list.entries.size() << "\n"
            << entry.songName << "\n"
            << difficulty.name << "  |  " << std::fixed << std::setprecision(2)
-           << difficulty.stars << (acc ? " complexity\n" : " stars\n")
-           << "Predicted accuracy: " << std::setprecision(1)
+           << (modifier.empty() ? difficulty.stars : entry.stars)
+           << (acc ? " complexity\n" : modifier.empty() ? " stars\n" : " effective stars\n");
+    if (!modifier.empty()) output << "Recommended modifier: " << modifier << "\n";
+    output << "Predicted accuracy: " << std::setprecision(1)
            << entry.predictedAccuracy * 100.0 << "%\n"
            << "Predicted score: " << std::setprecision(1) << entry.predictedPp << " " << unit << "\n";
     if (acc) output << "Category: " << AccSaberCategoryName(entry.categoryCode) << "\n";
@@ -164,8 +167,10 @@ std::string RenderDetails(const PreviewList& list, double minClearRate, bool has
                << (impact.captures ? "Capture at predicted score" : "Useful progress toward capture") << "\n";
         if (impact.requiredPp && impact.requiredAccuracy)
             output << "Capture target: " << std::setprecision(2) << std::ceil(*impact.requiredPp * 100) / 100 << " personal PP / "
-                   << std::ceil(*impact.requiredAccuracy * 10000) / 100 << "% accuracy (unmodified)\n";
-        else output << "Capture exceeds the theoretical unmodified maximum.\n";
+                   << std::ceil(*impact.requiredAccuracy * 10000) / 100 << "% accuracy"
+                   << (modifier.empty() ? " (unmodified)\n" : " with the recommended modifier\n");
+        else output << (modifier.empty() ? "Capture exceeds the theoretical unmodified maximum.\n"
+                                        : "Capture exceeds the maximum with the recommended modifier.\n");
         output << "Capture is an estimate, not a calibrated probability.\n";
     } else if (!entry.isImprovement) {
         output << "Rough clear chance: " << std::setprecision(0)
@@ -179,6 +184,7 @@ std::string RenderDetails(const PreviewList& list, double minClearRate, bool has
         output << "Current score: " << std::setprecision(1) << entry.currentPp << " " << unit << "\n"
                << "Weighted " << unit << " gain if improved: +" << std::setprecision(2)
                << entry.weightedPpGain << "\n";
+        if (!modifier.empty()) output << "Rough clear chance: " << std::setprecision(0) << entry.clearChance * 100 << "%\n";
     }
     output << "Confidence: " << ConfidenceLabel(entry.confidence) << "\n"
            << "Nearby history: " << entry.nearbyClears << " clears, "

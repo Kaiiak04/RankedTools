@@ -16,7 +16,7 @@ DECLARE_CONFIG(ModConfig) {
                  "Minimum selected scoreboards a chart must be ranked on for Sync. Applies on refresh.");
     CONFIG_VALUE(MaxTracksPerPlaylist, int, "Tracks per playlist", 16);
     CONFIG_VALUE(MinClearRate, int, "Min Clear Rate", 50,
-                 "Minimum rough clear estimate for unplayed personal charts and personalized clan suggestions. Legacy clan mode uses its direct clearability cutoff as maximum stars. At 0%, chance adjustment and the legacy star cap are disabled.");
+                 "Minimum rough clear estimate for unplayed personal charts, BeatLeader modifier replays that raise the chart's stars, and personalized clan suggestions. Legacy clan mode uses its clearability cutoff as maximum stars. At 0%, the threshold, chance adjustment, and legacy star cap are disabled.");
     CONFIG_VALUE(SeparateNewAndRepeatTracks, bool, "Separate New and Repeat Tracks", false,
                  "Create separate Not Played and To Improve playlists per leaderboard. Off combines both into one PP Gain playlist. Applies on refresh.");
     CONFIG_VALUE(RecordLocalAttempts, bool, "Record local attempts", true,
@@ -24,6 +24,8 @@ DECLARE_CONFIG(ModConfig) {
     CONFIG_VALUE(ImportAttemptHistory, bool, "Import attempt history", true,
                  "Use available BeatLeader and ScoreSaber clear/failure history. Cached and local evidence remains available if an API fails.");
     CONFIG_VALUE(EnableBeatLeader, bool, "Create BeatLeader playlists", true);
+    CONFIG_VALUE(BeatLeaderModifiers, bool, "BeatLeader Modifiers", false,
+                 "Compare unmodified plays and ranked modifier options for BeatLeader personal and clan playlists.");
     CONFIG_VALUE(EnableScoreSaber, bool, "Create ScoreSaber playlists", true);
     CONFIG_VALUE(EnableAccSaber, bool, "Create AccSaber playlists", false);
     CONFIG_VALUE(EnableClanPlaylist, bool, "Create BeatLeader clan playlist", true);

@@ -98,6 +98,10 @@ void EntryJson(Writer &w, const MapEntry &e) {
     Text(w, "songName", e.songName);
     Text(w, "songAuthorName", e.songAuthorName);
     Text(w, "categoryCode", e.categoryCode);
+    if (!e.recommendedModifier.empty()) {
+        Text(w, "recommendedModifier", e.recommendedModifier);
+        Numeric(w, "effectiveStars", e.stars);
+    }
     Numeric(w, "maxScore", e.maxScore);
     Numeric(w, "scoreNoMods", e.scoreNoMods);
     Numeric(w, "predictedAccuracy", e.predictedAccuracy);
@@ -225,6 +229,7 @@ RefreshSettings Settings(const Json &j) {
     s.minClearRate =
         NormalizeMinClearRatePercent(static_cast<int>(std::clamp(Number(j, "minClearRate", 50), 0.0, 95.0))) / 100.0;
     s.separateNewAndRepeatTracks = Bool(j, "separateNewAndRepeatTracks", false);
+    s.beatLeaderModifiers = Bool(j, "beatLeaderModifiers", false);
     s.importAttempts = Bool(j, "importAttempts", true);
     s.enableBeatLeader = Bool(j, "enableBeatLeader", true);
     s.enableScoreSaber = Bool(j, "enableScoreSaber", true);
@@ -374,7 +379,7 @@ void Initialize(const Json &j) {
     paths.clanSearch = root / "clan-search";
     paths.icons = root / "assets";
     paths.caBundle = root / "cacert.pem";
-    paths.userAgent = "RankedTools/0.1.28-pcvr.1 (Beat Saber PCVR mod)";
+    paths.userAgent = "RankedTools/0.1.30-pcvr.1 (Beat Saber PCVR mod)";
     if (!std::filesystem::is_regular_file(paths.caBundle))
         throw std::runtime_error("RankedTools' CA bundle is missing. Extract the complete preview ZIP.");
     if (std::filesystem::file_size(paths.caBundle) > 2 * 1024 * 1024)

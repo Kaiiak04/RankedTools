@@ -94,7 +94,8 @@ bool FetchRecommendations(const std::string& service,
                           std::string& error,
                           double minClearRate,
                           StarRange* beatLeaderNotPlayedRange = nullptr,
-                          ScoreHistory* history = nullptr);
+                          ScoreHistory* history = nullptr,
+                          bool beatLeaderModifiers = false);
 
 bool FetchBeatLeaderNotPlayedStarRange(const std::string& playerId,
                                        double minClearRate,
@@ -109,7 +110,8 @@ bool FetchClanToConquer(const std::string& playerId,
                         std::string& error,
                         double minClearRate = 0.50,
                         ScoreHistory* history = nullptr,
-                        bool legacy = false);
+                        bool legacy = false,
+                        bool beatLeaderModifiers = false);
 
 bool SaveClanExplorationCursor(const std::string& playerId, const std::string& clanTag,
                                std::size_t cursor, std::string& error);

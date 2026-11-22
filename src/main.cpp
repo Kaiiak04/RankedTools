@@ -35,6 +35,7 @@ static RefreshSettings CaptureRefreshSettings() {
     settings.separateNewAndRepeatTracks = getModConfig().SeparateNewAndRepeatTracks.GetValue();
     settings.importAttempts = getModConfig().ImportAttemptHistory.GetValue();
     settings.enableBeatLeader = getModConfig().EnableBeatLeader.GetValue();
+    settings.beatLeaderModifiers = getModConfig().BeatLeaderModifiers.GetValue();
     settings.enableScoreSaber = getModConfig().EnableScoreSaber.GetValue();
     settings.enableAccSaber = getModConfig().EnableAccSaber.GetValue();
     settings.enableClanPlaylist = getModConfig().EnableClanPlaylist.GetValue();
@@ -125,6 +126,7 @@ static void SettingsDidActivate(HMUI::ViewController* self,
     AddConfigValueToggle(parent, getModConfig().RecordLocalAttempts);
     AddConfigValueToggle(parent, getModConfig().ImportAttemptHistory);
     AddConfigValueToggle(parent, getModConfig().EnableBeatLeader);
+    AddConfigValueToggle(parent, getModConfig().BeatLeaderModifiers);
     AddConfigValueToggle(parent, getModConfig().EnableScoreSaber);
     AddConfigValueToggle(parent, getModConfig().EnableAccSaber);
     std::array<std::string_view, 4> categoryLabels{"Overall", "True Acc", "Standard Acc", "Tech Acc"};
