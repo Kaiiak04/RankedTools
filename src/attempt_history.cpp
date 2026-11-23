@@ -1,3 +1,4 @@
+#include "platform.hpp"
 #include "attempt_history.hpp"
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
@@ -7,18 +8,20 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <limits>
 #include <mutex>
 #include <unordered_set>
 #include <unordered_map>
 #include <stdexcept>
 
-#ifndef RANKEDTOOLS_ATTEMPT_DIRECTORY
-#define RANKEDTOOLS_ATTEMPT_DIRECTORY "/sdcard/ModData/com.beatgames.beatsaber/Mods/RankedPractice/attempts"
-#endif
 namespace rankedpractice {
 namespace {
 std::mutex attemptFileMutex;
 constexpr size_t kMaximumStoredAttempts = 20000;
+constexpr double kBeatLeaderFinishWindow = 3.0;
+constexpr double kBeatLeaderFailureTimeTolerance = 2.0;
+constexpr double kAttemptUploadWindow = 30.0;
 std::string AttemptLower(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return std::tolower(c); });
     return value;
@@ -29,11 +32,52 @@ bool ValidAttemptIdentity(const Attempt& a) {
         !a.difficulty.empty() && std::isfinite(a.timestamp) && a.timestamp > 0 &&
         std::isfinite(a.endTime) && a.endTime >= 0 && std::isfinite(a.stars) && a.stars >= 0;
 }
+
+double MatchDistance(const Attempt& a, const Attempt& b, bool allowDelayedMatches) {
+    if ((a.source == "local") == (b.source == "local") || a.outcome != b.outcome ||
+        a.practice != b.practice) return -1.0;
+    const auto& local = a.source == "local" ? a : b;
+    const auto& remote = a.source == "local" ? b : a;
+    if (!remote.localId.empty() && remote.localId != local.id) return -1.0;
+
+    const bool sameModifiers = local.normal == remote.normal && local.modifiers == remote.modifiers;
+    const double timeDifference = std::abs(local.timestamp - remote.timestamp);
+    const double songTimeDifference = remote.endTime - local.endTime;
+    const bool sameSongTime = std::abs(songTimeDifference) <= 1.0;
+    // The Quest and BeatLeader can record different song times for the same
+    // failure. Require a close finish timestamp before allowing that padding.
+    // BeatLeader also records its own modifiers that the game flags omit.
+    const bool customModifier = local.normal && local.modifiers.empty() && !remote.normal &&
+        (remote.modifiers == "DNC" || remote.modifiers == "BFS" || remote.modifiers == "BSF");
+    const bool failed = local.outcome == AttemptOutcome::Fail;
+    if (remote.source == "beatleader" && !local.practice && timeDifference <= kBeatLeaderFinishWindow &&
+        (failed || local.outcome == AttemptOutcome::Clear) && (sameModifiers || customModifier) &&
+        (sameSongTime || (failed && songTimeDifference <= kBeatLeaderFailureTimeTolerance && songTimeDifference >= 0.0)))
+        return timeDifference;
+
+    // Prefer a close BeatLeader match over the original upload-delay window.
+    return allowDelayedMatches && sameModifiers && sameSongTime && timeDifference <= kAttemptUploadWindow
+        ? kAttemptUploadWindow + timeDifference : -1.0;
+}
+
+void MergeAttemptRecords(std::vector<Attempt>& history, const std::vector<Attempt>& incoming,
+                         bool allowDelayedMatches);
+
+void ReconcileSavedBeatLeaderAttempts(std::vector<Attempt>& attempts) {
+    if (std::none_of(attempts.begin(), attempts.end(), [](const Attempt& a) { return a.source == "beatleader"; }) ||
+        std::none_of(attempts.begin(), attempts.end(), [](const Attempt& a) { return a.source == "local"; })) return;
+    const auto firstLocal = std::stable_partition(attempts.begin(), attempts.end(),
+        [](const Attempt& a) { return a.source != "local"; });
+    std::vector<Attempt> local(std::make_move_iterator(firstLocal), std::make_move_iterator(attempts.end()));
+    attempts.erase(firstLocal, attempts.end());
+    // Apply only close matches to data already saved before this fix.
+    MergeAttemptRecords(attempts, local, false);
+}
 std::filesystem::path AttemptPath(const std::string& service, const std::string& id) {
-    if ((service != "beatleader" && service != "scoresaber") || id.empty() ||
+    if ((service != "beatleader" && service != "scoresaber" && service != "accsaber") || id.empty() ||
         !std::all_of(id.begin(), id.end(), [](unsigned char c) { return std::isdigit(c); }))
         throw std::runtime_error("Invalid attempt-history player ID or service.");
-    return std::filesystem::path(RANKEDTOOLS_ATTEMPT_DIRECTORY) / (service + "_" + id + ".json");
+    return RuntimePaths().attempts / (service + "_" + id + ".json");
 }
 bool ReadAttemptsUnlocked(const std::filesystem::path& path, std::vector<Attempt>& result, std::string& error) {
     result.clear();
@@ -72,19 +116,19 @@ std::string AttemptChartKey(const Attempt& a) {
     return AttemptLower(a.hash) + "|" + AttemptLower(a.characteristic) + "|" + AttemptLower(a.difficulty);
 }
 bool IsTrainingAttempt(const Attempt& a) {
-    return ValidAttemptIdentity(a) && a.normal && !a.practice && a.modifiers.empty() &&
-        AttemptLower(a.characteristic) == "standard" && a.stars > 0 &&
+    return ValidAttemptIdentity(a) && a.normal && !a.practice && a.modifiers.empty() && a.stars > 0 &&
         (a.outcome == AttemptOutcome::Clear || a.outcome == AttemptOutcome::Fail);
 }
-void MergeAttempts(std::vector<Attempt>& history, const std::vector<Attempt>& incoming) {
+namespace {
+void MergeAttemptRecords(std::vector<Attempt>& history, const std::vector<Attempt>& incoming,
+                         bool allowDelayedMatches) {
     // Exact provider IDs are authoritative. Cross-source matching is deliberately
     // narrow, and each existing event can match only once during this merge.
     std::unordered_set<size_t> matched;
     std::unordered_map<std::string, size_t> ids;
     std::unordered_map<std::string, std::vector<size_t>> buckets;
     auto eventKey = [](const Attempt& a) {
-        return AttemptChartKey(a) + "|" + std::to_string(static_cast<int>(a.outcome)) + "|" +
-            a.modifiers + "|" + (a.normal ? "1" : "0") + (a.practice ? "1" : "0");
+        return AttemptChartKey(a) + "|" + std::to_string(static_cast<int>(a.outcome));
     };
     for (size_t i = 0; i < history.size(); ++i) {
         ids[history[i].source + "|" + history[i].id] = i;
@@ -93,41 +137,45 @@ void MergeAttempts(std::vector<Attempt>& history, const std::vector<Attempt>& in
     }
     for (const auto& a : incoming) {
         if (!ValidAttemptIdentity(a)) continue;
+        const auto key = eventKey(a);
         size_t found = history.size();
         if (const auto id = ids.find(a.source + "|" + a.id); id != ids.end()) found = id->second;
         if (found == history.size()) {
-            double closest = 30.01;
-            for (const auto i : buckets[eventKey(a) + (a.source == "local" ? "|remote" : "|local")]) {
-                const auto& b = history[i];
-                if (matched.contains(i) || (a.source == "local") == (b.source == "local") ||
-                    a.outcome != b.outcome || a.practice != b.practice || a.normal != b.normal ||
-                    a.modifiers != b.modifiers || AttemptChartKey(a) != AttemptChartKey(b) ||
-                    std::abs(a.endTime - b.endTime) > 1.0) continue;
-                const double distance = std::abs(a.timestamp - b.timestamp);
-                if (distance <= 30.0 && distance < closest) { found = i; closest = distance; }
+            double closest = std::numeric_limits<double>::infinity();
+            for (const auto i : buckets[key + (a.source == "local" ? "|remote" : "|local")]) {
+                if (matched.contains(i)) continue;
+                const double distance = MatchDistance(a, history[i], allowDelayedMatches);
+                if (distance >= 0.0 && distance < closest && eventKey(history[i]) == key) {
+                    found = i;
+                    closest = distance;
+                }
             }
         }
         if (found == history.size()) {
             history.push_back(a);
             ids[a.source + "|" + a.id] = found;
             if (!a.localId.empty()) ids["local|" + a.localId] = found;
-            buckets[eventKey(a) + (a.source == "local" ? "|local" : "|remote")].push_back(found);
+            buckets[key + (a.source == "local" ? "|local" : "|remote")].push_back(found);
         }
         else {
-            const bool crossSource = (a.source == "local") != (history[found].source == "local");
+            const auto& previous = history[found];
+            const bool attachingLocal = a.source == "local" && previous.source != "local";
+            const bool crossSource = (a.source == "local") != (previous.source == "local");
             if (crossSource) matched.insert(found);
             // A newer lookup can explicitly establish that a chart is unrated.
-            const bool incomingRating = a.stars > 0 || a.ratingChecked > history[found].ratingChecked;
-            const double stars = incomingRating ? a.stars : history[found].stars;
-            const int ratingEpoch = incomingRating ? a.ratingEpoch : history[found].ratingEpoch;
-            const double ratingChecked = std::max(a.ratingChecked, history[found].ratingChecked);
-            const std::string localId = a.source == "local" ? a.id :
-                (history[found].source == "local" ? history[found].id : history[found].localId);
-            if (a.source != "local" || history[found].source == "local") {
-                ids.erase(history[found].source + "|" + history[found].id);
+            const bool incomingRating = a.ratingChecked > previous.ratingChecked ||
+                (a.stars > 0 && (!attachingLocal || (a.ratingChecked == previous.ratingChecked && previous.stars == 0)));
+            const double stars = incomingRating ? a.stars : previous.stars;
+            const int ratingEpoch = incomingRating ? a.ratingEpoch : previous.ratingEpoch;
+            const double ratingChecked = std::max(a.ratingChecked, previous.ratingChecked);
+            const std::string localId = a.source == "local" ? a.id : previous.source == "local" ? previous.id :
+                previous.localId.empty() ? a.localId : previous.localId;
+            if (!attachingLocal) {
+                const bool moved = crossSource || eventKey(previous) != key;
+                ids.erase(previous.source + "|" + previous.id);
                 history[found] = a;
                 ids[a.source + "|" + a.id] = found;
-                if (crossSource) buckets[eventKey(a) + "|remote"].push_back(found);
+                if (moved) buckets[key + (a.source == "local" ? "|local" : "|remote")].push_back(found);
             }
             history[found].stars = stars;
             history[found].ratingEpoch = ratingEpoch;
@@ -139,9 +187,19 @@ void MergeAttempts(std::vector<Attempt>& history, const std::vector<Attempt>& in
     std::stable_sort(history.begin(), history.end(), [](const auto& a, const auto& b) { return a.timestamp > b.timestamp; });
     if (history.size() > kMaximumStoredAttempts) history.resize(kMaximumStoredAttempts);
 }
+} // namespace
+
+void MergeAttempts(std::vector<Attempt>& history, const std::vector<Attempt>& incoming) {
+    MergeAttemptRecords(history, incoming, true);
+}
+
 bool ReadAttemptHistory(const std::string& service, const std::string& id, std::vector<Attempt>& attempts, std::string& error) {
     std::lock_guard lock(attemptFileMutex);
-    try { return ReadAttemptsUnlocked(AttemptPath(service, id), attempts, error); }
+    try {
+        if (!ReadAttemptsUnlocked(AttemptPath(service, id), attempts, error)) return false;
+        ReconcileSavedBeatLeaderAttempts(attempts);
+        return true;
+    }
     catch (const std::exception& ex) { error = ex.what(); return false; }
 }
 bool SaveAttemptHistory(const std::string& service, const std::string& id, const std::vector<Attempt>& incoming,
@@ -150,7 +208,8 @@ bool SaveAttemptHistory(const std::string& service, const std::string& id, const
     try {
         const auto path = AttemptPath(service, id);
         if (!ReadAttemptsUnlocked(path, merged, error)) return false;
-        MergeAttempts(merged, incoming);
+        MergeAttemptRecords(merged, incoming, true);
+        ReconcileSavedBeatLeaderAttempts(merged);
         rapidjson::StringBuffer buffer;
         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
         writer.StartObject(); writer.Key("version"); writer.Int(1); writer.Key("attempts"); writer.StartArray();
@@ -169,12 +228,13 @@ bool SaveAttemptHistory(const std::string& service, const std::string& id, const
         }
         writer.EndArray(); writer.EndObject();
         std::filesystem::create_directories(path.parent_path());
-        const auto temporary = path.string() + ".tmp";
+        auto temporary = path; temporary += ".tmp";
         std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
         file.write(buffer.GetString(), buffer.GetSize()); file.flush();
         if (!file) { error = "Could not save attempt history."; return false; }
         file.close();
-        std::filesystem::rename(temporary, path);
+        std::error_code ec; ReplaceFile(temporary, path, ec);
+        if (ec) { error = "Could not install attempt history: " + ec.message(); return false; }
         return true;
     } catch (const std::exception& ex) { error = ex.what(); return false; }
 }

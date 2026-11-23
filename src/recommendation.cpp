@@ -1,6 +1,8 @@
 #include "recommendation.hpp"
 #include "ability_chart.hpp"
 #include "beatleader_pp.hpp"
+#include "accsaber.hpp"
+#include "leaderboards.hpp"
 
 #include <algorithm>
 #include <array>
@@ -8,7 +10,10 @@
 #include <chrono>
 #include <cmath>
 #include <iterator>
+#include <iomanip>
 #include <limits>
+#include <locale>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 
@@ -20,6 +25,10 @@ std::string Canonical(const std::string& value) {
     std::transform(result.begin(), result.end(), result.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return result;
+}
+
+std::string ScoreKey(const MapEntry& entry, const Difficulty& difficulty) {
+    return Canonical(entry.hash) + "|" + Canonical(difficulty.characteristic) + "|" + Canonical(difficulty.name);
 }
 
 bool IsValidSongHash(const std::string& value) {
@@ -34,6 +43,7 @@ struct AccuracyObservation {
     double stars;
     double accuracy;
     double weight;
+    double logWeight{};
 };
 
 double ObservationWeight(const MapEntry& entry, double now) {
@@ -44,16 +54,19 @@ double ObservationWeight(const MapEntry& entry, double now) {
 
 class AccuracyCurve {
 public:
-    explicit AccuracyCurve(const std::vector<MapEntry>& scores) {
-        const double now = std::chrono::duration<double>(
+    explicit AccuracyCurve(const std::vector<MapEntry>& scores,
+                           RatingSystem system = RatingSystem::BeatLeader,
+                           bool allowZero = false, double now = 0.0) {
+        if (now <= 0.0) now = std::chrono::duration<double>(
             std::chrono::system_clock::now().time_since_epoch()).count();
+        const bool zeroComplexity = allowZero || system == RatingSystem::AccSaber;
         std::unordered_map<std::string, const MapEntry*> uniqueScores;
         for (const auto& entry : scores) {
             if (entry.noFail || !entry.ranked) continue;
-            const auto standard = std::find_if(entry.difficulties.begin(), entry.difficulties.end(),
-                [](const Difficulty& difficulty) { return Canonical(difficulty.characteristic) == "standard"; });
-            if (entry.hash.empty() || standard == entry.difficulties.end()) continue;
-            const auto key = Canonical(entry.hash) + "|standard|" + Canonical(standard->name);
+            const auto chart = std::find_if(entry.difficulties.begin(), entry.difficulties.end(),
+                [system](const Difficulty& difficulty) { return IsRecommendationCharacteristic(difficulty.characteristic, system); });
+            if (entry.hash.empty() || chart == entry.difficulties.end()) continue;
+            const auto key = ScoreKey(entry, *chart);
             auto found = uniqueScores.find(key);
             if (found == uniqueScores.end() || entry.pp > found->second->pp) uniqueScores[key] = &entry;
         }
@@ -61,11 +74,15 @@ public:
             const auto& entry = *score;
             const double profileStars = entry.modifiedStars > 0.0 ? entry.modifiedStars : entry.stars;
             if (!std::isfinite(profileStars) || !std::isfinite(entry.accuracy) || !std::isfinite(entry.pp) ||
-                profileStars <= 0.0 || entry.accuracy < kMinimumTrainingAccuracy ||
+                (zeroComplexity ? profileStars < 0.0 : profileStars <= 0.0) || entry.accuracy < kMinimumTrainingAccuracy ||
                 entry.accuracy > 1.0 || entry.pp <= 0.0) continue;
-            const double weight = ObservationWeight(entry, now);
-            if (!std::isfinite(weight) || weight <= 0.0) continue;
-            observations_.push_back({profileStars, entry.accuracy, weight});
+            // Accuracy decay is separate from the clearability model's weights.
+            const double logWeight = !std::isfinite(entry.timepost) || entry.timepost <= 0.0
+                ? std::log(0.65)
+                : -std::max(0.0, (now - entry.timepost) / 86400.0) / 30.0;
+            const double weight = std::exp(logWeight);
+            if (!std::isfinite(weight)) continue;
+            observations_.push_back({profileStars, entry.accuracy, weight, logWeight});
             minStars_ = std::min(minStars_, profileStars);
             maxStars_ = std::max(maxStars_, profileStars);
         }
@@ -76,66 +93,20 @@ public:
             if (a.accuracy != b.accuracy) return a.accuracy < b.accuracy;
             return a.weight < b.weight;
         });
-        // Equal star ratings must share one prediction, regardless of chart or input order.
-        for (const auto& observation : observations_) {
-            if (!knots_.empty() && knots_.back().stars == observation.stars) {
-                auto& knot = knots_.back();
-                const double weight = knot.weight + observation.weight;
-                knot.accuracy = (knot.weight * knot.accuracy + observation.weight * observation.accuracy) / weight;
-                knot.weight = weight;
-            } else {
-                knots_.push_back(observation);
-            }
-        }
-
-        struct Block {
-            size_t first, last;
-            double weight, weightedAccuracy;
-            double Mean() const { return weightedAccuracy / weight; }
-        };
-        std::vector<Block> blocks;
-        // Pool-adjacent-violators solves weighted least squares subject to accuracy
-        // being non-increasing with stars. Merging may expose earlier violations.
-        for (size_t i = 0; i < knots_.size(); ++i) {
-            blocks.push_back({i, i, knots_[i].weight, knots_[i].weight * knots_[i].accuracy});
-            while (blocks.size() >= 2 && blocks[blocks.size() - 2].Mean() < blocks.back().Mean()) {
-                const auto right = blocks.back();
-                blocks.pop_back();
-                auto& left = blocks.back();
-                left.last = right.last;
-                left.weight += right.weight;
-                left.weightedAccuracy += right.weightedAccuracy;
-            }
-        }
-        for (const auto& block : blocks) {
-            for (size_t i = block.first; i <= block.last; ++i) knots_[i].accuracy = block.Mean();
-        }
+        FitSigmoid();
     }
 
     double Predict(double stars) const {
-        if (knots_.empty()) return 0.85;
-        // Linear interpolation preserves the monotonic fit between observed stars.
-        // Hold endpoints for one extra star, then retain the cautious tail adjustments.
-        double predicted;
-        if (stars <= minStars_) predicted = knots_.front().accuracy;
-        else if (stars >= maxStars_) predicted = knots_.back().accuracy;
-        else {
-            const auto upper = std::upper_bound(knots_.begin(), knots_.end(), stars,
-                [](double value, const AccuracyObservation& knot) { return value < knot.stars; });
-            const auto& lower = *std::prev(upper);
-            const double fraction = (stars - lower.stars) / (upper->stars - lower.stars);
-            predicted = lower.accuracy + fraction * (upper->accuracy - lower.accuracy);
-        }
-        if (stars > maxStars_ + 1.0) predicted -= 0.012 * (stars - maxStars_ - 1.0);
-        if (stars < minStars_ - 1.0) predicted += 0.006 * (minStars_ - 1.0 - stars);
-        return std::clamp(predicted, 0.55, 0.999);
+        if (!HasObservations()) return 0.85;
+        // The tested curve continues smoothly outside the observed range.
+        const double logit = std::clamp(intercept_ + slope_ * (stars - meanStars_) / starScale_, -40.0, 40.0);
+        return std::clamp(1.0 / (1.0 + std::exp(-logit)), 0.55, 0.999);
     }
 
     bool HasObservations() const { return !observations_.empty(); }
     double MinStars() const { return minStars_; }
     double MaxStars() const { return maxStars_; }
     const auto& Observations() const { return observations_; }
-    const auto& Knots() const { return knots_; }
     double LocalSupport(double stars) const {
         double support = 0.0;
         for (const auto& observation : observations_) {
@@ -146,8 +117,41 @@ public:
     }
 
 private:
+    void FitSigmoid() {
+        double maxLogWeight = -std::numeric_limits<double>::infinity();
+        for (const auto& point : observations_) maxLogWeight = std::max(maxLogWeight, point.logWeight);
+        // Rescaling all weights also rescales the ridge penalty, preserving the
+        // research model even after a long inactive period or very old imports.
+        double total = 0.0;
+        for (const auto& point : observations_) {
+            const double weight = std::exp(point.logWeight - maxLogWeight);
+            const double accuracy = std::clamp(point.accuracy, 0.0001, 0.9999);
+            total += weight;
+            meanStars_ += weight * point.stars;
+            intercept_ += weight * std::log(accuracy / (1.0 - accuracy));
+        }
+        meanStars_ /= total;
+        intercept_ /= total;
+        double variance = 0.0, covariance = 0.0;
+        for (const auto& point : observations_) {
+            const double weight = std::exp(point.logWeight - maxLogWeight);
+            const double accuracy = std::clamp(point.accuracy, 0.0001, 0.9999);
+            const double dx = point.stars - meanStars_;
+            variance += weight * dx * dx;
+            covariance += weight * dx * (std::log(accuracy / (1.0 - accuracy)) - intercept_);
+        }
+        variance /= total;
+        covariance /= total;
+        starScale_ = std::max(1e-6, std::sqrt(variance));
+        // Fixed 0.05 ridge on standardized stars, with an unpenalized intercept.
+        // Positive slopes project to a flat fit rather than predicting that
+        // harder charts improve accuracy. One/equal-star observations are flat.
+        slope_ = std::min(0.0, (covariance / starScale_) /
+            (variance / (starScale_ * starScale_) + 0.05));
+    }
+
     std::vector<AccuracyObservation> observations_;
-    std::vector<AccuracyObservation> knots_;
+    double meanStars_{}, starScale_{1.0}, intercept_{}, slope_{};
     double minStars_{std::numeric_limits<double>::max()};
     double maxStars_{0.0};
 };
@@ -163,18 +167,22 @@ struct ClearObservation {
 
 class ClearabilityModel {
 public:
-    explicit ClearabilityModel(const std::vector<MapEntry>& scores, const std::vector<Attempt>& attempts = {}) {
+    explicit ClearabilityModel(const std::vector<MapEntry>& scores, const std::vector<Attempt>& attempts = {},
+                               RatingSystem system = RatingSystem::BeatLeader) {
         const double now = std::chrono::duration<double>(
             std::chrono::system_clock::now().time_since_epoch()).count();
         std::unordered_map<std::string, const MapEntry*> clears;
         std::unordered_map<std::string, const MapEntry*> noFailAttempts;
         std::unordered_map<std::string, std::vector<const Attempt*>> actual;
-        for (const auto& a : attempts) if (IsTrainingAttempt(a)) actual[AttemptChartKey(a)].push_back(&a);
+        for (const auto& attempt : attempts) {
+            if (IsTrainingAttempt(attempt) && IsRecommendationCharacteristic(attempt.characteristic, system))
+                actual[AttemptChartKey(attempt)].push_back(&attempt);
+        }
         for (const auto& entry : scores) {
-            const auto standard = std::find_if(entry.difficulties.begin(), entry.difficulties.end(),
-                [](const Difficulty& difficulty) { return Canonical(difficulty.characteristic) == "standard"; });
-            if (!entry.ranked || entry.hash.empty() || standard == entry.difficulties.end() || entry.stars <= 0.0) continue;
-            const auto key = Canonical(entry.hash) + "|standard|" + Canonical(standard->name);
+            const auto chart = std::find_if(entry.difficulties.begin(), entry.difficulties.end(),
+                [system](const Difficulty& difficulty) { return IsRecommendationCharacteristic(difficulty.characteristic, system); });
+            if (!entry.ranked || entry.hash.empty() || chart == entry.difficulties.end() || entry.stars <= 0.0) continue;
+            const auto key = ScoreKey(entry, *chart);
             if (entry.noFail) {
                 auto found = noFailAttempts.find(key);
                 const double accuracy = entry.baseAccuracy > 0.0 ? entry.baseAccuracy : entry.accuracy;
@@ -366,8 +374,9 @@ double ScoreSaberPp(double stars, double accuracy) {
     return 42.1168 * stars * InterpolateCurve(accuracy, points, std::size(points));
 }
 
-double BeatLeaderPp(double accuracy, const Difficulty& difficulty) {
-    if (difficulty.noteSpan) return BeatLeaderPpv4(accuracy, difficulty);
+double BeatLeaderPp(double accuracy, const Difficulty& difficulty, double scoringMultiplier = 1.0) {
+    if (difficulty.noteSpan) return BeatLeaderPpv4(accuracy, difficulty, scoringMultiplier);
+    if (!std::isfinite(scoringMultiplier) || scoringMultiplier <= 0.0) return 0.0;
     if (difficulty.accRating <= 0.0 || difficulty.passRating <= 0.0 || difficulty.techRating < 0.0) return 0.0;
     static constexpr std::pair<double, double> points[] = {
         {0.00, 0.000}, {0.60, 0.256}, {0.65, 0.296}, {0.70, 0.345},
@@ -379,15 +388,11 @@ double BeatLeaderPp(double accuracy, const Difficulty& difficulty) {
         {0.985, 2.007}, {0.9875, 2.303}, {0.99, 2.700}, {0.9925, 3.241},
         {0.995, 4.010}, {0.9975, 5.158}, {0.999, 6.241}, {1.00, 7.424}
     };
-    const double passPp = std::max(0.0, 15.2 * std::exp(std::pow(difficulty.passRating, 1.0 / 2.62)) - 30.0);
-    const double accPp = InterpolateCurve(accuracy, points, std::size(points)) * difficulty.accRating * 34.0;
-    const double techPp = std::exp(1.9 * accuracy) * 1.08 * difficulty.techRating;
+    const double passPp = std::max(0.0, 15.2 * std::exp(std::pow(difficulty.passRating * scoringMultiplier, 1.0 / 2.62)) - 30.0);
+    const double accPp = InterpolateCurve(accuracy, points, std::size(points)) * difficulty.accRating * scoringMultiplier * 34.0;
+    const double techPp = std::exp(1.9 * accuracy) * 1.08 * difficulty.techRating * scoringMultiplier;
     const double raw = passPp + accPp + techPp;
     return std::isfinite(raw) && raw > 0.0 ? std::pow(raw / 650.0, 1.3) * 650.0 : 0.0;
-}
-
-std::string ScoreKey(const MapEntry& entry, const Difficulty& difficulty) {
-    return Canonical(entry.hash) + "|" + Canonical(difficulty.characteristic) + "|" + Canonical(difficulty.name);
 }
 
 struct WeightedProfile {
@@ -455,9 +460,15 @@ double CurrentProfilePp(const WeightedProfile& profile, const std::string& key) 
 
 } // namespace
 
-AbilityChart BuildAbilityChart(const std::vector<MapEntry>& scores) {
-    const AccuracyCurve fit(scores);
+bool IsRecommendationCharacteristic(const std::string& characteristic, RatingSystem system) {
+    const auto mode = Canonical(characteristic);
+    return mode == "standard" || (system == RatingSystem::BeatLeader && mode == "onesaber");
+}
+
+AbilityChart BuildAbilityChart(const std::vector<MapEntry>& scores, bool complexityAxis, RatingSystem system) {
+    const AccuracyCurve fit(scores, system, complexityAxis);
     AbilityChart chart;
+    chart.complexityAxis = complexityAxis;
     if (!fit.HasObservations()) return chart;
     chart.minObservedStars = fit.MinStars();
     chart.maxObservedStars = fit.MaxStars();
@@ -466,10 +477,8 @@ AbilityChart BuildAbilityChart(const std::vector<MapEntry>& scores) {
         chart.scores.push_back({point.stars, point.accuracy, point.weight});
     }
     std::vector<double> positions{0.0, chart.maxStars};
-    // Include exact knots and tail boundaries, so narrow drops are not smoothed away.
-    for (const auto& knot : fit.Knots()) positions.push_back(knot.stars);
-    positions.push_back(std::max(0.0, fit.MinStars() - 1.0));
-    positions.push_back(fit.MaxStars() + 1.0);
+    // Include observed ratings alongside the smooth curve samples.
+    for (const auto& point : fit.Observations()) positions.push_back(point.stars);
     for (int i = 1; i < 256; ++i) positions.push_back(chart.maxStars * i / 256.0);
     std::sort(positions.begin(), positions.end());
     positions.erase(std::unique(positions.begin(), positions.end()), positions.end());
@@ -509,13 +518,65 @@ int NormalizeMinClearRatePercent(int percent) {
 }
 
 namespace {
+std::string BeatLeaderSpeedDescription(const BeatLeaderSpeedOption& option) {
+    std::ostringstream text;
+    text.imbue(std::locale::classic());
+    text << option.label << " (" << std::fixed << std::setprecision(2) << option.multiplier << "×)";
+    return text.str();
+}
+
+struct BeatLeaderScoringAdjustment {
+    double multiplier{1.0};
+    std::string description;
+    bool changesArrows{false};
+};
+
+std::vector<BeatLeaderScoringAdjustment> BeatLeaderScoringAdjustments(const Difficulty& difficulty) {
+    std::vector<BeatLeaderScoringAdjustment> combinations(1);
+    for (size_t i = 0; i < difficulty.modifierValues.size(); ++i) {
+        const double value = difficulty.modifierValues[i];
+        // A neutral modifier has the same PP and the same available forecast.
+        if (!std::isfinite(value) || value == 0.0) continue;
+        const auto& modifier = kBeatLeaderStandardModifiers[i];
+        const size_t count = combinations.size();
+        for (size_t j = 0; j < count; ++j) {
+            auto next = combinations[j];
+            if (next.changesArrows && modifier.changesArrows) continue;
+            next.changesArrows |= modifier.changesArrows;
+            next.multiplier += value;
+            if (!next.description.empty()) next.description += " + ";
+            next.description += modifier.label;
+            combinations.push_back(std::move(next));
+        }
+    }
+    combinations.erase(combinations.begin()); // The base variant is evaluated first.
+    return combinations;
+}
+
+template<class Evaluate>
+void EvaluateBeatLeaderSpeeds(const Difficulty& difficulty, bool compareModifiers, Evaluate evaluate) {
+    const auto adjustments = compareModifiers ? BeatLeaderScoringAdjustments(difficulty)
+        : std::vector<BeatLeaderScoringAdjustment>{};
+    evaluate(difficulty, std::string_view{}, 1.0, adjustments);
+    if (!compareModifiers) return;
+    for (size_t i = 1; i < kBeatLeaderSpeedOptions.size(); ++i) {
+        if (const auto rated = BeatLeaderDifficultyAtSpeed(difficulty, static_cast<BeatLeaderSpeed>(i))) {
+            const double legacyScale = !difficulty.hasSpeedRatings && !difficulty.noteSpan
+                ? 1.0 + difficulty.speedRatings[i - 1].legacyAdjustment : 1.0;
+            evaluate(*rated, BeatLeaderSpeedDescription(kBeatLeaderSpeedOptions[i]), legacyScale, adjustments);
+        }
+    }
+}
+
 void ApplyPerformance(MapEntry& entry, const Difficulty& difficulty, RatingSystem system,
                       const AccuracyCurve& accuracy, const ClearabilityModel& clearability,
-                      bool includeClearSupport) {
+                      bool includeClearSupport, bool speedModified = false) {
     entry.predictedAccuracy = accuracy.Predict(difficulty.stars);
     entry.predictedPp = system == RatingSystem::BeatLeader ? BeatLeaderPp(entry.predictedAccuracy, difficulty)
         : ScoreSaberPp(difficulty.stars, entry.predictedAccuracy);
-    entry.clearChance = clearability.Predict(difficulty.stars, ScoreKey(entry, difficulty));
+    // Existing chart-specific attempts do not identify the outcome at another speed.
+    entry.clearChance = speedModified ? clearability.Predict(difficulty.stars)
+        : clearability.Predict(difficulty.stars, ScoreKey(entry, difficulty));
     entry.confidence = std::clamp(accuracy.LocalSupport(difficulty.stars) / 3.0, 0.0, 1.0);
     if (includeClearSupport) entry.confidence = std::min(entry.confidence,
         std::clamp(clearability.LocalSupport(difficulty.stars) / 4.0, 0.0, 1.0));
@@ -523,8 +584,30 @@ void ApplyPerformance(MapEntry& entry, const Difficulty& difficulty, RatingSyste
     entry.nearbyClears = clears; entry.nearbyNoFail = noFail;
     entry.nearbyFailures = clearability.NearbyFailures(difficulty.stars);
 }
+
+void ApplyBeatLeaderScoringAdjustments(MapEntry& entry, const Difficulty& difficulty, std::string_view speedName,
+                                      double legacyScale, const std::vector<BeatLeaderScoringAdjustment>& adjustments) {
+    entry.recommendedModifier = speedName;
+    entry.beatLeaderScoringMultiplier = 1.0;
+    const BeatLeaderScoringAdjustment* best = nullptr;
+    for (const auto& adjustment : adjustments) {
+        // A legacy speed multiplier is already baked into the effective difficulty.
+        const double multiplier = 1.0 + (adjustment.multiplier - 1.0) / legacyScale;
+        const double pp = BeatLeaderPp(entry.predictedAccuracy, difficulty, multiplier);
+        if (pp <= entry.predictedPp) continue;
+        entry.predictedPp = pp;
+        entry.beatLeaderScoringMultiplier = multiplier;
+        best = &adjustment;
+    }
+    if (best) {
+        if (!speedName.empty()) entry.recommendedModifier += " + ";
+        entry.recommendedModifier += best->description;
+    }
 }
-double PredictBeatLeaderPp(double accuracy, const Difficulty& difficulty) { return BeatLeaderPp(accuracy, difficulty); }
+}
+double PredictBeatLeaderPp(double accuracy, const Difficulty& difficulty, double scoringMultiplier) {
+    return BeatLeaderPp(accuracy, difficulty, scoringMultiplier);
+}
 double EstimateClanMaxStars(const std::vector<MapEntry>& scores, double minClearRate,
                             const std::vector<Attempt>& attempts) {
     minClearRate=std::isfinite(minClearRate)?std::clamp(minClearRate,0.0,.95):.5;
@@ -534,7 +617,8 @@ double EstimateClanMaxStars(const std::vector<MapEntry>& scores, double minClear
 }
 std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& charts,
                                                const std::vector<MapEntry>& scores,
-                                               const std::vector<Attempt>& attempts) {
+                                               const std::vector<Attempt>& attempts,
+                                               bool beatLeaderModifiers) {
     const AccuracyCurve accuracy(scores);
     if (!accuracy.HasObservations()) return {};
     auto resolved = attempts;
@@ -548,14 +632,20 @@ std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& cha
     for (const auto& chart : charts) {
         if (!chart.ranked || !IsValidSongHash(chart.hash) || chart.songName.empty()) continue;
         for (const auto& difficulty : chart.difficulties) {
-            if (Canonical(difficulty.characteristic) != "standard" || !std::isfinite(difficulty.stars) || difficulty.stars <= 0) continue;
-            MapEntry entry = chart;
-            entry.difficulties = {difficulty}; entry.stars = difficulty.stars;
-            ApplyPerformance(entry, difficulty, RatingSystem::BeatLeader, accuracy, clearability, true);
-            const auto current = currentPp.find(ScoreKey(entry, difficulty));
-            entry.currentPp = current == currentPp.end() ? 0.0 : current->second;
-            entry.isImprovement = entry.currentPp > 0;
-            if (std::isfinite(entry.predictedPp) && entry.predictedPp > 0) result.push_back(std::move(entry));
+            if (!IsRecommendationCharacteristic(difficulty.characteristic, RatingSystem::BeatLeader) ||
+                !std::isfinite(difficulty.stars) || difficulty.stars <= 0) continue;
+            const auto current = currentPp.find(ScoreKey(chart, difficulty));
+            EvaluateBeatLeaderSpeeds(difficulty, beatLeaderModifiers,
+                [&](const Difficulty& rated, std::string_view speedName, double legacyScale, const auto& adjustments) {
+                    MapEntry entry = chart;
+                    entry.difficulties = {rated};
+                    entry.stars = rated.stars;
+                    ApplyPerformance(entry, rated, RatingSystem::BeatLeader, accuracy, clearability, true, !speedName.empty());
+                    ApplyBeatLeaderScoringAdjustments(entry, rated, speedName, legacyScale, adjustments);
+                    entry.currentPp = current == currentPp.end() ? 0.0 : current->second;
+                    entry.isImprovement = entry.currentPp > 0;
+                    if (std::isfinite(entry.predictedPp) && entry.predictedPp > 0) result.push_back(std::move(entry));
+                });
         }
     }
     return result;
@@ -564,26 +654,32 @@ std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& cha
 std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
                                             ListKind kind,
                                             int limit,
-                                            double /*targetStars*/,
+                                            double targetStars,
                                             const std::vector<MapEntry>& profileScores,
                                             RatingSystem system,
                                             double minClearRate,
                                             bool rankByWeightedGain,
-                                            const std::vector<Attempt>& attempts) {
+                                            const std::vector<Attempt>& attempts,
+                                            bool beatLeaderModifiers) {
+    // AccSaber needs category curves and uses its dedicated selector.
+    if (system == RatingSystem::AccSaber) return {};
     minClearRate = std::isfinite(minClearRate) ? std::clamp(minClearRate, 0.0, 0.95) : 0.50;
-    AccuracyCurve accuracyCurve(profileScores.empty() ? entries : profileScores);
+    AccuracyCurve accuracyCurve(profileScores.empty() ? entries : profileScores, system);
+    const bool modifiersEnabled = system == RatingSystem::BeatLeader && beatLeaderModifiers;
+    const bool compareModifiers = modifiersEnabled && accuracyCurve.HasObservations();
+    const bool filterByStars = modifiersEnabled && kind == ListKind::NotPlayed && targetStars > 0.0;
     auto resolvedAttempts = attempts;
     ResolveAttemptRatings(resolvedAttempts, profileScores);
     ResolveAttemptRatings(resolvedAttempts, entries);
-    const ClearabilityModel clearability(profileScores.empty() ? entries : profileScores, resolvedAttempts);
+    const ClearabilityModel clearability(profileScores.empty() ? entries : profileScores, resolvedAttempts, system);
     const auto weightedProfile = MakeWeightedProfile(profileScores.empty() ? entries : profileScores);
     std::unordered_map<std::string, MapEntry> unique;
     for (auto& entry : entries) {
         if (kind == ListKind::ToImprove && (entry.noFail || !entry.ranked)) continue;
         if (!IsValidSongHash(entry.hash) || entry.songName.empty() || entry.difficulties.empty()) continue;
         entry.difficulties.erase(std::remove_if(entry.difficulties.begin(), entry.difficulties.end(),
-            [](const Difficulty& difficulty) {
-                return Canonical(difficulty.characteristic) != "standard" || difficulty.stars <= 0.0;
+            [system](const Difficulty& difficulty) {
+                return !IsRecommendationCharacteristic(difficulty.characteristic, system) || difficulty.stars <= 0.0;
             }), entry.difficulties.end());
         if (entry.difficulties.empty()) continue;
         if (entry.accuracy > 1.0) entry.accuracy /= 100.0;
@@ -592,42 +688,42 @@ std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
         MapEntry selected = entry;
         double bestPriority = 0.0;
         for (const auto& difficulty : entry.difficulties) {
-            MapEntry performance = entry;
-            ApplyPerformance(performance, difficulty, system, accuracyCurve, clearability, kind == ListKind::NotPlayed);
-            const double predictedAccuracy = performance.predictedAccuracy;
-            const double predictedPp = performance.predictedPp;
-            const double clearChance = performance.clearChance;
-            if (predictedPp <= 0.0) continue;
-
             const auto scoreKey = ScoreKey(entry, difficulty);
-            const double weightedGain = WeightedProfileChange(
-                weightedProfile, scoreKey, predictedPp, kind == ListKind::NotPlayed);
-            const double priority = kind == ListKind::NotPlayed
-                ? RecommendationPriority(weightedGain, clearChance, minClearRate, rankByWeightedGain) : weightedGain;
-            if (priority <= 0.0) continue;
-            if (!hasRecommendation || priority > bestPriority) {
+            EvaluateBeatLeaderSpeeds(difficulty, compareModifiers,
+             [&](const Difficulty& rated, std::string_view speedName, double legacyScale, const auto& adjustments) {
+                if (filterByStars && (rated.stars < std::max(1.0, targetStars - kTargetWindowStars) ||
+                    rated.stars > targetStars + kTargetWindowStars)) return;
+
+                const bool harderReplay = kind == ListKind::ToImprove && rated.stars > difficulty.stars;
+                MapEntry performance = entry;
+                ApplyPerformance(performance, rated, system, accuracyCurve, clearability,
+                                 kind == ListKind::NotPlayed || harderReplay, !speedName.empty());
+                // A PB on the chart does not establish a clear at higher stars.
+                if (harderReplay && performance.clearChance < minClearRate) return;
+                ApplyBeatLeaderScoringAdjustments(performance, rated, speedName, legacyScale, adjustments);
+                if (performance.predictedPp <= 0.0) return;
+                const double weightedGain = WeightedProfileChange(
+                    weightedProfile, scoreKey, performance.predictedPp, kind == ListKind::NotPlayed);
+                const double priority = kind == ListKind::NotPlayed
+                    ? RecommendationPriority(weightedGain, performance.clearChance, minClearRate, rankByWeightedGain)
+                    : weightedGain;
+                if (priority <= bestPriority) return;
+
                 hasRecommendation = true;
                 bestPriority = priority;
-                selected = entry;
+                selected = std::move(performance);
                 selected.difficulties = {difficulty};
-                selected.stars = difficulty.stars;
+                selected.stars = rated.stars;
                 selected.priority = priority;
-                selected.predictedAccuracy = predictedAccuracy;
-                selected.predictedPp = predictedPp;
                 selected.currentPp = CurrentProfilePp(weightedProfile, scoreKey);
                 selected.isImprovement = kind == ListKind::ToImprove;
                 selected.weightedPpGain = weightedGain;
-                selected.clearChance = clearChance;
-                selected.confidence = performance.confidence;
-                selected.nearbyClears = performance.nearbyClears;
-                selected.nearbyNoFail = performance.nearbyNoFail;
-                selected.nearbyFailures = performance.nearbyFailures;
-            }
+            });
         }
         if (!hasRecommendation) continue;
 
         // One playlist item per map. When the API returns several ranked
-        // Standard charts for the same hash, keep the difficulty with the
+        // eligible charts for the same hash, keep the chart with the
         // greatest estimated profile PP gain.
         const auto key = Canonical(selected.hash);
         auto found = unique.find(key);
@@ -655,10 +751,10 @@ double EstimateRecommendationTargetStars(const std::vector<MapEntry>& profileSco
                                          double minClearRate,
                                          const std::vector<Attempt>& attempts) {
     minClearRate = std::isfinite(minClearRate) ? std::clamp(minClearRate, 0.0, 0.95) : 0.50;
-    const AccuracyCurve accuracyCurve(profileScores);
+    const AccuracyCurve accuracyCurve(profileScores, system);
     auto resolvedAttempts = attempts;
     ResolveAttemptRatings(resolvedAttempts, profileScores);
-    const ClearabilityModel clearability(profileScores, resolvedAttempts);
+    const ClearabilityModel clearability(profileScores, resolvedAttempts, system);
     const auto weightedProfile = MakeWeightedProfile(profileScores);
     auto cautiousTarget = [&clearability, minClearRate](double stars) {
         // High thresholds may be above every observed clear estimate. Move the
@@ -695,7 +791,7 @@ double EstimateRecommendationTargetStars(const std::vector<MapEntry>& profileSco
         for (const auto& entry : profileScores) {
             if (entry.noFail || !entry.ranked) continue;
             for (const auto& difficulty : entry.difficulties) {
-                if (Canonical(difficulty.characteristic) != "standard" || difficulty.stars <= 0.0) continue;
+                if (!IsRecommendationCharacteristic(difficulty.characteristic, system) || difficulty.stars <= 0.0) continue;
                 const auto scoreKey = ScoreKey(entry, difficulty);
                 if (seen.contains(scoreKey)) continue;
                 seen[scoreKey] = true;
@@ -750,15 +846,17 @@ std::vector<MapEntry> MergeRecommendations(std::vector<MapEntry> notPlayed,
 }
 
 std::string PlaylistFileName(const std::string& service, ListKind kind) {
-    const auto provider = Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
+    if (kind == ListKind::Sync) return "RankedPractice_Sync.bplist";
+    const auto provider = Canonical(service) == "accsaber" ? "AccSaber" : Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
     return std::string("RankedPractice_") + provider +
-           (kind == ListKind::Combined ? "_PPGain.bplist" :
+           (kind == ListKind::Combined ? (Canonical(service) == "accsaber" ? "_APGain.bplist" : "_PPGain.bplist") :
             kind == ListKind::NotPlayed ? "_NotPlayed.bplist" : "_ToImprove.bplist");
 }
 
 std::string PlaylistTitle(const std::string& service, ListKind kind) {
-    const auto provider = Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
-    return std::string(provider) + (kind == ListKind::Combined ? " - PP Gain" :
+    if (kind == ListKind::Sync) return "Sync";
+    const auto provider = Canonical(service) == "accsaber" ? "AccSaber" : Canonical(service) == "scoresaber" ? "ScoreSaber" : "BeatLeader";
+    return std::string(provider) + (kind == ListKind::Combined ? (Canonical(service) == "accsaber" ? " - AP Gain" : " - PP Gain") :
                                   kind == ListKind::NotPlayed ? " - Not Played" : " - To Improve");
 }
 
@@ -780,5 +878,7 @@ std::string ClanPlaylistFileName(const std::string& clanTag, bool perClan) {
 std::string ClanPlaylistTitle(const std::string& clanScope) {
     return "BeatLeader - Maps to Conquer (" + clanScope + ")";
 }
+
+#include "accsaber_model_impl.hpp"
 
 } // namespace rankedpractice

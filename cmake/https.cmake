@@ -16,6 +16,15 @@ FetchContent_Declare(rankedtools_mbedtls
     URL_HASH SHA256=a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6)
 FetchContent_MakeAvailable(rankedtools_mbedtls)
 
+# TLS 1.3 uses shared PSA state even when every request owns its TLS context.
+# Apply one mutex layout to the libraries and all consumers on Quest and Windows.
+foreach(target mbedcrypto mbedx509 mbedtls)
+    target_compile_definitions(${target} PUBLIC
+        MBEDTLS_THREADING_C MBEDTLS_THREADING_ALT RANKEDTOOLS_MBEDTLS_THREADING)
+    target_include_directories(${target} PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/tls>")
+endforeach()
+
 set(MBEDTLS_INCLUDE_DIR "${rankedtools_mbedtls_SOURCE_DIR}/include")
 set(MBEDTLS_LIBRARY mbedtls)
 set(MBEDX509_LIBRARY mbedx509)
@@ -52,4 +61,4 @@ FetchContent_Declare(rankedtools_curl
 FetchContent_MakeAvailable(rankedtools_curl)
 
 # The deferred QPM setup removes its old archive from the final link list.
-target_link_libraries(${COMPILE_ID} PRIVATE CURL::libcurl)
+target_link_libraries(${COMPILE_ID} PRIVATE CURL::libcurl mbedcrypto)

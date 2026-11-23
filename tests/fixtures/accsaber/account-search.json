@@ -1,0 +1,17 @@
+{
+  "content": [
+    {
+      "userId": "76561198000000001",
+      "userName": "Acc Player",
+      "avatarUrl": "",
+      "country": "US",
+      "ranking": 2
+    }
+  ],
+  "page": {
+    "number": 0,
+    "size": 5,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}

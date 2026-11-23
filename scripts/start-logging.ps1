@@ -15,7 +15,9 @@ Param(
     [Switch] $help,
 
     [Parameter(Mandatory=$false)]
-    [Switch] $excludeHeader
+    [Switch] $excludeHeader,
+    [Parameter(Mandatory=$false)]
+    [Switch] $clear
 )
 
 if ($help -eq $true) {
@@ -29,6 +31,7 @@ if ($help -eq $true) {
     Write-Output "-Custom `t Specify a specific logging pattern, e.g `"custom-types|questui`""
     Write-Output "`t`t NOTE: The pattern `"AndroidRuntime|CRASH|scotland2|Unity`" is always appended to a custom pattern"
     Write-Output "-File `t`t Saves the output of the log to the file name given"
+    Write-Output "-Clear `t`t Clears logcat before capture; off by default to preserve earlier errors"
 
     exit
 }
@@ -74,5 +77,5 @@ if (![string]::IsNullOrEmpty($file)) {
 }
 
 Write-Output "Logging using Command `"$command`""
-adb logcat -c
+if ($clear.IsPresent) { adb logcat -c }
 Invoke-Expression $command

@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "page": 1,
+    "total": 3
+  },
+  "data": [
+    {
+      "baseScore": 1,
+      "leaderboard": {
+        "id": "DollarSeventyEight71",
+        "song": {
+          "id": "DollarSeventyEight",
+          "hash": "DollarSeventyEight",
+          "name": "$1.78 [OST V]"
+        },
+        "difficulty": {
+          "difficultyName": "Expert",
+          "modeName": "Standard",
+          "status": 7
+        }
+      }
+    },
+    {
+      "baseScore": 1,
+      "leaderboard": {
+        "id": "TheMaster71",
+        "song": {
+          "id": "TheMaster",
+          "hash": "TheMaster",
+          "name": "The Master [OST 7]"
+        },
+        "difficulty": {
+          "difficultyName": "Expert",
+          "modeName": "Standard",
+          "status": 7
+        }
+      }
+    },
+    {
+      "baseScore": 1,
+      "leaderboard": {
+        "id": "IWannaBeAMachine91",
+        "song": {
+          "id": "IWannaBeAMachine",
+          "hash": "IWannaBeAMachine",
+          "name": "I Wanna Be A Machine [OST V]"
+        },
+        "difficulty": {
+          "difficultyName": "ExpertPlus",
+          "modeName": "Standard",
+          "status": 7
+        }
+      }
+    }
+  ]
+}

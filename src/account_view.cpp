@@ -43,23 +43,24 @@ struct AccountPanel {
     std::array<std::uint64_t, 5> rowRevisions{};
 };
 
-std::array<std::shared_ptr<AccountPanel>, 2> panels;
+std::array<std::shared_ptr<AccountPanel>, 3> panels;
 SafePtrUnity<UnityEngine::RectTransform> settingsContentRect;
 SafePtrUnity<BSML::ScrollViewContent> settingsScrollContent;
 
 std::string SavedId(AccountService service) {
-    return service == AccountService::BeatLeader ? getModConfig().BeatLeaderPlayerId.GetValue()
+    return service == AccountService::AccSaber ? getModConfig().AccSaberPlayerId.GetValue() : service == AccountService::BeatLeader ? getModConfig().BeatLeaderPlayerId.GetValue()
                                                 : getModConfig().ScoreSaberPlayerId.GetValue();
 }
 
 std::string SavedName(AccountService service) {
-    return service == AccountService::BeatLeader ? getModConfig().BeatLeaderPlayerName.GetValue()
+    return service == AccountService::AccSaber ? getModConfig().AccSaberPlayerName.GetValue() : service == AccountService::BeatLeader ? getModConfig().BeatLeaderPlayerName.GetValue()
                                                 : getModConfig().ScoreSaberPlayerName.GetValue();
 }
 
 void SaveName(AccountService service, const std::string& name) {
     if (SavedName(service) == name) return;
     if (service == AccountService::BeatLeader) getModConfig().BeatLeaderPlayerName.SetValue(name);
+    else if (service == AccountService::AccSaber) getModConfig().AccSaberPlayerName.SetValue(name);
     else getModConfig().ScoreSaberPlayerName.SetValue(name);
 }
 
@@ -79,7 +80,7 @@ void UpdatePanel(const std::shared_ptr<AccountPanel>& panel) {
     if (!panel->selectedText || !panel->statusText || !panel->picker ||
         !panel->find || !panel->previous || !panel->next) return;
     const auto id = SavedId(panel->service), name = SavedName(panel->service);
-    const auto service = panel->service == AccountService::BeatLeader ? "BeatLeader" : "ScoreSaber";
+    const auto service = panel->service == AccountService::AccSaber ? "AccSaber" : panel->service == AccountService::BeatLeader ? "BeatLeader" : "ScoreSaber";
     std::string selected = std::string(service) + " account: " +
         (id.empty() ? "Not selected" : name.empty() ? "Saved account" : name);
     if (panel->showId && !id.empty()) selected += "\nID: " + id;
@@ -98,7 +99,7 @@ void UpdatePanel(const std::shared_ptr<AccountPanel>& panel) {
         const auto& profile = panel->lookup.results.profiles[i];
         row.text->set_text(StringW(profile.name + "\n" +
             (profile.country.empty() ? "Country unknown" : profile.country) + " | " +
-            (profile.rank ? "Rank #" + std::to_string(profile.rank) : "Unranked") + "\nID: " + profile.id));
+            (profile.rank ? "Rank #" + std::to_string(profile.rank) : panel->service == AccountService::AccSaber ? "Rank unavailable" : "Unranked") + "\nID: " + profile.id));
         panel->rowRevisions[i] = panel->lookup.revision;
     }
     RebuildSettings();
@@ -108,6 +109,7 @@ void SaveSelection(const std::shared_ptr<AccountPanel>& panel, const AccountProf
     if (!IsCanonicalAccountId(profile.id)) return;
     ++panel->metadataRevision;
     if (panel->service == AccountService::BeatLeader) getModConfig().BeatLeaderPlayerId.SetValue(profile.id);
+    else if (panel->service == AccountService::AccSaber) getModConfig().AccSaberPlayerId.SetValue(profile.id);
     else getModConfig().ScoreSaberPlayerId.SetValue(profile.id);
     SaveName(panel->service, profile.name);
     panel->lookup.Invalidate();
@@ -222,7 +224,7 @@ UnityEngine::UI::Button* AccountButton(UnityEngine::Transform* parent, const cha
 
 void BuildPanel(UnityEngine::Transform* parent, AccountService service) {
     auto panel = std::make_shared<AccountPanel>(); panel->service = service;
-    panels[service == AccountService::BeatLeader ? 0 : 1] = panel;
+    panels[static_cast<size_t>(service)] = panel;
     panel->selectedText = AccountText(parent, "", 3.0f);
     auto* actions = BSML::Lite::CreateHorizontalLayoutGroup(parent); AccountLayout(actions);
     AccountButton(actions->get_transform(), "Choose account", [panel] {
@@ -238,7 +240,7 @@ void BuildPanel(UnityEngine::Transform* parent, AccountService service) {
         panel->input = static_cast<std::string>(value);
         panel->lookup.Invalidate(); panel->status = "Press Find account to search."; UpdatePanel(panel);
     });
-    BSML::Lite::AddHoverHint(field, "Enter your display name, a /u/ profile link, or the existing numeric player ID.");
+    BSML::Lite::AddHoverHint(field, "Enter your display name, a leaderboard profile link, or numeric player ID.");
     auto* findActions = BSML::Lite::CreateHorizontalLayoutGroup(picker->get_transform()); AccountLayout(findActions);
     panel->find = AccountButton(findActions->get_transform(), "Find account", [panel] { StartLookup(panel); });
     AccountButton(findActions->get_transform(), "Cancel", [panel] {
@@ -247,6 +249,7 @@ void BuildPanel(UnityEngine::Transform* parent, AccountService service) {
     AccountButton(picker->get_transform(), "Clear saved account", [panel] {
         ++panel->metadataRevision;
         if (panel->service == AccountService::BeatLeader) getModConfig().BeatLeaderPlayerId.SetValue("");
+        else if (panel->service == AccountService::AccSaber) getModConfig().AccSaberPlayerId.SetValue("");
         else getModConfig().ScoreSaberPlayerId.SetValue("");
         SaveName(panel->service, "");
         panel->lookup.Invalidate(); panel->open = false; UpdatePanel(panel);
@@ -296,6 +299,7 @@ void BuildAccountSettings(UnityEngine::Transform* parent) {
     settingsScrollContent = wrapper->GetComponent<BSML::ScrollViewContent*>();
     BuildPanel(parent, AccountService::BeatLeader);
     BuildPanel(parent, AccountService::ScoreSaber);
+    BuildPanel(parent, AccountService::AccSaber);
     AccountText(parent, "Changes apply on the next playlist refresh. When viewing someone else's profile, turn off Record local attempts.", 2.5f);
     RefreshAccountSettings();
 }

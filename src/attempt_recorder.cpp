@@ -14,7 +14,7 @@
 
 namespace rankedpractice {
 namespace {
-struct RecordingProfile { std::string beatLeader, scoreSaber; };
+struct RecordingProfile { std::string beatLeader, scoreSaber, accSaber; };
 std::optional<RecordingProfile> recordingProfile;
 MAKE_HOOK_MATCH(RankedToolsBeginAttempt, &GlobalNamespace::GameplayCoreInstaller::InstallBindings,
                 void, GlobalNamespace::GameplayCoreInstaller* self) {
@@ -22,7 +22,7 @@ MAKE_HOOK_MATCH(RankedToolsBeginAttempt, &GlobalNamespace::GameplayCoreInstaller
     try {
         if (getModConfig().RecordLocalAttempts.GetValue()) {
             recordingProfile = RecordingProfile{getModConfig().BeatLeaderPlayerId.GetValue(),
-                                                 getModConfig().ScoreSaberPlayerId.GetValue()};
+                                                 getModConfig().ScoreSaberPlayerId.GetValue(), getModConfig().AccSaberPlayerId.GetValue()};
         }
     } catch (const std::exception& ex) { PaperLogger.warn("Could not start attempt capture: {}", ex.what()); }
     catch (...) { PaperLogger.warn("Could not start attempt capture."); }
@@ -87,7 +87,7 @@ MAKE_HOOK_MATCH(RankedToolsEndAttempt, &GlobalNamespace::StandardLevelScenesTran
     try {
         std::thread([a = std::move(*captured), ids = std::move(*profile)] {
             try {
-                for (const auto& [service, id] : {std::pair{"beatleader", ids.beatLeader}, std::pair{"scoresaber", ids.scoreSaber}}) {
+                for (const auto& [service, id] : {std::pair{"beatleader", ids.beatLeader}, std::pair{"scoresaber", ids.scoreSaber}, std::pair{"accsaber", ids.accSaber}}) {
                     if (id.empty()) continue;
                     std::string error; std::vector<Attempt> merged;
                     if (!SaveAttemptHistory(service, id, {a}, merged, error)) PaperLogger.warn("Could not store {} attempt: {}", service, error);

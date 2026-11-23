@@ -1,0 +1,78 @@
+{
+  "captured": "2026-11-05",
+  "version": "PPv4.1",
+  "cases": [
+    {
+      "label": "live-score-9678814",
+      "live": true,
+      "source": "https://api.beatleader.com/score/9678814",
+      "difficulty": {
+        "difficultyName": "ExpertPlus",
+        "modeName": "OneSaber",
+        "status": 3,
+        "stars": 10.418133,
+        "predictedAcc": 0.9709511,
+        "sliderPercentage": -7.857378e-8,
+        "notes": 1182,
+        "noteSpan": 221.35135,
+        "accRating": 12.300395,
+        "passRating": 5.6067677,
+        "techRating": 7.333582
+      },
+      "scores": [
+        [
+          0.9333459,
+          461.89816
+        ]
+      ]
+    },
+    {
+      "label": "live-score-25608643",
+      "live": true,
+      "source": "https://api.beatleader.com/score/25608643",
+      "difficulty": {
+        "difficultyName": "ExpertPlus",
+        "modeName": "Standard",
+        "status": 3,
+        "stars": 11.889788,
+        "predictedAcc": 0.9683529,
+        "sliderPercentage": 0,
+        "notes": 1247,
+        "noteSpan": 140.67601,
+        "accRating": 12.699829,
+        "passRating": 10.9367285,
+        "techRating": 10.9502125
+      },
+      "scores": [
+        [
+          0.8813211,
+          435.70355
+        ]
+      ]
+    },
+    {
+      "label": "live-score-9508811",
+      "live": true,
+      "source": "https://api.beatleader.com/score/9508811",
+      "difficulty": {
+        "difficultyName": "ExpertPlus",
+        "modeName": "Standard",
+        "status": 3,
+        "stars": 9.65457,
+        "predictedAcc": 0.9756254,
+        "sliderPercentage": 0.051067077,
+        "notes": 1422,
+        "noteSpan": 197.14285,
+        "accRating": 10.910024,
+        "passRating": 7.0658317,
+        "techRating": 9.507234
+      },
+      "scores": [
+        [
+          0.9443833,
+          458.56888
+        ]
+      ]
+    }
+  ]
+}

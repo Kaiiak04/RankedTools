@@ -101,8 +101,8 @@ void PersonalizedClanContract() {
     std::cout << "PASS: personalized weighted clan impact, replay baselines, transfers, targets and search budgets\n";
 }
 
-std::string ClanApiChart(int id, double stars = 7) {
-    auto json = Chart(id, stars);
+std::string ClanApiChart(int id, double stars = 7, const char* mode = "Standard") {
+    auto json = Chart(id, stars, false, "", mode);
     json.insert(1, "\"leaderboardId\":\"" + std::to_string(id) + "\","); return json;
 }
 std::string ClanStateJson(const std::string& lb, int clan, const std::vector<ClanScore>& scores,

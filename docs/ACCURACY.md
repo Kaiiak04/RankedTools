@@ -1,0 +1,15 @@
+# Personal accuracy models
+
+BeatLeader, ScoreSaber and AccSaber use a sigmoid with a **30-day exponential age-decay time constant** for personal accuracy predictions and ability charts. The shared forecast also feeds target-star estimates and BeatLeader clan performance projections. Parameters are fixed to the model evaluated in the recommendation studies; no automatic decay or model selection is performed.
+
+An observation aged `a` days receives weight `exp(-a / 30)`. Each additional 30 days multiplies its weight by about 0.368; the half-life is about 20.8 days. This is a time constant, not a history cutoff. Missing dates retain weight 0.65; future dates are treated as age zero.
+
+The model regresses logit accuracy against recency-weighted standardized effective stars for BeatLeader/ScoreSaber, or complexity for AccSaber. Each selected account has its own fit. AccSaber fits True Acc, Standard Acc and Tech Acc independently, including valid zero complexity; Overall compares category-specific gains without pooling their observations. The intercept is unpenalized and the slope uses a fixed ridge penalty of `0.05 * sum(weights)`. Positive slopes are projected to zero, so harder charts cannot increase predicted accuracy. Single-score and equal-rating histories produce a flat fit. Accuracy is clipped to 0.0001–0.9999 before its logit transform and predictions are bounded to 55–99.9%. The sigmoid continues smoothly outside the observed range; the graph marks those extrapolated regions.
+
+Weights are rescaled together for the numerical fit, including its ridge penalty, to avoid underflow after long inactivity. Absolute age weights still control score-dot opacity and nearby support. With no new observations, advancing time alone leaves a fit with entirely past dated observations unchanged.
+
+BeatLeader fits one curve from eligible ranked Standard and OneSaber PBs. ScoreSaber and AccSaber use ranked Standard PBs. Training deduplicates exact charts and applies effective modifier stars where available. No Fail and sub-55% scores are excluded. AccSaber also excludes speed-modified plays from accuracy fitting. No history still yields the existing internal 85% fallback for the star-based selectors; the ability chart does not present that fallback as a personal fit. AccSaber categories without eligible observations produce guidance and preserve the existing playlist when no selected category has evidence.
+
+The same 30-day sigmoid applies to every provider and AccSaber category. Clearability retains its separate evidence model and 365-day weighting. PP/AP calculations, category position weighting, strict AccSaber PB replacement rules and posted-score baselines are separate from the accuracy fit.
+
+Quest and PCVR use the same C++ implementation and provider selection. The native ABI and stored settings are unchanged. Regression fixtures in `tests/fixtures/beatleader-sigmoid30.json`, originally added for BeatLeader, contain frozen predictions from the evaluated Python model and are checked against all three providers. Additional tests cover zero complexity, category isolation, sparse histories and chart/playlist consistency.

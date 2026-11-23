@@ -2,10 +2,12 @@
 
 #include "recommendation.hpp"
 #include "clan_recommendation.hpp"
+#include "accsaber.hpp"
 
 #include <string>
 #include <vector>
 #include <cstddef>
+#include <unordered_map>
 
 namespace rankedpractice {
 
@@ -16,6 +18,10 @@ struct HttpStatistics {
     double seconds{0.0};
 };
 HttpStatistics GetHttpStatistics();
+// Diagnostic used by the packaged-engine smoke check; retains production TLS,
+// certificate verification, protocol restrictions, and connection ownership.
+bool ProbeHttps(const std::string& url, std::string& error);
+std::string HttpsImplementation();
 
 struct StarRange {
     double minStars{0.0};
@@ -52,7 +58,33 @@ struct ScoreHistory {
     std::vector<Attempt> attempts;
     std::string attemptWarning;
     bool importAttempts{true};
+    // Unfiltered posted-score identities, including NF and inapplicable charts.
+    // Collected alongside the ordinary profile without another network pass.
+    bool syncComplete{false};
+    std::vector<MapEntry> syncScores;
+    std::string syncError;
+    bool attemptsLoaded{false};
+    bool accMetadataLoaded{false};
+    bool accCatalogLoaded{false};
+    std::unordered_map<std::string, std::string> accModifiers;
+    std::vector<MapEntry> accCatalog;
+    std::vector<AccSaberCategory> accCategories;
+    std::string linkedBeatLeaderId, linkedScoreSaberId;
 };
+
+struct SyncAccount {
+    std::string service, playerId;
+    ScoreHistory* history{nullptr};
+};
+bool FetchSyncPlaylist(const std::vector<SyncAccount>& accounts, int requiredScoreboards,
+                       std::vector<MapEntry>& entries, std::string& error);
+bool FetchAccSaberRecommendations(const std::string& playerId, const std::string& category,
+    ListKind kind, int limit, double minClearRate, ScoreHistory& history,
+    std::vector<MapEntry>& entries, std::string& error);
+
+bool FetchSyncPlaylist(const std::string& beatLeaderPlayerId, const std::string& scoreSaberPlayerId,
+                       std::vector<MapEntry>& entries, std::string& error,
+                       ScoreHistory* beatLeaderHistory = nullptr, ScoreHistory* scoreSaberHistory = nullptr);
 
 bool FetchRecommendations(const std::string& service,
                           const std::string& playerId,
@@ -62,7 +94,8 @@ bool FetchRecommendations(const std::string& service,
                           std::string& error,
                           double minClearRate,
                           StarRange* beatLeaderNotPlayedRange = nullptr,
-                          ScoreHistory* history = nullptr);
+                          ScoreHistory* history = nullptr,
+                          bool beatLeaderModifiers = false);
 
 bool FetchBeatLeaderNotPlayedStarRange(const std::string& playerId,
                                        double minClearRate,
@@ -77,7 +110,8 @@ bool FetchClanToConquer(const std::string& playerId,
                         std::string& error,
                         double minClearRate = 0.50,
                         ScoreHistory* history = nullptr,
-                        bool legacy = false);
+                        bool legacy = false,
+                        bool beatLeaderModifiers = false);
 
 bool SaveClanExplorationCursor(const std::string& playerId, const std::string& clanTag,
                                std::size_t cursor, std::string& error);

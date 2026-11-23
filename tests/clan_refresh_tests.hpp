@@ -1,11 +1,92 @@
-std::string FreshClanRanking(int id, double stars = 7, double rival = 100, bool v4 = false) {
+std::string FreshClanRanking(int id, double stars = 7, double rival = 100, bool v4 = false,
+                             std::string_view modifierFields = {}, std::string_view mode = "Standard") {
     std::ostringstream out; out << std::setprecision(15);
     out << "{\"id\":\"" << id << "\",\"song\":{\"hash\":\"" << Hash(id) << "\",\"name\":\"Test\"},"
-        << "\"difficulty\":{\"difficultyName\":\"ExpertPlus\",\"modeName\":\"Standard\",\"status\":3,\"stars\":" << stars
+        << "\"difficulty\":{\"difficultyName\":\"ExpertPlus\",\"modeName\":\"" << mode << "\",\"status\":3,\"stars\":" << stars
         << ",\"accRating\":8,\"passRating\":8,\"techRating\":5";
     if (v4) out << ",\"noteSpan\":120,\"notes\":1000,\"predictedAcc\":0.97,\"sliderPercentage\":0.1";
+    out << modifierFields;
     out << "},\"clanRanking\":[{\"clan\":{\"id\":3},\"pp\":" << rival << "}]}";
     return out.str();
+}
+
+void ClanModifierRefresh() {
+    constexpr int id = 45;
+    const std::string modifiers = R"(,"modifierValues":{"fs":0.4,"da":0.08},"modifiersRating":{
+        "fsStars":11,"fsAccRating":14,"fsPassRating":10,"fsTechRating":6,"fsPredictedAcc":0.97,"fsSliderPercentage":0.2})";
+    auto catalog = ClanApiChart(id, 7, "OneSaber");
+    catalog.insert(catalog.size() - 1,R"(,"noteSpan":120,"notes":1000,"predictedAcc":0.97,"sliderPercentage":0.1)");
+    catalog.insert(catalog.size() - 1, modifiers);
+    auto chart = Parse(catalog).front();
+    auto history = ClanTestHistory();
+    history.scores.front().difficulties.front().characteristic = "OneSaber";
+    const auto options = EvaluatePlayerPerformance({chart},history.scores,{},true);
+    CHECK(options.size() == 2);
+    auto pb = Score(id, 100, "OneSaber");
+    pb.pp = std::ceil(options.front().predictedPp) + 1;
+    history.scores.push_back(pb);
+    CHECK(options.back().predictedPp > pb.pp + 1);
+    const auto live = FreshClanRanking(id, 7, (pb.pp + options.back().predictedPp) / 2, true, modifiers, "OneSaber");
+
+    int catalogRequests = 0, rankingRequests = 0;
+    const HttpGetter get = [&](const std::string& url, std::string& json, std::string&) {
+        if (url.find("/player/") != std::string::npos) json = R"({"clans":[{"id":1,"tag":"A"}]})";
+        else if (url.find("/maps?type=ranked") != std::string::npos) {
+            CHECK(url.find("/maps?type=ranked&count=500") != std::string::npos);
+            ++catalogRequests; json = Page(1,1,{catalog});
+        }
+        else if (url.find("/clans/globalmap") != std::string::npos) json = R"({"points":[]})";
+        else if (url.find("sortBy=toconquer") != std::string::npos)
+            json = Page(1,1,{R"({"leaderboardId":"45","pp":-10,"leaderboard":)" + live + "}"});
+        else if (url.find("/maps?") != std::string::npos) json = Page(1,0,{});
+        else if (url.find("/clan/1?") != std::string::npos)
+            json = history.scores.size() == 2 ? ClanStateJson("45",1,{{"123",pb.pp,.95,10}}) : "null";
+        else { ++rankingRequests; json = live; }
+        return true;
+    };
+    const HttpGetter icon = [](const std::string&,std::string&,std::string&) { return false; };
+    ClanScreenCache cache(false);
+    CHECK(cache.Put("catalog_v2", CompactClanCatalog({}), ClanCacheNow()));
+    std::vector<ClanPlaylistRecommendations> lists;
+    std::string error;
+    const auto refresh = [&](double clearRate, bool legacy, bool enabled) -> const ClanPlaylistRecommendations& {
+        CHECK(FetchClanToConquerInternal("123",false,16,lists,error,get,icon,clearRate,&history,false,&cache,legacy,enabled));
+        CHECK(lists.size() == 1 && lists.front().error.empty());
+        return lists.front();
+    };
+
+    CHECK(refresh(0,false,false).entries.empty());
+    CHECK(refresh(.5,false,true).entries.empty()); // The base-speed clear does not qualify the faster variant.
+    CHECK(rankingRequests == 0);
+    const auto& personalized = refresh(0,false,true);
+    CHECK(catalogRequests == 1 && rankingRequests == 1); // Modifier ratings survive the catalog cache.
+    CHECK(personalized.eligibleCharts == 1 && personalized.entries.size() == 1);
+    const auto& entry = personalized.entries.front();
+    CHECK(entry.recommendedModifier == "Faster Song (1.20×) + Disappearing Arrows");
+    CHECK(entry.stars == 11 && entry.clearChance < .5);
+    CHECK(entry.currentPp == pb.pp && entry.isImprovement);
+    CHECK(entry.difficulties.front().characteristic == "OneSaber");
+    CHECK(entry.difficulties.front().noteSpan == 100 && entry.difficulties.front().sliderPercentage == .2);
+    CHECK(std::abs(entry.clanImpact->gain - (entry.predictedPp - pb.pp)) < 1e-8);
+    CHECK(entry.clanImpact->requiredAccuracy && entry.clanImpact->requiredPp);
+    CHECK(std::abs(*entry.clanImpact->requiredPp - PredictBeatLeaderPp(
+        *entry.clanImpact->requiredAccuracy,entry.difficulties.front(),1.08)) < 1e-8);
+
+    CHECK(refresh(0,true,false).entries.empty());
+    CHECK(refresh(.5,true,true).entries.empty());
+    const auto& legacy = refresh(0,true,true);
+    CHECK(legacy.legacy && legacy.eligibleCharts == 1 && legacy.entries.size() == 1);
+    CHECK(legacy.entries.front().difficulties.front().characteristic == "OneSaber");
+    CHECK(legacy.entries.front().recommendedModifier == "Faster Song (1.20×) + Disappearing Arrows");
+    CHECK(legacy.entries.front().priority == -10);
+
+    // Both variants may compete on a new chart, while verification stays per leaderboard.
+    history.scores.pop_back();
+    const auto& unplayed = refresh(0,false,true);
+    CHECK(unplayed.eligibleCharts == 1 && unplayed.checkedCharts == 1 && unplayed.entries.size() == 1);
+    CHECK(!unplayed.entries.front().isImprovement && unplayed.entries.front().clanImpact->captures);
+    CHECK(unplayed.entries.front().recommendedModifier == "Faster Song (1.20×) + Disappearing Arrows");
+    std::cout << "PASS: clan modifier toggle, cached ratings, clear-rate gating, modified capture target and legacy cap\n";
 }
 void ClanRefreshPerformance() {
     const double now = ClanCacheNow();
@@ -23,7 +104,7 @@ void ClanRefreshPerformance() {
     { std::ofstream file(ClanScreenCache::Path("test")); file << "broken"; }
     ClanScreenCache damaged;
     CHECK(!damaged.Get("test",10,now+1,body));
-    { std::ofstream file(ClanScreenCache::Path("test")); file << "{\"version\":1,\"epoch\":0,\"savedAt\":" << std::setprecision(16) << now << ",\"body\":\"payload\"}"; }
+    { std::ofstream file(ClanScreenCache::Path("test")); file << "{\"version\":1,\"epoch\":4,\"savedAt\":" << std::setprecision(16) << now << ",\"body\":\"payload\"}"; }
     ClanScreenCache obsolete;
     CHECK(!obsolete.Get("test",10,now+1,body));
     std::filesystem::remove(ClanScreenCache::Path("test"));
@@ -73,10 +154,10 @@ void ClanRefreshPerformance() {
     cache.entries["totals_1"].savedAt -= kClanTotalsCacheSeconds+1;
     CHECK(FetchClanToConquerInternal("123",false,16,lists,error,get,icon,.5,&history,false,&cache));
     CHECK(totals == 2 && catalogs == 1);
-    cache.entries["catalog"].savedAt -= kClanCatalogCacheSeconds+1;
+    cache.entries[kClanCatalogCacheKey].savedAt -= kClanCatalogCacheSeconds+1;
     CHECK(FetchClanToConquerInternal("123",false,16,lists,error,get,icon,.5,&history,false,&cache));
     CHECK(catalogs == 2);
-    cache.Put("catalog","{}",ClanCacheNow());
+    cache.Put(kClanCatalogCacheKey,"{}",ClanCacheNow());
     CHECK(FetchClanToConquerInternal("123",false,16,lists,error,get,icon,.5,&history,false,&cache));
     CHECK(catalogs == 3);
     auto pb = Score(1,9999); history.scores.push_back(pb);
@@ -86,7 +167,7 @@ void ClanRefreshPerformance() {
     CHECK(FetchClanToConquerInternal("123",false,16,lists,error,get,icon,.5,&history,false,&cache));
     CHECK(lists[0].entries.empty() && lists[0].failedCharts == 1 && !lists[0].error.empty());
     ClanScreenCache limitedCache(false);
-    limitedCache.Put("catalog",CompactClanCatalog(Parse(ClanApiChart(1))),ClanCacheNow());
+    limitedCache.Put(kClanCatalogCacheKey,CompactClanCatalog(Parse(ClanApiChart(1))),ClanCacheNow());
     limitedCache.Put("totals_1",CompactClanTotals({},"A",""),ClanCacheNow());
     limitedCache.Put("totals_2",CompactClanTotals({},"B",""),ClanCacheNow());
     int limitedChecks = 0;

@@ -7,7 +7,7 @@
 
 namespace rankedpractice {
 
-enum class AccountService { BeatLeader, ScoreSaber };
+enum class AccountService { BeatLeader, ScoreSaber, AccSaber };
 enum class AccountInputKind { Search, Profile, NumericId };
 
 struct AccountQuery {

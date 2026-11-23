@@ -40,7 +40,7 @@ void ClanSearchLearning() {
     CHECK(restored.cursor==23 && restored.recommendations.empty() && warning.empty());
     CHECK(PersistClanSearchState("123",tag,state,error));
     { std::ifstream file(path); std::string json{std::istreambuf_iterator<char>(file),{}};
-      const auto epoch=json.find("\"epoch\":"); json.replace(epoch+8,1,"0");
+      const auto epoch=json.find("\"epoch\":"); json.replace(epoch+8,1,"4");
       std::ofstream out(path); out << json; }
     restored=ReadClanSearchState("123",tag,warning);
     CHECK(restored.evidence.empty() && !warning.empty());

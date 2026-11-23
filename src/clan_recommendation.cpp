@@ -41,10 +41,10 @@ double WeightedClanPp(std::vector<ClanScore> scores) {
     return total;
 }
 
-bool EvaluateClanImpact(ClanMapInput input, const std::string& playerId,
+bool EvaluateClanImpact(const ClanMapInput& input, const std::string& playerId,
                         double minClearRate, MapEntry& result, std::optional<ClanImpact>* projection) {
     if (projection) projection->reset();
-    auto& chart = input.chart;
+    const auto& chart = input.chart;
     minClearRate = std::isfinite(minClearRate) ? std::clamp(minClearRate, 0.0, .95) : .5;
     if (chart.difficulties.size() != 1 || !std::isfinite(chart.predictedPp) || chart.predictedPp <= 0 ||
         !std::isfinite(chart.clearChance) || chart.clearChance < minClearRate ||
@@ -85,17 +85,20 @@ bool EvaluateClanImpact(ClanMapInput input, const std::string& playerId,
     // Solve in accuracy space, using each chart's PPv3/PPv4 formula and the same
     // weighted insertion function as the projected score. 1.0 means theoretical maximum.
     const auto& difficulty = chart.difficulties.front();
-    if (gainAt(PredictBeatLeaderPp(1.0, difficulty), 1.0) >= impact.gap) {
+    const auto ppAt = [&](double accuracy) {
+        return PredictBeatLeaderPp(accuracy, difficulty, chart.beatLeaderScoringMultiplier);
+    };
+    if (gainAt(ppAt(1.0), 1.0) >= impact.gap) {
         double lo = 0, hi = 1;
         for (int i = 0; i < 60; ++i) {
             const double mid = (lo + hi) / 2;
-            if (gainAt(PredictBeatLeaderPp(mid, difficulty), mid) >= impact.gap) hi = mid;
+            if (gainAt(ppAt(mid), mid) >= impact.gap) hi = mid;
             else lo = mid;
         }
         impact.requiredAccuracy = hi;
-        impact.requiredPp = PredictBeatLeaderPp(hi, difficulty);
+        impact.requiredPp = ppAt(hi);
     }
-    result = std::move(chart);
+    result = chart;
     result.currentPp = currentPp;
     result.isImprovement = currentPp > 0;
     result.clanImpact = impact;
@@ -132,13 +135,14 @@ std::vector<MapEntry> SelectLegacyClanRecommendations(std::vector<MapEntry> entr
         if (a.priority!=b.priority) return a.priority>b.priority;
         if (a.songName!=b.songName) return a.songName<b.songName;
         if (a.hash!=b.hash) return a.hash<b.hash;
-        return a.leaderboardId<b.leaderboardId;
+        if (a.leaderboardId!=b.leaderboardId) return a.leaderboardId<b.leaderboardId;
+        return a.predictedPp>b.predictedPp;
     };
     std::unordered_map<std::string,MapEntry> unique;
     for (auto& entry:entries) {
         if (entry.hash.size()!=40 || !std::all_of(entry.hash.begin(),entry.hash.end(),[](unsigned char c) { return std::isxdigit(c); }) ||
             entry.songName.empty() || entry.leaderboardId.empty() ||
-            entry.difficulties.size()!=1 || ClanHash(entry.difficulties[0].characteristic)!="standard" ||
+            entry.difficulties.size()!=1 || !IsRecommendationCharacteristic(entry.difficulties[0].characteristic, RatingSystem::BeatLeader) ||
             !std::isfinite(entry.stars) || entry.stars<=0 || entry.stars>maxStars || !std::isfinite(entry.priority) ||
             !std::isfinite(entry.currentPp) || !std::isfinite(entry.predictedPp) || entry.predictedPp<=entry.currentPp) continue;
         const auto key=ClanHash(entry.hash);

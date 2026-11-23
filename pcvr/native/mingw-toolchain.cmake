@@ -1,0 +1,8 @@
+set(CMAKE_SYSTEM_NAME Windows)
+file(TO_CMAKE_PATH "${LLVM_MINGW}" LLVM_MINGW)
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES LLVM_MINGW)
+set(CMAKE_C_COMPILER "${LLVM_MINGW}/bin/clang.exe")
+set(CMAKE_CXX_COMPILER "${LLVM_MINGW}/bin/clang++.exe")
+set(CMAKE_RC_COMPILER "${LLVM_MINGW}/bin/llvm-windres.exe")
+set(CMAKE_AR "${LLVM_MINGW}/bin/llvm-ar.exe")
+set(CMAKE_RANLIB "${LLVM_MINGW}/bin/llvm-ranlib.exe")

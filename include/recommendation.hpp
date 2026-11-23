@@ -1,11 +1,52 @@
 #pragma once
 
+#include <array>
 #include <string>
+#include <string_view>
 #include <optional>
 #include <vector>
 #include "attempt_history.hpp"
 
 namespace rankedpractice {
+
+enum class BeatLeaderSpeed { Normal, SlowerSong, FasterSong, SuperFastSong };
+
+struct BeatLeaderSpeedOption {
+    std::string_view code;
+    std::string_view label;
+    double multiplier;
+};
+
+// Better Faster and Better Super Fast have event ratings without ranked scores.
+inline constexpr std::array<BeatLeaderSpeedOption, 4> kBeatLeaderSpeedOptions{{
+    {"", "", 1.0},
+    {"ss", "Slower Song", 0.85},
+    {"fs", "Faster Song", 1.20},
+    {"sf", "Super Fast Song", 1.50}
+}};
+
+struct BeatLeaderModifierOption {
+    const char* code;
+    const char* label;
+    bool changesArrows{false}; // Select at most one arrow/visibility modifier.
+};
+
+inline constexpr BeatLeaderModifierOption kBeatLeaderStandardModifiers[] = {
+    {"da", "Disappearing Arrows", true}, {"gn", "Ghost Notes", true}, {"na", "No Arrows", true},
+    {"nb", "No Bombs"}, {"no", "No Walls"}, {"sc", "Small Notes"}, {"pm", "Pro Mode"}, {"sa", "Strict Angles"}
+};
+
+inline constexpr double kTargetWindowStars = 1.50;
+
+struct BeatLeaderSpeedRating {
+    double stars{0.0};
+    double accRating{-1.0};
+    double passRating{-1.0};
+    double techRating{-1.0};
+    double predictedAcc{-1.0};
+    std::optional<double> sliderPercentage;
+    double legacyAdjustment{0.0};
+};
 
 struct Difficulty {
     std::string characteristic{"Standard"};
@@ -18,6 +59,10 @@ struct Difficulty {
     double sliderPercentage{0.0};
     double notes{0.0};
     std::optional<double> noteSpan; // Presence selects PPv4, including an explicit zero.
+    std::optional<double> complexity; // AccSaber's independent scale; zero is a valid rating.
+    std::array<BeatLeaderSpeedRating, kBeatLeaderSpeedOptions.size() - 1> speedRatings{};
+    std::array<double, std::size(kBeatLeaderStandardModifiers)> modifierValues{};
+    bool hasSpeedRatings{false};
 };
 
 struct ClanImpact {
@@ -61,10 +106,22 @@ struct MapEntry {
     bool ranked{true};
     bool isImprovement{false};
     std::optional<ClanImpact> clanImpact;
+    struct SyncTarget {
+        std::string characteristic;
+        std::string difficulty;
+        std::string missingService;
+    };
+    std::vector<SyncTarget> syncTargets;
+    std::string categoryId, categoryCode, categoryLabel;
+    std::string modifiers;
+    double maxScore{0.0}, scoreNoMods{0.0};
+    std::string recommendedModifier;
+    double beatLeaderScoringMultiplier{1.0};
 };
 
-enum class ListKind { NotPlayed, ToImprove, Combined };
-enum class RatingSystem { ScoreSaber, BeatLeader };
+enum class ListKind { NotPlayed, ToImprove, Combined, Sync };
+enum class RatingSystem { ScoreSaber, BeatLeader, AccSaber };
+bool IsRecommendationCharacteristic(const std::string& characteristic, RatingSystem system);
 // The settings UI uses whole percentages; recommendation code uses fractions.
 int NormalizeMinClearRatePercent(int percent);
 
@@ -76,7 +133,8 @@ std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
                                             RatingSystem system = RatingSystem::BeatLeader,
                                             double minClearRate = 0.50,
                                             bool rankByWeightedGain = false,
-                                            const std::vector<Attempt>& attempts = {});
+                                            const std::vector<Attempt>& attempts = {},
+                                            bool beatLeaderModifiers = false);
 double EstimateRecommendationTargetStars(const std::vector<MapEntry>& profileScores,
                                          RatingSystem system,
                                          double minClearRate = 0.50,
@@ -87,10 +145,12 @@ std::vector<MapEntry> MergeRecommendations(std::vector<MapEntry> notPlayed,
                                            std::vector<MapEntry> toImprove,
                                            int limit);
 // Per-chart estimates without personal-profile PP gain filtering or song deduplication.
+// With modifiers enabled, returns each evaluated speed with its effective difficulty.
 std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& charts,
                                                const std::vector<MapEntry>& scores,
-                                               const std::vector<Attempt>& attempts = {});
-double PredictBeatLeaderPp(double accuracy, const Difficulty& difficulty);
+                                               const std::vector<Attempt>& attempts = {},
+                                               bool beatLeaderModifiers = false);
+double PredictBeatLeaderPp(double accuracy, const Difficulty& difficulty, double scoringMultiplier = 1.0);
 // Global clearability boundary for legacy clans. Zero rate disables the cap.
 double EstimateClanMaxStars(const std::vector<MapEntry>& scores, double minClearRate,
                             const std::vector<Attempt>& attempts = {});

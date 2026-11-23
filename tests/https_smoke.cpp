@@ -14,6 +14,7 @@ template<class T> CURLcode SmokeSetopt(CURL* curl, CURLoption option, T value) {
 #undef curl_easy_setopt
 #define curl_easy_setopt SmokeSetopt
 #include "../src/recommendation_api.cpp"
+#include <array>
 #include <iostream>
 
 int main(int argc, char** argv) {
@@ -26,21 +27,51 @@ int main(int argc, char** argv) {
     for (const auto* url : {
              "https://api.beatleader.com/maps?type=ranked&mode=Standard&count=1",
              "https://api.beatleader.com/maps?type=ranked&mode=Standard&count=1",
-             "https://scoresaber.com/api/leaderboards?ranked=true&limit=1"}) {
+             "https://scoresaber.com/api/leaderboards?ranked=true&limit=1",
+             "https://api.accsaber.com/v1/categories"}) {
         if (!HttpGetInternal(url, body, error, 1024*1024, 30) || body.empty()) {
             std::cerr << url << ": " << error << '\n'; return 1;
         }
         std::cout << "PASS HTTPS: " << url << " (" << body.size() << " bytes)\n";
     }
+    const std::array<const char*, 3> hosts{
+        "https://api.beatleader.com/maps?type=ranked&mode=Standard&count=1",
+        "https://scoresaber.com/api/leaderboards?ranked=true&limit=1",
+        "https://api.accsaber.com/v1/categories"};
+    std::array<std::string, 3> failures;
+    std::vector<std::thread> workers;
+    for (size_t i = 0; i < hosts.size(); ++i) workers.emplace_back([&, i] {
+        for (int request = 0; request < 3; ++request) {
+            std::string bytes, failure;
+            if (!HttpGetInternal(hosts[i], bytes, failure, 1024*1024, 30) || bytes.empty()) {
+                failures[i] = failure.empty() ? "Empty API response" : failure;
+                return;
+            }
+        }
+    });
+    for (auto& worker : workers) worker.join();
+    for (size_t i = 0; i < hosts.size(); ++i) {
+        if (!failures[i].empty()) {
+            std::cerr << hosts[i] << ": " << failures[i] << '\n';
+            return 1;
+        }
+        std::cout << "PASS concurrent HTTPS: " << hosts[i] << " (3 requests)\n";
+    }
     if (HttpGetInternal("http://api.beatleader.com", body, error, 1024, 5)) return 1;
     std::cout << "PASS: HTTP rejected\n";
-    CURL* invalidCa = curl_easy_init();
-    curl_easy_setopt(invalidCa, CURLOPT_URL, "https://api.beatleader.com");
-    curl_easy_setopt(invalidCa, CURLOPT_CAINFO, "tests/no-such-ca-file.pem");
-    curl_easy_setopt(invalidCa, CURLOPT_TIMEOUT, 15L);
-    const auto result = curl_easy_perform(invalidCa);
-    curl_easy_cleanup(invalidCa);
-    if (result != CURLE_SSL_CACERT_BADFILE && result != CURLE_PEER_FAILED_VERIFICATION) return 1;
-    std::cout << "PASS: invalid CA rejected\n";
+    // A fresh worker prevents an existing verified connection from masking the
+    // invalid CA, and exercises production error reporting rather than raw curl.
+    const auto validBundle = RuntimePaths().caBundle;
+    RuntimePaths().caBundle = "tests/no-such-ca-file.pem";
+    bool acceptedInvalidCa = false;
+    std::thread invalidCa([&] {
+        acceptedInvalidCa = HttpGetInternal("https://api.beatleader.com", body, error, 1024, 15);
+    });
+    invalidCa.join();
+    RuntimePaths().caBundle = validBundle;
+    if (acceptedInvalidCa ||
+        (error.find("(curl 77): ") == std::string::npos && error.find("(curl 60): ") == std::string::npos))
+        return 1;
+    std::cout << "PASS: invalid CA rejected with detail: " << error << '\n';
     curl_slist_free_all(smokeHosts);
 }

@@ -1,0 +1,482 @@
+{
+  "description": "Frozen outputs from the previously evaluated Python study_dates.Fit: 30-day exponential decay, logit accuracy, standardized stars, fixed 0.05 ridge, non-positive slope, 55\u201399.9% output bounds. No parameter tuning.",
+  "now": 1794548655,
+  "cases": [
+    {
+      "name": "decreasing",
+      "observations": [
+        {
+          "stars": 5,
+          "accuracy": 0.96,
+          "time": 0
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.92,
+          "time": 0
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.88,
+          "time": 0
+        }
+      ],
+      "predictions": [
+        {
+          "stars": 0,
+          "accuracy": 0.9973355949497112
+        },
+        {
+          "stars": 3,
+          "accuracy": 0.9856755367428249
+        },
+        {
+          "stars": 5,
+          "accuracy": 0.9569831152806718
+        },
+        {
+          "stars": 5.5,
+          "accuracy": 0.9437418471939689
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9267367444140098
+        },
+        {
+          "stars": 6.5,
+          "accuracy": 0.905108354174302
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.8779359405071392
+        },
+        {
+          "stars": 9,
+          "accuracy": 0.6992780263759631
+        },
+        {
+          "stars": 12,
+          "accuracy": 0.55
+        },
+        {
+          "stars": 20,
+          "accuracy": 0.55
+        }
+      ]
+    },
+    {
+      "name": "noisy",
+      "observations": [
+        {
+          "stars": 5,
+          "accuracy": 0.96,
+          "time": 0
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.92,
+          "time": 0
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.94,
+          "time": 0
+        }
+      ],
+      "predictions": [
+        {
+          "stars": 0,
+          "accuracy": 0.9821767890525891
+        },
+        {
+          "stars": 3,
+          "accuracy": 0.9677032089361116
+        },
+        {
+          "stars": 5,
+          "accuracy": 0.9522909476508585
+        },
+        {
+          "stars": 5.5,
+          "accuracy": 0.9474593770253993
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9421682204555235
+        },
+        {
+          "stars": 6.5,
+          "accuracy": 0.9363799925126832
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.9300554444260044
+        },
+        {
+          "stars": 9,
+          "accuracy": 0.8985606593831639
+        },
+        {
+          "stars": 12,
+          "accuracy": 0.8280715351877171
+        },
+        {
+          "stars": 20,
+          "accuracy": 0.55
+        }
+      ]
+    },
+    {
+      "name": "30_day_weights",
+      "observations": [
+        {
+          "stars": 5,
+          "accuracy": 0.96,
+          "time": 1794548655
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.92,
+          "time": 1791956655
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.88,
+          "time": 1789364655
+        }
+      ],
+      "predictions": [
+        {
+          "stars": 0,
+          "accuracy": 0.997972412285796
+        },
+        {
+          "stars": 3,
+          "accuracy": 0.9875032555584653
+        },
+        {
+          "stars": 5,
+          "accuracy": 0.9589192333057986
+        },
+        {
+          "stars": 5.5,
+          "accuracy": 0.9450807057876911
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9269357045236779
+        },
+        {
+          "stars": 6.5,
+          "accuracy": 0.9034084213308265
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.8733403725835309
+        },
+        {
+          "stars": 9,
+          "accuracy": 0.6707053891174692
+        },
+        {
+          "stars": 12,
+          "accuracy": 0.55
+        },
+        {
+          "stars": 20,
+          "accuracy": 0.55
+        }
+      ]
+    },
+    {
+      "name": "positive_slope_projects_flat",
+      "observations": [
+        {
+          "stars": 5,
+          "accuracy": 0.8,
+          "time": 1794548655
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9,
+          "time": 1794548655
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.99,
+          "time": 1794548655
+        }
+      ],
+      "predictions": [
+        {
+          "stars": 0,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 3,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 5,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 5.5,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 6.5,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 9,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 12,
+          "accuracy": 0.9385558037236469
+        },
+        {
+          "stars": 20,
+          "accuracy": 0.9385558037236469
+        }
+      ]
+    },
+    {
+      "name": "equal_stars",
+      "observations": [
+        {
+          "stars": 6,
+          "accuracy": 0.9,
+          "time": 1794548655
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.98,
+          "time": 1791956655
+        }
+      ],
+      "predictions": [
+        {
+          "stars": 0,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 3,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 5,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 5.5,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 6.5,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 9,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 12,
+          "accuracy": 0.9341939049140402
+        },
+        {
+          "stars": 20,
+          "accuracy": 0.9341939049140402
+        }
+      ]
+    },
+    {
+      "name": "missing_and_future_dates",
+      "observations": [
+        {
+          "stars": 5,
+          "accuracy": 0.96,
+          "time": 0
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.92,
+          "time": 1794548655
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.88,
+          "time": 1794635055
+        }
+      ],
+      "predictions": [
+        {
+          "stars": 0,
+          "accuracy": 0.9971179357552102
+        },
+        {
+          "stars": 3,
+          "accuracy": 0.9850242865958017
+        },
+        {
+          "stars": 5,
+          "accuracy": 0.9560385874871924
+        },
+        {
+          "stars": 5.5,
+          "accuracy": 0.9428268566245269
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9259521302131719
+        },
+        {
+          "stars": 6.5,
+          "accuracy": 0.9046007647303878
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.8779046310584545
+        },
+        {
+          "stars": 9,
+          "accuracy": 0.703909576974113
+        },
+        {
+          "stars": 12,
+          "accuracy": 0.55
+        },
+        {
+          "stars": 20,
+          "accuracy": 0.55
+        }
+      ]
+    },
+    {
+      "name": "one_score",
+      "observations": [
+        {
+          "stars": 7,
+          "accuracy": 0.95,
+          "time": 1794548655
+        }
+      ],
+      "predictions": [
+        {
+          "stars": 0,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 3,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 5,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 5.5,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 6.5,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 9,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 12,
+          "accuracy": 0.9499999999999998
+        },
+        {
+          "stars": 20,
+          "accuracy": 0.9499999999999998
+        }
+      ]
+    },
+    {
+      "name": "perfect_and_minimum",
+      "observations": [
+        {
+          "stars": 5,
+          "accuracy": 1,
+          "time": 1794548655
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.55,
+          "time": 1794548655
+        }
+      ],
+      "predictions": [
+        {
+          "stars": 0,
+          "accuracy": 0.999
+        },
+        {
+          "stars": 3,
+          "accuracy": 0.999
+        },
+        {
+          "stars": 5,
+          "accuracy": 0.999
+        },
+        {
+          "stars": 5.5,
+          "accuracy": 0.9989422903717778
+        },
+        {
+          "stars": 6,
+          "accuracy": 0.9910353001773876
+        },
+        {
+          "stars": 6.5,
+          "accuracy": 0.9282637625203654
+        },
+        {
+          "stars": 7,
+          "accuracy": 0.6023303130205601
+        },
+        {
+          "stars": 9,
+          "accuracy": 0.55
+        },
+        {
+          "stars": 12,
+          "accuracy": 0.55
+        },
+        {
+          "stars": 20,
+          "accuracy": 0.55
+        }
+      ]
+    }
+  ]
+}

@@ -95,7 +95,7 @@ void LegacyClanRefresh() {
     CHECK(lists[0].error.empty() && lists[0].entries.empty()); // Successful empty PB-filtered result.
     auto empty=history; empty.scores.clear();
     CHECK(!FetchClanToConquerInternal("123",false,16,lists,error,get,icon,.5,&empty,false,&cache,true));
-    CHECK(error.find("eligible ranked Standard score")!=std::string::npos);
+    CHECK(error.find("eligible ranked Standard or OneSaber score")!=std::string::npos);
     std::filesystem::remove(ClanCursorPath("123","A"));
     std::filesystem::remove(std::filesystem::path(RANKEDTOOLS_CLAN_CURSOR_DIRECTORY));
     RefreshSettings settings; CHECK(!settings.legacyClanPlaylists);
