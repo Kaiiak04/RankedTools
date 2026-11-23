@@ -48,10 +48,10 @@ MapEntry Score(int id, double pp = 100, const char* mode = "Standard") {
     score.stars = 7; score.difficulties = {{mode, "ExpertPlus", 7, 8, 8, 5}};
     return score;
 }
-std::string Chart(int id, double stars, bool score = false, const std::string& modifiers = "") {
+std::string Chart(int id, double stars, bool score = false, const std::string& modifiers = "", const char* mode = "Standard") {
     std::ostringstream json;
     json << "{\"hash\":\"" << Hash(id) << "\",\"name\":\"Song " << id
-         << "\",\"difficultyName\":\"ExpertPlus\",\"modeName\":\"Standard\",\"stars\":" << stars
+         << "\",\"difficultyName\":\"ExpertPlus\",\"modeName\":\"" << mode << "\",\"stars\":" << stars
          << ",\"accRating\":8,\"passRating\":8,\"techRating\":5";
     if (score) json << ",\"baseScore\":95,\"maxScore\":100,\"accuracy\":0.95,\"pp\":100,\"modifiers\":\"" << modifiers << "\"";
     json << '}';
@@ -114,13 +114,22 @@ void AccuracyTrainingContract() {
         AccuracyCurve deduplicated({best, duplicate}, system);
         CHECK(deduplicated.Observations().size() == 1 && close(deduplicated.Predict(6), .90));
         CHECK(close(deduplicated.Predict(3), .90) && close(deduplicated.Predict(12), .90));
+        auto oneSaber = duplicate;
+        oneSaber.difficulties[0].characteristic = "OneSaber";
+        AccuracyCurve mixed({best, oneSaber}, system);
+        if (system == RatingSystem::BeatLeader) {
+            CHECK(mixed.Observations().size() == 2);
+            CHECK(mixed.Predict(6) > .90 && mixed.Predict(6) < .99);
+        } else {
+            CHECK(mixed.Observations().size() == 1 && close(mixed.Predict(6), .90));
+        }
         auto modified = point(2, 7, .90); modified.modifiedStars = 10;
         AccuracyCurve effectiveStars({modified, point(3, 9, .95)}, system);
         CHECK(effectiveStars.MinStars() == 9 && effectiveStars.MaxStars() == 10);
         std::vector<MapEntry> excluded;
         auto nf = point(10, 5, .99); nf.noFail = true; excluded.push_back(nf);
         auto unranked = point(11, 5, .99); unranked.ranked = false; excluded.push_back(unranked);
-        auto otherMode = point(12, 5, .99); otherMode.difficulties[0].characteristic = "OneSaber"; excluded.push_back(otherMode);
+        auto otherMode = point(12, 5, .99); otherMode.difficulties[0].characteristic = "NoArrows"; excluded.push_back(otherMode);
         auto noHash = point(13, 5, .99); noHash.hash.clear(); excluded.push_back(noHash);
         auto noPp = point(14, 5, .99); noPp.pp = 0; excluded.push_back(noPp);
         excluded.push_back(point(15, -1, .99));
@@ -477,12 +486,15 @@ void CompleteCandidateBand() {
             if (system == RatingSystem::ScoreSaber) {
                 CHECK(url.find("/api/v2/leaderboards?") != std::string::npos);
                 CHECK(url.find("limit=100&minStars=") != std::string::npos && url.find("&maxStars=") != std::string::npos);
-            } else CHECK(url.find("mode=Standard&count=100&stars_from=") != std::string::npos);
-            body = Page(calls, 2, {Chart(calls, calls == 1 ? 8.5 : 6)}); return true;
+            } else CHECK(url.find("type=ranked&count=100&stars_from=") != std::string::npos);
+            const auto* mode = system == RatingSystem::BeatLeader && calls == 2 ? "OneSaber" : "Standard";
+            body = Page(calls, 2, {Chart(calls, calls == 1 ? 8.5 : 6, false, "", mode)}); return true;
         };
         CHECK(FetchServiceRecommendations(system, "123", ListKind::NotPlayed, 16, result, error,
               0.50, nullptr, &cache, get, false));
         CHECK(calls == 2 && result.size() == 1 && result.front().hash == Hash(2));
+        CHECK(result.front().difficulties.front().characteristic ==
+              (system == RatingSystem::BeatLeader ? "OneSaber" : "Standard"));
         calls = 0;
         HttpGetter laterBest = [&](const std::string&, std::string& body, std::string&) {
             ++calls; body = Page(calls, 2, {Chart(calls, calls == 1 ? 6 : 8)}); return true;
@@ -517,6 +529,34 @@ void CompleteCandidateBand() {
     std::set<std::string> songs;
     for (const auto& song : result) CHECK(songs.insert(song.hash).second);
     std::cout << "PASS: later clearable/better candidates, supported SS endpoint, full distinct-song limit\n";
+}
+
+void BeatLeaderOneSaberGain() {
+    const auto system = RatingSystem::BeatLeader;
+    ScoreHistory cache{true, "123", system, {Score(1, 900), Score(2, 50, "OneSaber")}};
+    auto unranked = Chart(3, 7, false, "", "OneSaber");
+    unranked.insert(1, "\"status\":2,");
+    const HttpGetter get = [&](const std::string& url, std::string& body, std::string&) {
+        CHECK(url.find("/maps?type=ranked&count=100") != std::string::npos);
+        body = Page(1, 4, {Chart(1, 7, false, "", "OneSaber"), Chart(2, 7, false, "", "OneSaber"),
+                           unranked, Chart(4, 7, false, "", "NoArrows")});
+        return true;
+    };
+    std::string error;
+    auto check = [&](ListKind kind, bool newChart, bool replay) {
+        std::vector<MapEntry> result;
+        CHECK(FetchServiceRecommendations(system, "123", kind, 16, result, error, 0.0, nullptr, &cache, get, false));
+        CHECK(result.size() == static_cast<size_t>(newChart + replay));
+        for (const auto& entry : result) {
+            CHECK(entry.difficulties.front().characteristic == "OneSaber");
+            CHECK(entry.weightedPpGain > 0);
+            if (entry.isImprovement) CHECK(replay && entry.hash == Hash(2) && entry.currentPp == 50);
+            else CHECK(newChart && entry.hash == Hash(1) && entry.currentPp == 0);
+        }
+    };
+    check(ListKind::NotPlayed, true, false); // A Standard PB on this exact song and difficulty is independent.
+    check(ListKind::ToImprove, false, true);
+    check(ListKind::Combined, true, true);
 }
 
 ScoreHistory ClanTestHistory() {
@@ -683,7 +723,13 @@ void AttemptEvidence() {
         CHECK(ClearabilityModel({score}, {ignored}).Predict(7) == baseline.Predict(7));
     }
     auto practice = fail; practice.practice = true; CHECK(!IsTrainingAttempt(practice));
-    auto otherMode = fail; otherMode.characteristic = "OneSaber"; CHECK(!IsTrainingAttempt(otherMode));
+    auto oneSaber = fail; oneSaber.characteristic = "OneSaber";
+    const auto oneSaberKey = AttemptChartKey(oneSaber);
+    const ClearabilityModel mixed({score}, {oneSaber});
+    CHECK(mixed.Predict(7, oneSaberKey) < mixed.Predict(7, key));
+    CHECK(mixed.NearbyFailures(7) == 1);
+    for (const auto system : {RatingSystem::ScoreSaber, RatingSystem::AccSaber})
+        CHECK(ClearabilityModel({score}, {oneSaber}, system).Predict(7) == baseline.Predict(7));
     auto old = fail; old.timestamp -= 5 * 365 * 86400;
     CHECK(ClearabilityModel({score}, {old}).Predict(7) > failed.Predict(7));
     std::vector<Attempt> grind;
@@ -1005,6 +1051,22 @@ void ActualAttemptSchemas() {
     CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, unavailableRating, false));
     CHECK(localOnly.attempts[0].stars == 7 && localOnly.attemptWarning.empty());
     std::filesystem::remove(localPath);
+    localChart.characteristic = "OneSaber";
+    localChart.stars = 0;
+    localChart.ratingEpoch = 0;
+    CHECK(SaveAttemptHistory("beatleader", "999994", {localChart}, disk, error));
+    HttpGetter mixedRatings = [&](const std::string& url, std::string& body, std::string&) {
+        if (url.find("leaderboards/hash/") != std::string::npos) {
+            body = Page(1, 2, {Chart(2, 7), Chart(2, 9, false, "", "OneSaber")});
+        } else body = Page(1, 1, {Chart(2, 7, true)});
+        return true;
+    };
+    localOnly = {}; localOnly.importAttempts = false;
+    CHECK(LoadScoreHistory("999994", RatingSystem::BeatLeader, localOnly, error, mixedRatings, false));
+    CHECK(localOnly.attempts.size() == 1 && localOnly.attempts.front().stars == 9);
+    CHECK(localOnly.attempts.front().ratingEpoch == kBeatLeaderAttemptRatingEpoch);
+    std::filesystem::remove(localPath);
+    localChart.characteristic = "Standard";
     const auto ssCharts = Parse(ReadFile("tests/fixtures/scoresaber-attempt-chart-live.json"));
     CHECK(ssCharts.size() == 1 && ssCharts[0].stars > 0);
     localChart.hash = ssCharts[0].hash; localChart.difficulty = ssCharts[0].difficulties[0].name;
@@ -1124,7 +1186,8 @@ void AbilityChartContract() {
     const std::vector<MapEntry> history{low, middle, high, nf, invalid, nonStandard, duplicate, unranked};
     const auto chart = BuildAbilityChart(history);
     const AccuracyCurve production(history);
-    CHECK(chart.scores.size() == 3);
+    CHECK(chart.scores.size() == 4);
+    CHECK(BuildAbilityChart(history, false, RatingSystem::ScoreSaber).scores.size() == 3);
     CHECK(chart.minObservedStars == 2 && chart.maxObservedStars == 10.5);
     CHECK(chart.maxStars >= chart.maxObservedStars + 2);
     CHECK(chart.curve.front().stars == 0 && chart.curve.back().stars == chart.maxStars);
@@ -1382,7 +1445,7 @@ int main(int argc, char** argv) {
         if (argc == 4 && std::string(argv[1]) == "--benchmark-clan-profile") return AuditClanProfile(argv[2], argv[3], true);
         if (argc == 4 && std::string(argv[1]) == "--benchmark-paced-clan-profile") return AuditClanProfile(argv[2], argv[3], true, true);
         DatesAndParsing(); AccuracyTrainingContract(); SigmoidAccuracy(); ModifiersAndPp(); BeatLeaderSpeedRecommendations(); BeatLeaderV4Contract(); PaginationAndCache(); CompleteCandidateBand(); ClansAndSettings(); PersonalizedClanContract(); ClanSearchContract(); ClanRefreshPerformance(); ClanModifierRefresh(); ClanSearchLearning(); ConsecutiveClanRefreshes(); ConsecutiveClanRefreshes(true); LearnedSecondaryClans(); LegacyClanSelection(); LegacyClanRefresh(); LegacyClearRateCap(); ClearRateAndCombinedPlaylists();
-        AttemptEvidence(); BeatLeaderAttemptReconciliation(); AttemptImportAndStorage();
+        BeatLeaderOneSaberGain(); AttemptEvidence(); BeatLeaderAttemptReconciliation(); AttemptImportAndStorage();
         ActualAttemptSchemas();
         AbilityChartContract();
         ClanIcons();

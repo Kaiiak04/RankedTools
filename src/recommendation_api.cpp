@@ -859,9 +859,11 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
     const auto ratingGet = system == RatingSystem::ScoreSaber ? DefaultRealmCompatibleGet(get) : get;
     for (const auto& a : history.attempts) {
         const auto lookupKey = system == RatingSystem::BeatLeader ? Lower(a.hash) : AttemptChartKey(a);
+        const bool supportedCharacteristic = system == RatingSystem::BeatLeader
+            ? IsRecommendationCharacteristic(a.characteristic, system) : a.characteristic == "Standard";
         // BeatLeader's reweight changes the star scale. Positive cached ratings
         // also need refreshing; otherwise old failed runs keep PPv3 stars forever.
-        if ((a.stars > 0 && system != RatingSystem::BeatLeader) || !a.normal || a.practice || a.characteristic != "Standard" ||
+        if ((a.stars > 0 && system != RatingSystem::BeatLeader) || !a.normal || a.practice || !supportedCharacteristic ||
             (a.ratingEpoch == ratingEpoch && now - a.ratingChecked < 7.0 * 86400) ||
             (a.outcome != AttemptOutcome::Clear && a.outcome != AttemptOutcome::Fail) || lookedUp.contains(lookupKey)) continue;
         if (lookedUp.size() >= 100) { history.attemptWarning += " Rating lookup limited to 100 queries this refresh."; break; }
@@ -899,7 +901,7 @@ void LoadAttempts(const std::string& id, RatingSystem system, ScoreHistory& hist
         // Preserve the disk cache for retry, but never fit an obsolete star scale
         // after a failed or bounded lookup. Fresh profile matches were stamped above.
         for (auto& a : history.attempts) {
-            if (a.normal && !a.practice && a.characteristic == "Standard" &&
+            if (a.normal && !a.practice && IsRecommendationCharacteristic(a.characteristic, system) &&
                 (a.ratingEpoch != ratingEpoch || now - a.ratingChecked >= 7.0 * 86400) && a.stars > 0) {
                 a.stars = 0;
                 ++stale;
@@ -981,12 +983,12 @@ StarRange MakeBeatLeaderNotPlayedStarRange(const std::vector<MapEntry>& scores,
             true};
 }
 
-void FilterToTargetWindow(std::vector<MapEntry>& entries, double targetStars) {
+void FilterToTargetWindow(std::vector<MapEntry>& entries, double targetStars, RatingSystem system) {
     if (targetStars <= 0.0) return;
     for (auto& entry : entries) {
         entry.difficulties.erase(std::remove_if(entry.difficulties.begin(), entry.difficulties.end(),
-            [targetStars](const Difficulty& difficulty) {
-                return Lower(difficulty.characteristic) != "standard" || difficulty.stars <= 0.0 ||
+            [targetStars, system](const Difficulty& difficulty) {
+                return !IsRecommendationCharacteristic(difficulty.characteristic, system) || difficulty.stars <= 0.0 ||
                        std::abs(difficulty.stars - targetStars) > kTargetWindowStars;
             }), entry.difficulties.end());
     }
@@ -1045,7 +1047,7 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
         std::ostringstream url;
         url.precision(12);
         if (beatLeader) {
-            url << "https://api.beatleader.com/maps?type=ranked&mode=Standard&count=100";
+            url << "https://api.beatleader.com/maps?type=ranked&count=100";
             // The API filters normal stars. At another speed, charts can move
             // in from either side of the band by a map-specific amount.
             if (!modifiersEnabled) url << "&stars_from=" << range.minStars << "&stars_to=" << range.maxStars;
@@ -1060,7 +1062,7 @@ bool FetchServiceRecommendations(RatingSystem system, const std::string& id,
         return beatLeader ? ParseEntries(body, entries, error, info) : ParseScoreSaberEntries(body, entries, error, info);
     }, candidateGet, pace)) return false;
 
-    if (!modifiersEnabled) FilterToTargetWindow(candidates, targetStars);
+    if (!modifiersEnabled) FilterToTargetWindow(candidates, targetStars, system);
     candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
         [&playedKeys](const MapEntry& entry) { return playedKeys.contains(EntryKey(entry)); }), candidates.end());
     result = SelectRecommendations(std::move(candidates), kind, limit, targetStars,

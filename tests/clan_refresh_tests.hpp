@@ -1,8 +1,8 @@
 std::string FreshClanRanking(int id, double stars = 7, double rival = 100, bool v4 = false,
-                             std::string_view modifierFields = {}) {
+                             std::string_view modifierFields = {}, std::string_view mode = "Standard") {
     std::ostringstream out; out << std::setprecision(15);
     out << "{\"id\":\"" << id << "\",\"song\":{\"hash\":\"" << Hash(id) << "\",\"name\":\"Test\"},"
-        << "\"difficulty\":{\"difficultyName\":\"ExpertPlus\",\"modeName\":\"Standard\",\"status\":3,\"stars\":" << stars
+        << "\"difficulty\":{\"difficultyName\":\"ExpertPlus\",\"modeName\":\"" << mode << "\",\"status\":3,\"stars\":" << stars
         << ",\"accRating\":8,\"passRating\":8,\"techRating\":5";
     if (v4) out << ",\"noteSpan\":120,\"notes\":1000,\"predictedAcc\":0.97,\"sliderPercentage\":0.1";
     out << modifierFields;
@@ -14,23 +14,27 @@ void ClanModifierRefresh() {
     constexpr int id = 45;
     const std::string modifiers = R"(,"modifierValues":{"fs":0.4,"da":0.08},"modifiersRating":{
         "fsStars":11,"fsAccRating":14,"fsPassRating":10,"fsTechRating":6,"fsPredictedAcc":0.97,"fsSliderPercentage":0.2})";
-    auto catalog = ClanApiChart(id);
+    auto catalog = ClanApiChart(id, 7, "OneSaber");
     catalog.insert(catalog.size() - 1,R"(,"noteSpan":120,"notes":1000,"predictedAcc":0.97,"sliderPercentage":0.1)");
     catalog.insert(catalog.size() - 1, modifiers);
     auto chart = Parse(catalog).front();
     auto history = ClanTestHistory();
+    history.scores.front().difficulties.front().characteristic = "OneSaber";
     const auto options = EvaluatePlayerPerformance({chart},history.scores,{},true);
     CHECK(options.size() == 2);
-    auto pb = Score(id);
+    auto pb = Score(id, 100, "OneSaber");
     pb.pp = std::ceil(options.front().predictedPp) + 1;
     history.scores.push_back(pb);
     CHECK(options.back().predictedPp > pb.pp + 1);
-    const auto live = FreshClanRanking(id, 7, (pb.pp + options.back().predictedPp) / 2, true, modifiers);
+    const auto live = FreshClanRanking(id, 7, (pb.pp + options.back().predictedPp) / 2, true, modifiers, "OneSaber");
 
     int catalogRequests = 0, rankingRequests = 0;
     const HttpGetter get = [&](const std::string& url, std::string& json, std::string&) {
         if (url.find("/player/") != std::string::npos) json = R"({"clans":[{"id":1,"tag":"A"}]})";
-        else if (url.find("/maps?type=ranked") != std::string::npos) { ++catalogRequests; json = Page(1,1,{catalog}); }
+        else if (url.find("/maps?type=ranked") != std::string::npos) {
+            CHECK(url.find("/maps?type=ranked&count=500") != std::string::npos);
+            ++catalogRequests; json = Page(1,1,{catalog});
+        }
         else if (url.find("/clans/globalmap") != std::string::npos) json = R"({"points":[]})";
         else if (url.find("sortBy=toconquer") != std::string::npos)
             json = Page(1,1,{R"({"leaderboardId":"45","pp":-10,"leaderboard":)" + live + "}"});
@@ -42,6 +46,7 @@ void ClanModifierRefresh() {
     };
     const HttpGetter icon = [](const std::string&,std::string&,std::string&) { return false; };
     ClanScreenCache cache(false);
+    CHECK(cache.Put("catalog_v2", CompactClanCatalog({}), ClanCacheNow()));
     std::vector<ClanPlaylistRecommendations> lists;
     std::string error;
     const auto refresh = [&](double clearRate, bool legacy, bool enabled) -> const ClanPlaylistRecommendations& {
@@ -60,6 +65,7 @@ void ClanModifierRefresh() {
     CHECK(entry.recommendedModifier == "Faster Song (1.20×) + Disappearing Arrows");
     CHECK(entry.stars == 11 && entry.clearChance < .5);
     CHECK(entry.currentPp == pb.pp && entry.isImprovement);
+    CHECK(entry.difficulties.front().characteristic == "OneSaber");
     CHECK(entry.difficulties.front().noteSpan == 100 && entry.difficulties.front().sliderPercentage == .2);
     CHECK(std::abs(entry.clanImpact->gain - (entry.predictedPp - pb.pp)) < 1e-8);
     CHECK(entry.clanImpact->requiredAccuracy && entry.clanImpact->requiredPp);
@@ -70,6 +76,7 @@ void ClanModifierRefresh() {
     CHECK(refresh(.5,true,true).entries.empty());
     const auto& legacy = refresh(0,true,true);
     CHECK(legacy.legacy && legacy.eligibleCharts == 1 && legacy.entries.size() == 1);
+    CHECK(legacy.entries.front().difficulties.front().characteristic == "OneSaber");
     CHECK(legacy.entries.front().recommendedModifier == "Faster Song (1.20×) + Disappearing Arrows");
     CHECK(legacy.entries.front().priority == -10);
 

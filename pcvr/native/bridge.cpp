@@ -379,7 +379,7 @@ void Initialize(const Json &j) {
     paths.clanSearch = root / "clan-search";
     paths.icons = root / "assets";
     paths.caBundle = root / "cacert.pem";
-    paths.userAgent = "RankedTools/0.1.30-pcvr.1 (Beat Saber PCVR mod)";
+    paths.userAgent = "RankedTools/0.1.31-pcvr.1 (Beat Saber PCVR mod)";
     if (!std::filesystem::is_regular_file(paths.caBundle))
         throw std::runtime_error("RankedTools' CA bundle is missing. Extract the complete preview ZIP.");
     if (std::filesystem::file_size(paths.caBundle) > 2 * 1024 * 1024)

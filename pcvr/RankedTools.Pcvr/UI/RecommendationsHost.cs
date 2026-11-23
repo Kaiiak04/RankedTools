@@ -75,7 +75,8 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
         var a=views!=null && serviceIndex<views.Count?views[serviceIndex]:null;
         if(a?.Value<bool?>("ready")!=true)return service+" ability estimate\nRefresh recommendations to load profile scores.";
         if(!string.IsNullOrEmpty(a.Value<string>("error")))return service+" ability estimate\n"+a.Value<string>("error");
-        if((a.Value<int?>("scoreCount")??0)==0)return service+" ability estimate\nNo eligible ranked Standard scores to fit yet. No Fail and sub-55% scores are excluded.";
+        if((a.Value<int?>("scoreCount")??0)==0)return service+" ability estimate\nNo eligible ranked "+
+            (serviceIndex==0?"Standard or OneSaber":"Standard")+" scores to fit yet. No Fail and sub-55% scores are excluded.";
         return service+" ability estimate\n"+a.Value<int>("scoreCount")+" eligible best scores. Played range: "+F(a.Value<double>("minStars"),2)+" to "+F(a.Value<double>("maxStars"),2)+(serviceIndex>=2?" complexity.":" stars.");
     }
     private static string F(double value,int decimals=1) => value.ToString("F"+decimals,CultureInfo.InvariantCulture);
@@ -100,7 +101,8 @@ internal sealed class RecommendationsHost : ObservableHost, IDisposable
         var modifier=song.Value<string>("recommendedModifier");
         var hasModifier=!string.IsNullOrEmpty(modifier);
         var stars=song.Value<double?>("effectiveStars")??difficulty?.Value<double?>("stars")??0;
-        text.AppendLine((difficulty?.Value<string>("name")??"")+" | "+F(stars,2)+(acc?" complexity":hasModifier?" effective stars":" stars"));
+        var mode=difficulty?.Value<string>("characteristic")=="OneSaber"?"OneSaber / ":"";
+        text.AppendLine(mode+(difficulty?.Value<string>("name")??"")+" | "+F(stars,2)+(acc?" complexity":hasModifier?" effective stars":" stars"));
         if(hasModifier)text.AppendLine("Recommended modifier: "+modifier);
         if(acc) { var category=song.Value<string>("categoryCode")??"overall"; var index=Array.IndexOf(PluginConfig.AccSaberCategories,category); text.AppendLine("Category: "+PluginConfig.AccSaberCategoryLabels[Math.Max(0,index)]); }
         text.AppendLine("Predicted accuracy: "+F(song.Value<double>("predictedAccuracy")*100)+"%");

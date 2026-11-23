@@ -2,7 +2,7 @@
 constexpr int kClanBulkPageSize = 500;
 constexpr double kClanCatalogCacheSeconds = 600;
 constexpr double kClanTotalsCacheSeconds = 60;
-constexpr char kClanCatalogCacheKey[] = "catalog_v2";
+constexpr char kClanCatalogCacheKey[] = "catalog_v3";
 double ClanCacheNow() {
     return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
 }

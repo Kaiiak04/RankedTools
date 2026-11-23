@@ -121,6 +121,7 @@ struct MapEntry {
 
 enum class ListKind { NotPlayed, ToImprove, Combined, Sync };
 enum class RatingSystem { ScoreSaber, BeatLeader, AccSaber };
+bool IsRecommendationCharacteristic(const std::string& characteristic, RatingSystem system);
 // The settings UI uses whole percentages; recommendation code uses fractions.
 int NormalizeMinClearRatePercent(int percent);
 

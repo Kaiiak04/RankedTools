@@ -42,7 +42,7 @@ $packagedReadme=Join-Path $stage 'README.md'
 $buildInfo | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'build-info.json') -Encoding utf8
 Copy-Item -LiteralPath $reportPath -Destination (Join-Path $stage 'validation.json')
 $dist=Join-Path $PSScriptRoot 'dist'; New-Item -ItemType Directory -Path $dist -Force | Out-Null
-$zip=Join-Path $dist "RankedTools-PCVR-0.1.30-preview.1-bs$GameVersion.zip"
+$zip=Join-Path $dist "RankedTools-PCVR-0.1.31-preview.1-bs$GameVersion.zip"
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 $archive=[IO.Compression.ZipFile]::OpenRead($zip)
 try {

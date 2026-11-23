@@ -66,10 +66,10 @@ bool FetchLegacyClanPlaylists(const std::vector<ClanMemberInfo>& clans, int prim
         std::unordered_set<std::string> evaluatedCharts;
         for (const auto& entry : evaluated) evaluatedCharts.insert(entry.leaderboardId);
         playlist.checkedCharts=candidates.size(); playlist.eligibleCharts=evaluatedCharts.size();
-        const auto standardCharts=std::count_if(candidates.begin(),candidates.end(),[](const auto& e) {
-            return Lower(e.difficulties.front().characteristic)=="standard";
+        const auto supportedCharts=std::count_if(candidates.begin(),candidates.end(),[](const auto& e) {
+            return IsRecommendationCharacteristic(e.difficulties.front().characteristic, RatingSystem::BeatLeader);
         });
-        if (playlist.eligibleCharts<static_cast<std::size_t>(standardCharts))
+        if (playlist.eligibleCharts<static_cast<std::size_t>(supportedCharts))
             playlist.warning="Some legacy charts had no usable personal PP estimate.";
         playlist.entries=SelectLegacyClanRecommendations(std::move(evaluated),maxStars,limit);
         if (playlist.entries.empty() && !playlist.warning.empty()) {

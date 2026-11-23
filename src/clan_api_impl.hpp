@@ -167,7 +167,7 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
     auto& history = cachedHistory ? *cachedHistory : localHistory;
     if (!LoadScoreHistory(playerId, RatingSystem::BeatLeader, history, error, request, false)) return false;
     if (BuildAbilityChart(history.scores).scores.empty()) {
-        error = "Clan recommendations need an eligible ranked Standard score (at least 55% accuracy, without No Fail)."; return false;
+        error = "Clan recommendations need an eligible ranked Standard or OneSaber score (at least 55% accuracy, without No Fail)."; return false;
     }
     if (legacy) return FetchLegacyClanPlaylists(clans,primaryId,limit,minClearRate,history,playlists,request,getIcon,beatLeaderModifiers);
     std::vector<MapEntry> catalog;
@@ -178,7 +178,7 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
     if (!cachedCatalog) {
         catalog.clear();
         if (!FetchPages<MapEntry>([](int page) {
-            return "https://api.beatleader.com/maps?type=ranked&mode=Standard&count=" + std::to_string(kClanBulkPageSize) +
+            return "https://api.beatleader.com/maps?type=ranked&count=" + std::to_string(kClanBulkPageSize) +
                 "&sortBy=stars&order=desc&page=" + std::to_string(page);
         }, catalog, error, ParseEntries, request, false)) return false;
         if (screeningCache && !screeningCache->Put(kClanCatalogCacheKey,CompactClanCatalog(catalog),ClanCacheNow()))
@@ -337,7 +337,7 @@ bool FetchClanToConquerInternal(const std::string& playerId, bool allClans,
                         context.leaderboardId = lb;
                         std::vector<MapEntry> charts;
                         if (context.ranked) AddIfComplete(context,charts);
-                        if (charts.size() != 1 || Lower(charts[0].hash) != Lower(candidate.chart.hash)) return;
+                        if (charts.size() != 1 || EntryKey(charts.front()) != EntryKey(candidate.chart)) return;
                         live.chart = std::move(charts[0]);
                     } else {
                         if (screeningCache) return;

@@ -92,7 +92,7 @@ std::vector<MapEntry> SelectAccSaberRecommendations(const std::vector<MapEntry>&
             attempt.stars = it->second;
             categoryAttempts.push_back(std::move(attempt));
         }
-        const ClearabilityModel clearability(clearScores, categoryAttempts);
+        const ClearabilityModel clearability(clearScores, categoryAttempts, RatingSystem::AccSaber);
         for (auto chart : catalog) {
             if (!chart.ranked || chart.categoryCode != category.code || chart.difficulties.size() != 1 ||
                 !chart.difficulties[0].complexity || Canonical(chart.difficulties[0].characteristic) != "standard" ||

@@ -116,8 +116,7 @@ std::string AttemptChartKey(const Attempt& a) {
     return AttemptLower(a.hash) + "|" + AttemptLower(a.characteristic) + "|" + AttemptLower(a.difficulty);
 }
 bool IsTrainingAttempt(const Attempt& a) {
-    return ValidAttemptIdentity(a) && a.normal && !a.practice && a.modifiers.empty() &&
-        AttemptLower(a.characteristic) == "standard" && a.stars > 0 &&
+    return ValidAttemptIdentity(a) && a.normal && !a.practice && a.modifiers.empty() && a.stars > 0 &&
         (a.outcome == AttemptOutcome::Clear || a.outcome == AttemptOutcome::Fail);
 }
 namespace {

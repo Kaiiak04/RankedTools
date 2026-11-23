@@ -27,6 +27,10 @@ std::string Canonical(const std::string& value) {
     return result;
 }
 
+std::string ScoreKey(const MapEntry& entry, const Difficulty& difficulty) {
+    return Canonical(entry.hash) + "|" + Canonical(difficulty.characteristic) + "|" + Canonical(difficulty.name);
+}
+
 bool IsValidSongHash(const std::string& value) {
     return value.size() == 40 && std::all_of(value.begin(), value.end(),
         [](unsigned char c) { return std::isxdigit(c) != 0; });
@@ -59,10 +63,10 @@ public:
         std::unordered_map<std::string, const MapEntry*> uniqueScores;
         for (const auto& entry : scores) {
             if (entry.noFail || !entry.ranked) continue;
-            const auto standard = std::find_if(entry.difficulties.begin(), entry.difficulties.end(),
-                [](const Difficulty& difficulty) { return Canonical(difficulty.characteristic) == "standard"; });
-            if (entry.hash.empty() || standard == entry.difficulties.end()) continue;
-            const auto key = Canonical(entry.hash) + "|standard|" + Canonical(standard->name);
+            const auto chart = std::find_if(entry.difficulties.begin(), entry.difficulties.end(),
+                [system](const Difficulty& difficulty) { return IsRecommendationCharacteristic(difficulty.characteristic, system); });
+            if (entry.hash.empty() || chart == entry.difficulties.end()) continue;
+            const auto key = ScoreKey(entry, *chart);
             auto found = uniqueScores.find(key);
             if (found == uniqueScores.end() || entry.pp > found->second->pp) uniqueScores[key] = &entry;
         }
@@ -163,18 +167,22 @@ struct ClearObservation {
 
 class ClearabilityModel {
 public:
-    explicit ClearabilityModel(const std::vector<MapEntry>& scores, const std::vector<Attempt>& attempts = {}) {
+    explicit ClearabilityModel(const std::vector<MapEntry>& scores, const std::vector<Attempt>& attempts = {},
+                               RatingSystem system = RatingSystem::BeatLeader) {
         const double now = std::chrono::duration<double>(
             std::chrono::system_clock::now().time_since_epoch()).count();
         std::unordered_map<std::string, const MapEntry*> clears;
         std::unordered_map<std::string, const MapEntry*> noFailAttempts;
         std::unordered_map<std::string, std::vector<const Attempt*>> actual;
-        for (const auto& a : attempts) if (IsTrainingAttempt(a)) actual[AttemptChartKey(a)].push_back(&a);
+        for (const auto& attempt : attempts) {
+            if (IsTrainingAttempt(attempt) && IsRecommendationCharacteristic(attempt.characteristic, system))
+                actual[AttemptChartKey(attempt)].push_back(&attempt);
+        }
         for (const auto& entry : scores) {
-            const auto standard = std::find_if(entry.difficulties.begin(), entry.difficulties.end(),
-                [](const Difficulty& difficulty) { return Canonical(difficulty.characteristic) == "standard"; });
-            if (!entry.ranked || entry.hash.empty() || standard == entry.difficulties.end() || entry.stars <= 0.0) continue;
-            const auto key = Canonical(entry.hash) + "|standard|" + Canonical(standard->name);
+            const auto chart = std::find_if(entry.difficulties.begin(), entry.difficulties.end(),
+                [system](const Difficulty& difficulty) { return IsRecommendationCharacteristic(difficulty.characteristic, system); });
+            if (!entry.ranked || entry.hash.empty() || chart == entry.difficulties.end() || entry.stars <= 0.0) continue;
+            const auto key = ScoreKey(entry, *chart);
             if (entry.noFail) {
                 auto found = noFailAttempts.find(key);
                 const double accuracy = entry.baseAccuracy > 0.0 ? entry.baseAccuracy : entry.accuracy;
@@ -387,10 +395,6 @@ double BeatLeaderPp(double accuracy, const Difficulty& difficulty, double scorin
     return std::isfinite(raw) && raw > 0.0 ? std::pow(raw / 650.0, 1.3) * 650.0 : 0.0;
 }
 
-std::string ScoreKey(const MapEntry& entry, const Difficulty& difficulty) {
-    return Canonical(entry.hash) + "|" + Canonical(difficulty.characteristic) + "|" + Canonical(difficulty.name);
-}
-
 struct WeightedProfile {
     std::vector<std::pair<std::string, double>> scores;
     double total{0.0};
@@ -455,6 +459,11 @@ double CurrentProfilePp(const WeightedProfile& profile, const std::string& key) 
 }
 
 } // namespace
+
+bool IsRecommendationCharacteristic(const std::string& characteristic, RatingSystem system) {
+    const auto mode = Canonical(characteristic);
+    return mode == "standard" || (system == RatingSystem::BeatLeader && mode == "onesaber");
+}
 
 AbilityChart BuildAbilityChart(const std::vector<MapEntry>& scores, bool complexityAxis, RatingSystem system) {
     const AccuracyCurve fit(scores, system, complexityAxis);
@@ -623,7 +632,8 @@ std::vector<MapEntry> EvaluatePlayerPerformance(const std::vector<MapEntry>& cha
     for (const auto& chart : charts) {
         if (!chart.ranked || !IsValidSongHash(chart.hash) || chart.songName.empty()) continue;
         for (const auto& difficulty : chart.difficulties) {
-            if (Canonical(difficulty.characteristic) != "standard" || !std::isfinite(difficulty.stars) || difficulty.stars <= 0) continue;
+            if (!IsRecommendationCharacteristic(difficulty.characteristic, RatingSystem::BeatLeader) ||
+                !std::isfinite(difficulty.stars) || difficulty.stars <= 0) continue;
             const auto current = currentPp.find(ScoreKey(chart, difficulty));
             EvaluateBeatLeaderSpeeds(difficulty, beatLeaderModifiers,
                 [&](const Difficulty& rated, std::string_view speedName, double legacyScale, const auto& adjustments) {
@@ -661,15 +671,15 @@ std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
     auto resolvedAttempts = attempts;
     ResolveAttemptRatings(resolvedAttempts, profileScores);
     ResolveAttemptRatings(resolvedAttempts, entries);
-    const ClearabilityModel clearability(profileScores.empty() ? entries : profileScores, resolvedAttempts);
+    const ClearabilityModel clearability(profileScores.empty() ? entries : profileScores, resolvedAttempts, system);
     const auto weightedProfile = MakeWeightedProfile(profileScores.empty() ? entries : profileScores);
     std::unordered_map<std::string, MapEntry> unique;
     for (auto& entry : entries) {
         if (kind == ListKind::ToImprove && (entry.noFail || !entry.ranked)) continue;
         if (!IsValidSongHash(entry.hash) || entry.songName.empty() || entry.difficulties.empty()) continue;
         entry.difficulties.erase(std::remove_if(entry.difficulties.begin(), entry.difficulties.end(),
-            [](const Difficulty& difficulty) {
-                return Canonical(difficulty.characteristic) != "standard" || difficulty.stars <= 0.0;
+            [system](const Difficulty& difficulty) {
+                return !IsRecommendationCharacteristic(difficulty.characteristic, system) || difficulty.stars <= 0.0;
             }), entry.difficulties.end());
         if (entry.difficulties.empty()) continue;
         if (entry.accuracy > 1.0) entry.accuracy /= 100.0;
@@ -713,7 +723,7 @@ std::vector<MapEntry> SelectRecommendations(std::vector<MapEntry> entries,
         if (!hasRecommendation) continue;
 
         // One playlist item per map. When the API returns several ranked
-        // Standard charts for the same hash, keep the difficulty with the
+        // eligible charts for the same hash, keep the chart with the
         // greatest estimated profile PP gain.
         const auto key = Canonical(selected.hash);
         auto found = unique.find(key);
@@ -744,7 +754,7 @@ double EstimateRecommendationTargetStars(const std::vector<MapEntry>& profileSco
     const AccuracyCurve accuracyCurve(profileScores, system);
     auto resolvedAttempts = attempts;
     ResolveAttemptRatings(resolvedAttempts, profileScores);
-    const ClearabilityModel clearability(profileScores, resolvedAttempts);
+    const ClearabilityModel clearability(profileScores, resolvedAttempts, system);
     const auto weightedProfile = MakeWeightedProfile(profileScores);
     auto cautiousTarget = [&clearability, minClearRate](double stars) {
         // High thresholds may be above every observed clear estimate. Move the
@@ -781,7 +791,7 @@ double EstimateRecommendationTargetStars(const std::vector<MapEntry>& profileSco
         for (const auto& entry : profileScores) {
             if (entry.noFail || !entry.ranked) continue;
             for (const auto& difficulty : entry.difficulties) {
-                if (Canonical(difficulty.characteristic) != "standard" || difficulty.stars <= 0.0) continue;
+                if (!IsRecommendationCharacteristic(difficulty.characteristic, system) || difficulty.stars <= 0.0) continue;
                 const auto scoreKey = ScoreKey(entry, difficulty);
                 if (seen.contains(scoreKey)) continue;
                 seen[scoreKey] = true;

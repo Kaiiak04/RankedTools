@@ -24,6 +24,7 @@ struct Attempt {
     int ratingEpoch{0};
 };
 std::string AttemptChartKey(const Attempt& attempt);
+// Rating-system-specific characteristic eligibility is checked by the model.
 bool IsTrainingAttempt(const Attempt& attempt);
 void MergeAttempts(std::vector<Attempt>& history, const std::vector<Attempt>& incoming);
 bool ReadAttemptHistory(const std::string& service, const std::string& playerId,

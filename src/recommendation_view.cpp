@@ -143,6 +143,7 @@ std::string RenderDetails(const PreviewList& list, double minClearRate, bool has
     const auto& modifier = entry.recommendedModifier;
     output << "Song " << (selectedSong + 1) << " of " << list.entries.size() << "\n"
            << entry.songName << "\n"
+           << (difficulty.characteristic == "OneSaber" ? "OneSaber / " : "")
            << difficulty.name << "  |  " << std::fixed << std::setprecision(2)
            << (modifier.empty() ? difficulty.stars : entry.stars)
            << (acc ? " complexity\n" : modifier.empty() ? " stars\n" : " effective stars\n");
@@ -227,7 +228,9 @@ void UpdateView() {
             if (!enabled) description << "Enable this leaderboard's playlists in settings, then refresh.";
             else if (!ability.ready) description << "Loading profile scores...";
             else if (!ability.error.empty()) description << ability.error;
-            else if (!hasChart) description << "No eligible ranked Standard scores to fit yet. No Fail runs and scores below 55% are excluded.";
+            else if (!hasChart) description << "No eligible ranked "
+                << (selectedService == 0 ? "Standard or OneSaber" : "Standard")
+                << " scores to fit yet. No Fail runs and scores below 55% are excluded.";
             else description << ability.chart->scores.size() << " eligible best scores. Played range: "
                              << std::fixed << std::setprecision(2) << ability.chart->minObservedStars
                              << " to " << ability.chart->maxObservedStars << (selectedService >= 2 ? " complexity." : " stars.");

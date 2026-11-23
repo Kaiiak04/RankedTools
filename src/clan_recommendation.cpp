@@ -142,7 +142,7 @@ std::vector<MapEntry> SelectLegacyClanRecommendations(std::vector<MapEntry> entr
     for (auto& entry:entries) {
         if (entry.hash.size()!=40 || !std::all_of(entry.hash.begin(),entry.hash.end(),[](unsigned char c) { return std::isxdigit(c); }) ||
             entry.songName.empty() || entry.leaderboardId.empty() ||
-            entry.difficulties.size()!=1 || ClanHash(entry.difficulties[0].characteristic)!="standard" ||
+            entry.difficulties.size()!=1 || !IsRecommendationCharacteristic(entry.difficulties[0].characteristic, RatingSystem::BeatLeader) ||
             !std::isfinite(entry.stars) || entry.stars<=0 || entry.stars>maxStars || !std::isfinite(entry.priority) ||
             !std::isfinite(entry.currentPp) || !std::isfinite(entry.predictedPp) || entry.predictedPp<=entry.currentPp) continue;
         const auto key=ClanHash(entry.hash);
